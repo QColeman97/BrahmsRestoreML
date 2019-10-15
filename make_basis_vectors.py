@@ -33,7 +33,7 @@ sorted_fund_freq = [28, 29, 31, 33,
                     1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 
                     2217, 2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951, 4186]
 
-mag_stfts, native_sr = [], None
+mag_stfts, native_sr = [], 44100
 # min_len, max_len = None, None
 base_dir = os.getcwd()
 os.chdir('all_notes_ff')
@@ -44,7 +44,6 @@ for audio_file in audio_files:
 # for i in range(6):
     # audio_file = audio_files[i]
     y, sr = librosa.load(audio_file, sr=None)    # Default sr: 22050 samples/s
-    native_sr = sr if native_sr is None else None
     # print(audio_file)
     # print('\nWAVEFORM BELOW:')
     # print(y)
@@ -56,8 +55,12 @@ for audio_file in audio_files:
     # print('Len of yt[:50000]:', len(yt[:50000]))
     # min_len = len(yt) if (min_len is None or len(yt) < min_len) else min_len
     # max_len = len(yt) if (min_len is None or len(yt) < max_len) else max_len
+
+    mag_stfts.append(make_spectogram(yt, native_sr))
+
     # mag_stfts.append(np.abs(librosa.stft(yt[:10000]))) # TODO: Find best standard length (window)
-    mag_stfts.append(np.abs(librosa.stft(yt)))
+    # mag_stfts.append(np.abs(librosa.stft(yt)))
+
 # print('Min len:', min_len)    # Min len is 205946 (~9.3 s) at top_db=60, 9216 (~0.4 s) at top_db=30
 # print('Max len:', max_len)    # Max len is  ( s) at top_db=60,  (138240 s) at top_db=30
 os.chdir(base_dir)
@@ -77,19 +80,21 @@ os.chdir(base_dir)
 # plt.tight_layout()
 # plt.show()  # Toggle show plot
 
-for i in range(len(audio_files)):
-    display.specshow(librosa.amplitude_to_db(mag_stfts[i], ref=np.max),
-                     y_axis='log',
-                     x_axis='time',
-                     sr=native_sr)
-    # if i % 2 == 0:
-        # plt.title(audio_files[i] + ' SHORT Power Spectrogram ' + str((i // 2) + 1) + '/88 notes, FF = ' + str(sorted_fund_freq[i // 2]) + ' Hz')
-    # else:
-        # plt.title(audio_files[i] + ' Power Spectrogram ' + str((i // 2) + 1) + '/88 notes, FF = ' + str(sorted_fund_freq[i // 2]) + ' Hz')
-    plt.title(audio_files[i] + ' Power Spectrogram ' + str(i + 1) + '/88 notes, FF = ' + str(sorted_fund_freq[i]) + ' Hz')
-    plt.colorbar(format='%+2.0f dB')
-    plt.tight_layout()
-    plt.show()  # Toggle show plot
+# for i in range(len(audio_files)):
+# for i in range(6):
+#     display.specshow(librosa.amplitude_to_db(mag_stfts[i], ref=np.max),
+#                      y_axis='log',
+#                      x_axis='time',
+#                      sr=native_sr)
+#     # if i % 2 == 0:
+#         # plt.title(audio_files[i] + ' SHORT Power Spectrogram ' + str((i // 2) + 1) + '/88 notes, FF = ' + str(sorted_fund_freq[i // 2]) + ' Hz')
+#     # else:
+#         # plt.title(audio_files[i] + ' Power Spectrogram ' + str((i // 2) + 1) + '/88 notes, FF = ' + str(sorted_fund_freq[i // 2]) + ' Hz')
+#     plt.title(audio_files[i] + ' Power Spectrogram ' + str(i + 1) + '/88 notes, FF = ' + str(sorted_fund_freq[i]) + ' Hz')
+#     plt.colorbar(format='%+2.0f dB')
+#     plt.tight_layout()
+#     plt.show()  # Toggle show plot
 
-
+def make_spectrogram(waveform, sr):
+    print(waveform.shape)
 

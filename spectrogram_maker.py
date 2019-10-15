@@ -4,26 +4,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pydub import AudioSegment
 
+native_sr_hz = 44100
+
 # 1. Get the file path to the included audio example
 # filename = librosa.util.example_audio_file()
-c4_filename = 'Piano.mf.C4.wav'
-db4_filename = 'Piano.mf.Db4.wav'
-d4_filename = 'Piano.mf.D4.wav'
+c4_filename = 'Piano.mf.C4.aiff'
+db4_filename = 'Piano.mf.Db4.aiff'
+d4_filename = 'Piano.mf.D4.aiff'
 
 # 2. Load the audio as a waveform `y`
 #    Store the sampling rate as `sr`
 # Using native sampling rate f's up spectrogram, so didn't
 # c4_y, c4_sr = librosa.load(c4_filename, sr=None)
-c4_y, c4_sr = librosa.load(c4_filename)
+c4_y, c4_sr = librosa.load(c4_filename, sr=None)
 print('C4 - Waveform length:\n', len(c4_y), '\nSampling Rate (Hz):', c4_sr)
 
-db4_y, db4_sr = librosa.load(db4_filename)
+db4_y, db4_sr = librosa.load(db4_filename, sr=None)
 print('Db4 - Waveform length:\n', len(db4_y), '\nSampling Rate (Hz):', db4_sr)
 
-d4_y, d4_sr = librosa.load(d4_filename)
+d4_y, d4_sr = librosa.load(d4_filename, sr=None)
 print('D4 - Waveform length:\n', len(d4_y), '\nSampling Rate (Hz):', d4_sr)
 
+
 # 3. Create the short-time fourier transfrom of 'y'
+# Librosa version
 # np.abs(D[f, t]) is the magnitude of frequency bin f at frame t
 c4 = np.abs(librosa.stft(c4_y))
 db4 = np.abs(librosa.stft(db4_y))

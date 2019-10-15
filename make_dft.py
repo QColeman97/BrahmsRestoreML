@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 def FFT_vectorized(x):
     N = x.shape[0]
-    # N_min = min(N, 32)
+    N_min = min(N, 32)
     
     # Perform an O[N^2] DFT on all length-N_min sub-problems at once
     n = np.arange(N_min)
