@@ -180,49 +180,6 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, rid_log=False):
     synthetic_sig = []
     for i in range(num_wdws):
         if i == 0:
-            # # Inverse the log operation
-            # dft = synthetic_spgm[i]
-            # if not rid_log:
-            #     print('log of mag FFT of wdw:\n', dft[:5])
-            #     print('log of mag FFT length:', len(dft))
-            #     dft = np.exp(dft)
-            #     print('exp of log of mag FFT of wdw:\n', dft[:5])
-
-            # # Append the mirror of the synthetic magnitudes to itself
-
-            # # dft = dft[: wdw_size // 2] # Eliminate extraneous data point (last element)
-            # # dft = np.append(dft, np.flip(dft, 0), axis=0)
-            # # dft = np.append(dft, np.flip(dft[1: wdw_size // 2], 0), axis=0)
-            # mir_freq = dft[1: wdw_size // 2]
-            # # dft = np.append(np.array([dft[(wdw_size // 2) - 1]]), mir_freq, axis=0)
-            # dft = np.append(dft, np.flip(mir_freq, 0), axis=0)
-
-            
-
-            # # phase = phases[i][: wdw_size // 2] # Eliminate extraneous data point
-            # # phase = np.append(phase, np.flip(phase, 0), axis=0)
-            # phase = phases[i]
-            # # phase = np.append(phase, np.flip(phase[1: wdw_size // 2], 0), axis=0)
-            # # mir_phase = phase[1: wdw_size // 2]
-            # # Remember to negate the phases b/c complex conjugate is just a negated imaginary part
-            # mir_phase = [-x for x in phase[1: wdw_size // 2]]
-            # # phase = np.append(np.array([phase[(wdw_size // 2) - 1]]), mir_phase, axis=0)
-            # phase = np.append(phase, np.flip(mir_phase, 0), axis=0)
-
-            # print('phase of wdw:\n', phase[:5])
-            # # Multiply this magnitude fft w/ phase
-            # dft = dft * np.exp(1j*phase)
-            # print('FFT of wdw:\n', dft[:5])
-
-            # # Do ifft on the spectrogram -> waveform
-            # synthetic_wdw = np.fft.ifft(dft)
-            # imaginaries = synthetic_wdw.imag.tolist()
-            # synthetic_wdw = synthetic_wdw.real.tolist()
-            # print('Synthetic imaginaries:\n', imaginaries[:10])
-            # print('Synthetic window:\n', synthetic_wdw[:10])
-
-
-
             if rid_log:
                 pos_mag_fft = synthetic_spgm[i]
             else:
@@ -253,8 +210,6 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, rid_log=False):
             synthetic_wdw = ifft.real.tolist()
             print('Synthetic imaginaries:\n', imaginaries[:10])
             print('Synthetic window (len =', len(synthetic_wdw), '):\n', synthetic_wdw[:5])
-
-
 
         else:
             if rid_log:
@@ -295,6 +250,22 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, rid_log=False):
     return synthetic_sig
 
 
+def show_spectrogram(spectrogram, name):
+    num_wdws = spectrogram.shape[1]
+
+    fig, ax = plt.subplots()
+    ax.title.set_text(name + ' Spectrogram')
+    ax.set_ylabel('Frequency (Hz)')
+    # Map the axis to a new correct frequency scale, something in imshow() 0 to 44100 / 2, step by window size
+    im = ax.imshow(np.log(spectrogram), extent=[0, num_wdws, STD_SR_HZ // 2, 0])
+    fig.tight_layout()
+    # bottom, top = plt.ylim()
+    # print('Bottom:', bottom, 'Top:', top)
+    plt.ylim(8000.0, 0.0)   # Crop an axis (to ~double the piano frequency max)
+    ax.set_aspect(0.08)     # Set a visually nice ratio
+    plt.show()
+
+
 def main():
     sr, brahms_sig = wavfile.read(brahms_filepath)
     debug_sig = [0,1,1,0]
@@ -319,7 +290,8 @@ def main():
     else:
         basis_vectors = make_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, rid_log=True)
         spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE, rid_log=True)
-    
+        # show_spectrogram(spectrogram, name="Original")
+
         print('Shape of Spectrogram V:', spectrogram.shape)
         print('Shape of Basis Vectors W:', basis_vectors.shape)
         print('Learning Activations...')
@@ -327,6 +299,8 @@ def main():
         print('Shape of Activations H:', activations.shape)
 
         synthetic_spgm = basis_vectors @ activations
+        # show_spectrogram(synthetic_spgm, name="Synthetic")
+
         print('---SYNTHETIC SPGM TRANSITION----')
         synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, PIANO_WDW_SIZE, rid_log=True)
         print('Synthesized signal:\n', np.array(synthetic_sig).astype('uint8')[:20])
