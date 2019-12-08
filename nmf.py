@@ -75,16 +75,17 @@ def make_row_sum_matrix(mtx, out_shape):
 
 # W LOGIC
 # Takes a LONG time to run, consider exporting this matrix to a file to read from instead of calling this func
-def make_basis_vectors(wdw_num, wdw_size):
+def get_basis_vectors(wdw_num, wdw_size, mary=False):
     # TODO: Make a csv file for dennis - find out csv format & THEN CHECK IF STEREO SIGNAL IS SAME ACROSS CHANNELS
+    filename = 'mary_basis_vectors.csv' if mary else 'full_basis_vectors.csv'
     try:
-        with open('full_basis_vectors.csv', 'r') as bv_f:
+        with open(filename, 'r') as bv_f:
             print('FILE FOUND - READING IN BASIS VECTORS')
             basis_vectors = [[float(sub) for sub in string.split(',')] for string in bv_f.readlines()]
-
     except FileNotFoundError:
         print('FILE NOT FOUND - MAKING BASIS VECTORS')
-        with open('full_basis_vectors.csv', 'w') as bv_f:
+        # basis_vectors = make_basis_vectors(wdw_num, wdw_size, mary=mary)
+        with open(filename, 'w') as bv_f:
             basis_vectors = []
             base_dir = os.getcwd()
             os.chdir('all_notes_ff')
@@ -92,16 +93,15 @@ def make_basis_vectors(wdw_num, wdw_size):
             unsorted_audio_files = [x for x in os.listdir(os.getcwd()) if x.endswith('wav')]
             sorted_file_names = ["Piano.ff." + x + ".wav" for x in SORTED_NOTES]
             audio_files = sorted(unsorted_audio_files, key=lambda x: sorted_file_names.index(x))
-            for audio_file in audio_files:
             # DEBUG - Mary signal
-            # for i in range(39, 44):   # Range of notes in Mary.wav
-                # audio_file = audio_files[i]
+            start, stop = 0, len(audio_files)
+            if mary:
+                start, stop = 39, 44
+            for i in range(start, stop):   # Range of notes in Mary.wav
+                audio_file = audio_files[i]
 
                 sr, stereo_sig = wavfile.read(audio_file)
-                # Convert to mono signal (take left channel) 
-                # sig = np.array([x[0] for x in stereo_sig]) 
-                # if False in [x[0] == x[1] for x in stereo_sig]:
-                #     print("UNEQUAL VALUES BETWEEN CHANNELS OF PIANO NOTE STEREO SIGNAL")
+                # Convert to mono signal (avg left & right channels) 
                 sig = np.array([((x[0] + x[1]) / 2) for x in stereo_sig])
 
                 # Need to trim beginning/end silence off signal for basis vectors - hone in on best window
@@ -124,14 +124,10 @@ def make_basis_vectors(wdw_num, wdw_size):
 def make_spectrogram(signal, wdw_size):
     num_spls = len(signal)
     if isinstance(signal[0], np.ndarray):   # Stereo signal = 2 channels
-        # sig = np.array([x[0] for x in signal])
-        # if False in [x[0] == x[1] for x in signal]:
-        #     print("UNEQUAL VALUES BETWEEN CHANNELS OF ORIGINAL STEREO SIGNAL")
         sig = np.array([((x[0] + x[1]) / 2) for x in signal.astype('float64')])
-
     else:                                   # Mono signal = 1 channel    
         sig = np.array(signal).astype('float64')
-    # Keep signal value types float64 so nothing lost?
+    # Keep signal value types float64 so nothing lost? (needed for stereo case, so keep consistent?)
 
     print('Original Sig:\n', sig[:20])
     # print('Type of elem in orig sig:', type(sig[0]), sig[0].dtype)
@@ -277,6 +273,21 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size):
 
     return synthetic_sig
 
+def make_mary_bv_test_activations():
+    activations = []
+    for j in range(5):
+        # 8 divisions of 6 timesteps
+        comp = []
+        if j == 0: # lowest note
+            comp = [0.0001 if ((2*6) <= i < (3*6)) else 0.0000 for i in range(48)]
+        elif j == 2:
+            comp = [0.0001 if (((1*6) <= i < (2*6)) or ((3*6) <= i < (4*6))) else 0.0000 for i in range(48)]
+        elif j == 4:
+            comp = [0.0001 if ((0 <= i < (1*6)) or ((4*6) <= i < (7*6))) else 0.0000 for i in range(48)]
+        else:
+            comp = [0.0000 for i in range(48)]
+        activations.append(comp)
+    return np.array(activations)
 
 def plot_matrix(matrix, name, ratio=0.08):
     num_wdws = matrix.shape[1]
@@ -324,12 +335,12 @@ def main():
         wavfile.write(debug_filepath, STD_SR_HZ, np.array(synthetic_sig).astype('uint8'))
 
     else:
-        basis_vectors = make_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE)
+        basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=False)
         spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE)
         # print("\nFirst Column of Basis Vectors (Lowest Note)")
         # print(basis_vectors[:, 0], "\n")
-        # plot_matrix(basis_vectors, name="Basis Vectors", ratio=BASIS_VECTOR_MARY_RATIO)
-        # plot_matrix(spectrogram, name="Original Spectrogram", ratio=SPGM_MARY_RATIO)
+        plot_matrix(basis_vectors, name="Basis Vectors", ratio=BASIS_VECTOR_MARY_RATIO)
+        plot_matrix(spectrogram, name="Original Spectrogram", ratio=SPGM_MARY_RATIO)
 
         print('Shape of Spectrogram V:', spectrogram.shape)
         print('Shape of Basis Vectors W:', basis_vectors.shape)
@@ -337,21 +348,25 @@ def main():
         activations = make_activations(spectrogram, basis_vectors)
         print('Shape of Activations H:', activations.shape)
 
+        # activations = make_mary_bv_test_activations()
+        # print('Shape of Hand-made Activations H:', activations.shape)
+
+        with open('learned_brahms_activations_trunc.csv', 'w') as a_f:
+        # with open('learned_mary_activations_trunc.csv', 'w') as a_f:
+            for component in activations:
+                a_f.write(','.join([('%.4f' % x) for x in component]) + '\n')
+
         synthetic_spgm = basis_vectors @ activations
-        # plot_matrix(synthetic_spgm, name="Synthetic Spectrogram", ratio=SPGM_MARY_RATIO)
+        plot_matrix(synthetic_spgm, name="Synthetic Spectrogram", ratio=SPGM_MARY_RATIO)
 
         print('---SYNTHETIC SPGM TRANSITION----')
         synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, PIANO_WDW_SIZE)
-        print('Synthesized signal bad:\n', np.array(synthetic_sig)[:20])
-        print('Synthesized signal:\n', np.array(synthetic_sig).astype('uint8')[:20])
-
-        # print('Synthesized signal:\n', np.array(synthetic_sig).astype('float32')[:20])
+        print('Synthesized signal (bad type for brahms):\n', np.array(synthetic_sig)[:20])
+        # print('Synthesized signal:\n', np.array(synthetic_sig).astype('uint8')[:20])
 
         # Make synthetic WAV file - for some reason, I must cast brahms signal elems to types of original signal (uint8) or else MUCH LOUDER
         wavfile.write(synthetic_brahms_filepath, STD_SR_HZ, np.array(synthetic_sig).astype('uint8'))
         # wavfile.write("synthetic_Mary.wav", STD_SR_HZ, np.array(synthetic_sig))
-
-
 
 
 if __name__ == '__main__':
