@@ -2,6 +2,7 @@ import os, math
 from scipy.io import wavfile
 import numpy as np
 import matplotlib.pyplot as plt
+import librosa
 
 # NMF Basics
 # V (FxT) = W (FxC) @ H (CxT)
@@ -15,6 +16,8 @@ import matplotlib.pyplot as plt
 # a[n//2 + 1:] should contain the negative-frequency terms, in increasing order starting from the most negative frequency.
 
 # Don't include duplicate 0Hz, include n//2 spot
+
+# Mary = E4, D4, C4
 
 # Constants
 SORTED_NOTES = ["A0", "Bb0", "B0", "C1", 
@@ -36,12 +39,17 @@ SORTED_FUND_FREQ = [28, 29, 31, 33,
                     2217, 2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951, 4186]
 
 STD_SR_HZ = 44100
+MARY_SR_HZ = 16000
 PIANO_WDW_SIZE = 4096 # 32768 # 16384 # 8192 # 4096 # 2048
 DEBUG_WDW_SIZE = 4
 RES = STD_SR_HZ / PIANO_WDW_SIZE
 BEST_WDW_NUM = 5
 # Activation Matrix (H) Learning Part
 MAX_LEARN_ITER = 100
+BASIS_VECTOR_FULL_RATIO = 0.01
+BASIS_VECTOR_MARY_RATIO = 0.001
+SPGM_BRAHMS_RATIO = 0.08
+SPGM_MARY_RATIO = 0.008
 
 # Spectrogram (V) Part
 brahms_filepath = 'brahms.wav'
@@ -50,16 +58,14 @@ debug_filepath = 'brahms_debug.wav'
 
 
 # Functions
-# Flag rid_log: get rid of np.log and np.exp b/c these just for visualization ease, supposedly
-def make_best_dft(waveform, wdw_num, wdw_size, rid_log=False):
+def make_best_dft(waveform, wdw_num, wdw_size):
     wdw = waveform[(wdw_num - 1) * wdw_size: wdw_num * wdw_size]    # wdw_num is naturally-indexed
+    # print("Type of elem in piano note sig:", type(wdw[0]))
     if len(wdw) != wdw_size:
             deficit = wdw_size - len(wdw)
             wdw = np.pad(wdw, (deficit, 0), mode='constant')
-    if rid_log:
-        dft = np.abs(np.fft.fft(wdw))
-    else:
-        dft = np.log(np.abs(np.fft.fft(wdw)))
+    dft = np.abs(np.fft.fft(wdw))
+    # print("Type of elem in basis vector:", type(dft[0]))
     return dft[: (wdw_size // 2) + 1]  # Positive frequencies in ascending order, including 0Hz and the middle frequency (pos & neg)
 
 # Learning optimization
@@ -69,53 +75,77 @@ def make_row_sum_matrix(mtx, out_shape):
 
 # W LOGIC
 # Takes a LONG time to run, consider exporting this matrix to a file to read from instead of calling this func
-def make_basis_vectors(wdw_num, wdw_size, rid_log=False):
-    basis_vectors = []
-    base_dir = os.getcwd()
-    os.chdir('all_notes_ff')
-    # audio_files is a list of strings, need to sort it by note
-    unsorted_audio_files = [x for x in os.listdir(os.getcwd()) if x.endswith('wav')]
-    sorted_file_names = ["Piano.ff." + x + ".wav" for x in SORTED_NOTES]
-    audio_files = sorted(unsorted_audio_files, key=lambda x: sorted_file_names.index(x))
-    for audio_file in audio_files:
-        sr, stereo_sig = wavfile.read(audio_file)
+def make_basis_vectors(wdw_num, wdw_size):
+    # TODO: Make a csv file for dennis - find out csv format & THEN CHECK IF STEREO SIGNAL IS SAME ACROSS CHANNELS
+    try:
+        with open('full_basis_vectors.csv', 'r') as bv_f:
+            print('FILE FOUND - READING IN BASIS VECTORS')
+            basis_vectors = [[float(sub) for sub in string.split(',')] for string in bv_f.readlines()]
 
-        # Convert to mono signal (take left channel) 
-        sig = np.array([x[0] for x in stereo_sig]) 
+    except FileNotFoundError:
+        print('FILE NOT FOUND - MAKING BASIS VECTORS')
+        with open('full_basis_vectors.csv', 'w') as bv_f:
+            basis_vectors = []
+            base_dir = os.getcwd()
+            os.chdir('all_notes_ff')
+            # audio_files is a list of strings, need to sort it by note
+            unsorted_audio_files = [x for x in os.listdir(os.getcwd()) if x.endswith('wav')]
+            sorted_file_names = ["Piano.ff." + x + ".wav" for x in SORTED_NOTES]
+            audio_files = sorted(unsorted_audio_files, key=lambda x: sorted_file_names.index(x))
+            for audio_file in audio_files:
+            # DEBUG - Mary signal
+            # for i in range(39, 44):   # Range of notes in Mary.wav
+                # audio_file = audio_files[i]
 
-        # Need to trim beginning/end silence off signal for basis vectors
-        amp_thresh = max(sig) * 0.01
-        while sig[0] < amp_thresh:
-            sig = sig[1:]
-        while sig[-1] < amp_thresh:
-            sig = sig[:-1]
+                sr, stereo_sig = wavfile.read(audio_file)
+                # Convert to mono signal (take left channel) 
+                # sig = np.array([x[0] for x in stereo_sig]) 
+                # if False in [x[0] == x[1] for x in stereo_sig]:
+                #     print("UNEQUAL VALUES BETWEEN CHANNELS OF PIANO NOTE STEREO SIGNAL")
+                sig = np.array([((x[0] + x[1]) / 2) for x in stereo_sig])
 
-        basis_vectors.append(make_best_dft(sig, wdw_num, wdw_size, rid_log))
+                # Need to trim beginning/end silence off signal for basis vectors - hone in on best window
+                amp_thresh = max(sig) * 0.01
+                while sig[0] < amp_thresh:
+                    sig = sig[1:]
+                while sig[-1] < amp_thresh:
+                    sig = sig[:-1]
 
-    os.chdir(base_dir)
+                best_dft = make_best_dft(sig, wdw_num, wdw_size)
+                basis_vectors.append(best_dft)
+                
+                bv_f.write(','.join([str(x) for x in best_dft]) + '\n')
+
+            os.chdir(base_dir)
+
     return np.array(basis_vectors).T     # T Needed? Yes
 
 # V LOGIC
-def make_spectrogram(signal, wdw_size, rid_log=False):
+def make_spectrogram(signal, wdw_size):
     num_spls = len(signal)
-    if isinstance(signal[0], int):  # Mono signal = 1 channel   
-        sig = np.array(signal)
-    else:                           # Stereo signal = 2 channels
-        sig = np.array([x[0] for x in signal])
+    if isinstance(signal[0], np.ndarray):   # Stereo signal = 2 channels
+        # sig = np.array([x[0] for x in signal])
+        # if False in [x[0] == x[1] for x in signal]:
+        #     print("UNEQUAL VALUES BETWEEN CHANNELS OF ORIGINAL STEREO SIGNAL")
+        sig = np.array([((x[0] + x[1]) / 2) for x in signal.astype('float64')])
+
+    else:                                   # Mono signal = 1 channel    
+        sig = np.array(signal).astype('float64')
+    # Keep signal value types float64 so nothing lost?
 
     print('Original Sig:\n', sig[:20])
-    print('Data type of sig value:', type(sig[0]), sig[0].dtype)
+    # print('Type of elem in orig sig:', type(sig[0]), sig[0].dtype)
 
     spectrogram, pos_phases = [], []
     num_wdws = math.ceil(num_spls / wdw_size)
     # print('Original Sig:\n', sig[wdw_size * (num_wdws // 2): (wdw_size * (num_wdws // 2)) + 10])
     for i in range(num_wdws):
         wdw = sig[i * wdw_size: (i + 1) * wdw_size]
+        # print("Type of elem in spectrogram:", type(wdw[0]))
         if len(wdw) != wdw_size:
             deficit = wdw_size - len(wdw)
             wdw = np.pad(wdw, (0,deficit))  # pads on right side (good b/c end of signal), (deficit, 0) pads on left side # , mode='constant')
 
-        # dft = np.abs(np.fft.fft(wdw))[:(wdw_size // 2) + 1]
         if i == 0:
             print('Original window (len =', len(wdw), '):\n', wdw[:5])
 
@@ -131,24 +161,18 @@ def make_spectrogram(signal, wdw_size, rid_log=False):
 
             pos_phases_of_fft = phases_of_fft[: (wdw_size // 2) + 1]
             pos_mag_fft = mag_fft[: (wdw_size // 2) + 1]
+
+            # print('\nType of elem in spectrogram:', type(pos_mag_fft[0]), pos_mag_fft[0].dtype, '\n')
+
             print('positive mag FFT and phase lengths:', len(pos_mag_fft), len(pos_phases_of_fft))
             print('positive mag FFT:\n', pos_mag_fft[:5])
             print('positive phases:\n', pos_phases_of_fft[:5])
-
-            if not rid_log:
-                pos_mag_fft[pos_mag_fft == 0] = 0.0001
-                pos_mag_fft = np.log(pos_mag_fft)
-                print('log of mag FFT of wdw:\n', pos_mag_fft[:5])
-            
         else:
             fft = np.fft.fft(wdw)
             phases_of_fft = np.angle(fft)
             mag_fft = np.abs(fft)
             pos_phases_of_fft = phases_of_fft[: (wdw_size // 2) + 1]
             pos_mag_fft = mag_fft[: (wdw_size // 2) + 1]
-            if not rid_log:
-                pos_mag_fft[pos_mag_fft == 0] = 0.0001
-                pos_mag_fft = np.log(pos_mag_fft)
 
         spectrogram.append(pos_mag_fft)
         pos_phases.append(pos_phases_of_fft)
@@ -162,17 +186,29 @@ def make_activations(spectrogram, basis_vectors):
     # CHANGE BACK IF BUG:
     # activations = np.random.rand(num_notes, bm_num_wdws)
     activations = np.random.rand(basis_vectors.shape[1], spectrogram.shape[1])
+    ones = np.ones(spectrogram.shape) # so dimenstions match W transpose dot w/ V
+
+    # print("BASIS VECTORS:", basis_vectors.shape)
+    # print("ACTIVATIONS:", activations.shape)
+    # print("SPECTROGRAM:", spectrogram.shape)
+    # print("ONES:", ones.shape)
+    # print("\n")
+    # print("H +1 = H * ( (Wt dot (V / (W dot H))) / (Wt dot 1) )")
+    # print(basis_vectors.T.shape, "@", spectrogram.shape, "/", basis_vectors.shape, "@", activations.shape)
+    # print("/")
+    # print(basis_vectors.T.shape, "@", ones.shape)
+    # print("\n")
+
     for i in range(MAX_LEARN_ITER):
-        # H +1 = H * ((Wt dot (V / (W dot H)) / (Wt dot 1) )
-        ones = np.ones(spectrogram.shape) # so dimenstions match W transpose dot w/ V
-        activations *= (basis_vectors.T @ (spectrogram / (basis_vectors @ activations))) / (basis_vectors.T @ ones)
+        # H +1 = H * ((Wt dot (V / (W dot H))) / (Wt dot 1) )
+        activations *= ((basis_vectors.T @ (spectrogram / (basis_vectors @ activations))) / (basis_vectors.T @ ones))
         # UNCOMMENT FOR BUGGY OPTIMIZATION:
         # denom = make_row_sum_matrix(basis_vectors.T, spectrogram.shape)
         # activations *= (basis_vectors.T @ (spectrogram / (basis_vectors @ activations))) / denom
     return activations
 
 # Construct synthetic waveform
-def make_synthetic_signal(synthetic_spgm, phases, wdw_size, rid_log=False):
+def make_synthetic_signal(synthetic_spgm, phases, wdw_size):
     num_wdws = synthetic_spgm.shape[1]
     # For waveform construction
     synthetic_spgm = synthetic_spgm.T     # Get back into orientation we did calculations on
@@ -180,10 +216,7 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, rid_log=False):
     synthetic_sig = []
     for i in range(num_wdws):
         if i == 0:
-            if rid_log:
-                pos_mag_fft = synthetic_spgm[i]
-            else:
-                pos_mag_fft = np.exp(synthetic_spgm[i])
+            pos_mag_fft = synthetic_spgm[i]
             
             pos_phases_of_fft = phases[i]
             print('positive mag FFT:\n', pos_mag_fft[:5])
@@ -212,11 +245,7 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, rid_log=False):
             print('Synthetic window (len =', len(synthetic_wdw), '):\n', synthetic_wdw[:5])
 
         else:
-            if rid_log:
-                pos_mag_fft = synthetic_spgm[i]
-            else:
-                # Inverse the log operation
-                pos_mag_fft = np.exp(synthetic_spgm[i])
+            pos_mag_fft = synthetic_spgm[i]
             
             # Append the mirror of the synthetic magnitudes to itself
             # mir_freq = pos_mag_fft[1: wdw_size // 2]   
@@ -243,54 +272,64 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, rid_log=False):
             ifft = np.fft.ifft(fft)
             imaginaries = ifft.imag.tolist()
             synthetic_wdw = ifft.real.tolist()
-            
-        # synthetic_sig += [int(x) for x in synthetic_wdw]
+
         synthetic_sig += synthetic_wdw
 
     return synthetic_sig
 
 
-def show_spectrogram(spectrogram, name):
-    num_wdws = spectrogram.shape[1]
+def plot_matrix(matrix, name, ratio=0.08):
+    num_wdws = matrix.shape[1]
 
     fig, ax = plt.subplots()
-    ax.title.set_text(name + ' Spectrogram')
+    ax.title.set_text(name)
     ax.set_ylabel('Frequency (Hz)')
     # Map the axis to a new correct frequency scale, something in imshow() 0 to 44100 / 2, step by window size
-    im = ax.imshow(np.log(spectrogram), extent=[0, num_wdws, STD_SR_HZ // 2, 0])
+    im = ax.imshow(np.log(matrix), extent=[0, num_wdws, STD_SR_HZ // 2, 0])
     fig.tight_layout()
     # bottom, top = plt.ylim()
     # print('Bottom:', bottom, 'Top:', top)
     plt.ylim(8000.0, 0.0)   # Crop an axis (to ~double the piano frequency max)
-    ax.set_aspect(0.08)     # Set a visually nice ratio
+    ax.set_aspect(ratio)    # Set a visually nice ratio
     plt.show()
 
 
 def main():
-    sr, brahms_sig = wavfile.read(brahms_filepath)
-    debug_sig = [0,1,1,0]
+    # _, example_sig = wavfile.read("piano.wav")
+    _, brahms_sig = wavfile.read(brahms_filepath)
+    debug_sig = np.array([0,1,1,0])
+
+    # Upsample Mary to 44.1kHz
+    mary_sig, sr = librosa.load("Mary.wav", sr=STD_SR_HZ)
+    # print("New Mary SR:", sr)
+    # wavfile.write("Mary_44100Hz.wav", STD_SR_HZ, mary_sig)
+
+    # print("Sorted notes we want for Mary", SORTED_NOTES[39:44])
 
     # DEBUG BLOCK - True for debug
     if False:
         # Debug a len=4 array ([0110]) sig
         print('\n\n')
-        spectrogram, phases = make_spectrogram(debug_sig, DEBUG_WDW_SIZE, rid_log=True)
+        spectrogram, phases = make_spectrogram(debug_sig, DEBUG_WDW_SIZE)
         print('\n---SYNTHETIC SPGM TRANSITION----\n')
-        synthetic_sig = make_synthetic_signal(spectrogram, phases, DEBUG_WDW_SIZE, rid_log=True)
+        synthetic_sig = make_synthetic_signal(spectrogram, phases, DEBUG_WDW_SIZE)
         print('Debug Synthetic Sig:\n', synthetic_sig[:20])
         # Also try actual sig
         print('\n\n')
-        spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE, rid_log=True)
+        spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE)
         print('\n---SYNTHETIC SPGM TRANSITION----\n')
-        synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE, rid_log=True)
+        synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE)
         print('Actual Synthetic Sig:\n', np.array(synthetic_sig).astype('uint8')[:20])
         # Make synthetic WAV file
         wavfile.write(debug_filepath, STD_SR_HZ, np.array(synthetic_sig).astype('uint8'))
 
     else:
-        basis_vectors = make_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, rid_log=True)
-        spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE, rid_log=True)
-        # show_spectrogram(spectrogram, name="Original")
+        basis_vectors = make_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE)
+        spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE)
+        # print("\nFirst Column of Basis Vectors (Lowest Note)")
+        # print(basis_vectors[:, 0], "\n")
+        # plot_matrix(basis_vectors, name="Basis Vectors", ratio=BASIS_VECTOR_MARY_RATIO)
+        # plot_matrix(spectrogram, name="Original Spectrogram", ratio=SPGM_MARY_RATIO)
 
         print('Shape of Spectrogram V:', spectrogram.shape)
         print('Shape of Basis Vectors W:', basis_vectors.shape)
@@ -299,13 +338,20 @@ def main():
         print('Shape of Activations H:', activations.shape)
 
         synthetic_spgm = basis_vectors @ activations
-        # show_spectrogram(synthetic_spgm, name="Synthetic")
+        # plot_matrix(synthetic_spgm, name="Synthetic Spectrogram", ratio=SPGM_MARY_RATIO)
 
         print('---SYNTHETIC SPGM TRANSITION----')
-        synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, PIANO_WDW_SIZE, rid_log=True)
+        synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, PIANO_WDW_SIZE)
+        print('Synthesized signal bad:\n', np.array(synthetic_sig)[:20])
         print('Synthesized signal:\n', np.array(synthetic_sig).astype('uint8')[:20])
-        # Make synthetic WAV file
+
+        # print('Synthesized signal:\n', np.array(synthetic_sig).astype('float32')[:20])
+
+        # Make synthetic WAV file - for some reason, I must cast brahms signal elems to types of original signal (uint8) or else MUCH LOUDER
         wavfile.write(synthetic_brahms_filepath, STD_SR_HZ, np.array(synthetic_sig).astype('uint8'))
+        # wavfile.write("synthetic_Mary.wav", STD_SR_HZ, np.array(synthetic_sig))
+
+
 
 
 if __name__ == '__main__':
