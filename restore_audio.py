@@ -1,0 +1,442 @@
+# restore_audio.py - Quinn Coleman - Senior Research Project / Master's Thesis 2019-20
+# Restore audio using NMF. Input is audio filepath, and restored audio file written to disk.
+
+# Note Space:
+# NMF Basics
+# V (FxT) = W (FxC) @ H (CxT)
+# Dimensions: F = # freq. bins, C = # components(piano keys), T = # windows in time/timesteps
+# Matrices: V = Spectrogram, W = Basis Vectors, H = Activations
+
+# Numpy notes:
+# Return value fft and input of ifft below
+# a[0] should contain the zero frequency term,
+# a[1:n//2] should contain the positive-frequency terms,
+# a[n//2 + 1:] should contain the negative-frequency terms, in increasing order starting from the most negative frequency.
+
+# Don't include duplicate 0Hz, include n//2 spot
+
+# Mary notes = E4, D4, C4
+
+# Make spectrogram w/ ova resource: https://kevinsprojects.wordpress.com/2014/12/13/short-time-fourier-transform-using-python-and-numpy/
+
+import sys, os, math, librosa
+from scipy.io import wavfile
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Constants
+SORTED_NOTES = ["A0", "Bb0", "B0", "C1", 
+                "Db1", "D1", "Eb1", "E1", "F1", "Gb1", "G1", "Ab1", "A1", "Bb1", "B1", "C2", 
+                "Db2", "D2", "Eb2", "E2", "F2", "Gb2", "G2", "Ab2", "A2", "Bb2", "B2", "C3", 
+                "Db3", "D3", "Eb3", "E3", "F3", "Gb3", "G3", "Ab3", "A3", "Bb3", "B3", "C4", 
+                "Db4", "D4", "Eb4", "E4", "F4", "Gb4", "G4", "Ab4", "A4", "Bb4", "B4", "C5", 
+                "Db5", "D5", "Eb5", "E5", "F5", "Gb5", "G5", "Ab5", "A5", "Bb5", "B5", "C6", 
+                "Db6", "D6", "Eb6", "E6", "F6", "Gb6", "G6", "Ab6", "A6", "Bb6", "B6", "C7", 
+                "Db7", "D7", "Eb7", "E7", "F7", "Gb7", "G7", "Ab7", "A7", "Bb7", "B7", "C8"]
+
+SORTED_FUND_FREQ = [28, 29, 31, 33, 
+                    35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 62, 65, 
+                    69, 73, 78, 82, 87, 93, 98, 104, 110, 117, 123, 131, 
+                    139, 147, 156, 165, 175, 185, 196, 208, 220, 233, 247, 262, 
+                    277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494, 523, 
+                    554, 587, 622, 659, 698, 740, 784, 831, 880, 932, 988, 1047, 
+                    1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 
+                    2217, 2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951, 4186]
+
+
+# TODO: Move some of these to tests.py?
+STD_SR_HZ = 44100
+MARY_SR_HZ = 16000
+PIANO_WDW_SIZE = 4096 # 32768 # 16384 # 8192 # 4096 # 2048
+DEBUG_WDW_SIZE = 4
+RES = STD_SR_HZ / PIANO_WDW_SIZE
+BEST_WDW_NUM = 5
+# Activation Matrix (H) Learning Part
+MAX_LEARN_ITER = 100
+BASIS_VECTOR_FULL_RATIO = 0.01
+BASIS_VECTOR_MARY_RATIO = 0.001
+SPGM_BRAHMS_RATIO = 0.08
+SPGM_MARY_RATIO = 0.008
+
+# Spectrogram (V) Part
+brahms_filepath = 'brahms.wav'
+synthetic_brahms_filepath = 'synthetic_brahms.wav'
+synthetic_ova_brahms_filepath = 'synthetic_brahms_ova.wav'
+debug_filepath = 'brahms_debug.wav'
+debug_ova_filepath = 'brahms_debug_ova.wav'
+
+
+# Functions
+def make_best_dft(waveform, wdw_num, wdw_size):
+    wdw = waveform[(wdw_num - 1) * wdw_size: wdw_num * wdw_size]    # wdw_num is naturally-indexed
+    # print("Type of elem in piano note sig:", type(wdw[0]))
+    if len(wdw) != wdw_size:
+            deficit = wdw_size - len(wdw)
+            wdw = np.pad(wdw, (deficit, 0), mode='constant')
+    dft = np.abs(np.fft.fft(wdw))
+    # print("Type of elem in basis vector:", type(dft[0]))
+    return dft[: (wdw_size // 2) + 1]  # Positive frequencies in ascending order, including 0Hz and the middle frequency (pos & neg)
+
+# Learning optimization
+def make_row_sum_matrix(mtx, out_shape):
+    row_sums = mtx.sum(axis=1)
+    return np.repeat(row_sums, out_shape[1], axis=0)
+
+# W LOGIC
+# Takes a LONG time to run, consider exporting this matrix to a file to read from instead of calling this func
+def get_basis_vectors(wdw_num, wdw_size, mary=False):
+    # TODO: Make a csv file for dennis - find out csv format & THEN CHECK IF STEREO SIGNAL IS SAME ACROSS CHANNELS
+    filename = 'mary_basis_vectors.csv' if mary else 'full_basis_vectors.csv'
+    try:
+        with open(filename, 'r') as bv_f:
+            print('FILE FOUND - READING IN BASIS VECTORS')
+            basis_vectors = [[float(sub) for sub in string.split(',')] for string in bv_f.readlines()]
+    except FileNotFoundError:
+        print('FILE NOT FOUND - MAKING BASIS VECTORS')
+        with open(filename, 'w') as bv_f:
+            basis_vectors = []
+            base_dir = os.getcwd()
+            os.chdir('all_notes_ff')
+            # audio_files is a list of strings, need to sort it by note
+            unsorted_audio_files = [x for x in os.listdir(os.getcwd()) if x.endswith('wav')]
+            sorted_file_names = ["Piano.ff." + x + ".wav" for x in SORTED_NOTES]
+            audio_files = sorted(unsorted_audio_files, key=lambda x: sorted_file_names.index(x))
+            # DEBUG - Mary signal
+            start, stop = 0, len(audio_files)
+            if mary:
+                start, stop = 39, 44
+            for i in range(start, stop):   # Range of notes in Mary.wav
+                audio_file = audio_files[i]
+
+                sr, stereo_sig = wavfile.read(audio_file)
+                # Convert to mono signal (avg left & right channels) 
+                sig = np.array([((x[0] + x[1]) / 2) for x in stereo_sig])
+
+                # Need to trim beginning/end silence off signal for basis vectors - hone in on best window
+                amp_thresh = max(sig) * 0.01
+                while sig[0] < amp_thresh:
+                    sig = sig[1:]
+                while sig[-1] < amp_thresh:
+                    sig = sig[:-1]
+
+                best_dft = make_best_dft(sig, wdw_num, wdw_size)
+                basis_vectors.append(best_dft)
+                
+                bv_f.write(','.join([str(x) for x in best_dft]) + '\n')
+
+            os.chdir(base_dir)
+
+    return np.array(basis_vectors).T     # T Needed? Yes
+
+
+# V LOGIC
+def make_spectrogram(signal, wdw_size, ova=False):
+    num_spls = len(signal)
+    if isinstance(signal[0], np.ndarray):   # Stereo signal = 2 channels
+        sig = np.array([((x[0] + x[1]) / 2) for x in signal.astype('float64')])
+    else:                                   # Mono signal = 1 channel    
+        sig = np.array(signal).astype('float64')
+    # Keep signal value types float64 so nothing lost? (needed for stereo case, so keep consistent?)
+
+    print('Original Sig:\n', sig[:20])
+    # print('Type of elem in orig sig:', type(sig[0]), sig[0].dtype)
+
+    hop_size = int(math.floor(wdw_size / 2)) if (ova and len(sig) >= (wdw_size + int(math.floor(wdw_size / 2)))) else wdw_size   # Half-length of window if ova
+    print('Hop size:', hop_size)
+    spectrogram, pos_phases = [], []
+    if ova:
+        # Probably fine, but broken (makes 3 sgmts for a 6 elem sig w/ 4 elem wdwsize)
+        num_sgmts = (math.ceil(num_spls / wdw_size) * 2) - 1
+        if len(sig) == 6:
+            num_sgmts = 2
+    else:
+        num_sgmts = math.ceil(num_spls / wdw_size)
+    print('Num segments:', num_sgmts)
+
+    for i in range(num_sgmts):
+        sgmt = sig[i * hop_size: (i * hop_size) + wdw_size].copy()
+
+        # print("Type of elem in spectrogram:", type(wdw[0]))
+        if len(sgmt) != wdw_size:
+            deficit = wdw_size - len(sgmt)
+            sgmt = np.pad(sgmt, (0,deficit))  # pads on right side (good b/c end of signal), (deficit, 0) pads on left side # , mode='constant')
+
+        if i == 0 or i == 1:
+            print('Original segment (len =', len(sgmt), '):\n', sgmt[:5])
+            if ova:
+                # Perform lobing on ends of segment
+                sgmt *= np.hanning(wdw_size)
+                print('Hamming mult segment:\n', sgmt[:5])
+            
+            fft = np.fft.fft(sgmt)
+            print('FFT of wdw (len =', len(fft), '):\n', fft[:5])
+
+            phases_of_fft = np.angle(fft)
+            print('phases of FFT of wdw:\n', phases_of_fft[:5])
+            mag_fft = np.abs(fft)
+            print('mag FFT of wdw:\n', mag_fft[:5])
+
+            print('pos FFT of wdw:\n', fft[: (wdw_size // 2) + 1])
+
+            pos_phases_of_fft = phases_of_fft[: (wdw_size // 2) + 1]
+            pos_mag_fft = mag_fft[: (wdw_size // 2) + 1]
+
+            # print('\nType of elem in spectrogram:', type(pos_mag_fft[0]), pos_mag_fft[0].dtype, '\n')
+
+            print('positive mag FFT and phase lengths:', len(pos_mag_fft), len(pos_phases_of_fft))
+            print('positive mag FFT:\n', pos_mag_fft[:5])
+            print('positive phases:\n', pos_phases_of_fft[:5])
+        else:
+            if ova:
+                sgmt *= np.hanning(wdw_size)
+            fft = np.fft.fft(sgmt)
+            phases_of_fft = np.angle(fft)
+            mag_fft = np.abs(fft)
+            pos_phases_of_fft = phases_of_fft[: (wdw_size // 2) + 1]
+            pos_mag_fft = mag_fft[: (wdw_size // 2) + 1]
+
+        spectrogram.append(pos_mag_fft)
+        pos_phases.append(pos_phases_of_fft)
+
+    # Spectrogram matrix w/ correct orientation
+    return np.array(spectrogram).T, pos_phases  # T Needed? Yes
+
+# H LOGIC - Learn / Approximate Activation Matrix
+# Main dimensions: freq bins = spectrogram.shape[0], piano keys (components?) = num_notes OR basis_vectors.shape[1], windows = bm_num_wdws OR spectrogram.shape[1]
+def make_activations(spectrogram, basis_vectors):
+    # CHANGE BACK IF BUG:
+    # activations = np.random.rand(num_notes, bm_num_wdws)
+    activations = np.random.rand(basis_vectors.shape[1], spectrogram.shape[1])
+    ones = np.ones(spectrogram.shape) # so dimenstions match W transpose dot w/ V
+
+    for i in range(MAX_LEARN_ITER):
+        # H +1 = H * ((Wt dot (V / (W dot H))) / (Wt dot 1) )
+        activations *= ((basis_vectors.T @ (spectrogram / (basis_vectors @ activations))) / (basis_vectors.T @ ones))
+        # UNCOMMENT FOR BUGGY OPTIMIZATION:
+        # denom = make_row_sum_matrix(basis_vectors.T, spectrogram.shape)
+        # activations *= (basis_vectors.T @ (spectrogram / (basis_vectors @ activations))) / denom
+    return activations
+
+# Construct synthetic waveform
+def make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=False):
+    num_sgmts = synthetic_spgm.shape[1]
+    # For waveform construction
+    synthetic_spgm = synthetic_spgm.T     # Get back into orientation we did calculations on
+    # Construct synthetic waveform
+    synthetic_sig = []
+    for i in range(num_sgmts):
+        if i == 0:
+            pos_mag_fft = synthetic_spgm[i]
+            
+            pos_phases_of_fft = phases[i]
+            print('positive mag FFT:\n', pos_mag_fft[:5])
+            print('positive phases:\n', pos_phases_of_fft[:5])
+            print('positive mag FFT and phase lengths:', len(pos_mag_fft), len(pos_phases_of_fft))
+            
+            neg_mag_fft = np.flip(pos_mag_fft[1: wdw_size // 2], 0)
+            print('negative mag FFT:\n', neg_mag_fft[:5])
+            
+            mag_fft = np.append(pos_mag_fft, neg_mag_fft, axis=0)
+            print('mag FFT of wdw:\n', mag_fft[:5])
+
+            neg_phases_of_fft = np.flip([-x for x in pos_phases_of_fft[1: wdw_size // 2]], 0)
+            print('negative phases:\n', neg_phases_of_fft[:5])
+            phases_of_fft = np.append(pos_phases_of_fft, neg_phases_of_fft, axis=0)
+            print('phases of FFT of wdw:\n', phases_of_fft[:5])
+
+            fft = mag_fft * np.exp(1j*phases_of_fft)
+            print('FFT of wdw (len =', len(fft), '):\n', fft[:5])
+
+            ifft = np.fft.ifft(fft)
+
+            imaginaries = ifft.imag.tolist()
+            synthetic_sgmt = ifft.real.tolist()
+            print('Synthetic imaginaries:\n', imaginaries[:10])
+            print('Synthetic segment (len =', len(synthetic_sgmt), '):\n', synthetic_sgmt[:5])
+
+            if ova and len(synthetic_sig):
+                ova_sgmt = synthetic_sgmt[: wdw_size // 2]
+                end_sgmt = synthetic_sgmt[wdw_size // 2:]
+
+                end_sig = synthetic_sig[-(wdw_size // 2):]
+                end_sum = [sum(x) for x in zip(ova_sgmt, end_sig)]
+
+                synthetic_sig = synthetic_sig[: -(wdw_size // 2)] + end_sum + end_sgmt
+
+            else:
+                synthetic_sig += synthetic_sgmt                
+                print('End of synth sig:', synthetic_sig[-20:])
+
+        else:
+            pos_mag_fft = synthetic_spgm[i]
+            
+            # Append the mirror of the synthetic magnitudes to itself
+            # mir_freq = pos_mag_fft[1: wdw_size // 2]   
+            neg_mag_fft = np.flip(pos_mag_fft[1: wdw_size // 2], 0)
+
+            # dft = np.append(dft, np.flip(mir_freq, 0), axis=0)
+            mag_fft = np.append(pos_mag_fft, neg_mag_fft, axis=0)
+
+            # phase = phases[i][: wdw_size // 2] # Eliminate extraneous data point
+            pos_phases_of_fft = phases[i]
+            # phase = np.append(phase, np.flip(phase[1: wdw_size // 2], 0), axis=0)
+            # mir_phase = phase[1: wdw_size // 2]
+            # mir_phase = [-x for x in phase[1: wdw_size // 2]]
+
+            neg_phases_of_fft = np.flip([-x for x in pos_phases_of_fft[1: wdw_size // 2]], 0)
+
+            # phase = np.append(np.array([phase[(wdw_size // 2) - 1]]), mir_phase, axis=0)
+            # phase = np.append(phase, np.flip(mir_phase, 0), axis=0)
+            phases_of_fft = np.append(pos_phases_of_fft, neg_phases_of_fft, axis=0)
+
+            # Multiply this magnitude spectrogram w/ phase
+            fft = mag_fft * np.exp(1j*phases_of_fft)
+            # Do ifft on the spectrogram -> waveform
+            ifft = np.fft.ifft(fft)
+            imaginaries = ifft.imag.tolist()
+            synthetic_sgmt = ifft.real.tolist()
+
+            # Do overlap-add operations if ova (but only if list has atleast 1 element)
+            if ova and len(synthetic_sig):
+                ova_sgmt = synthetic_sgmt[: wdw_size // 2]  # First half
+                end_sgmt = synthetic_sgmt[wdw_size // 2:]   # Second half
+
+                end_sig = synthetic_sig[-(wdw_size // 2):]  # Last part of sig
+                end_sum = [sum(x) for x in zip(ova_sgmt, end_sig)]  # Summed last part w/ first half
+                if i == 1:
+                    print('ova_sgmt:\n', ova_sgmt[-10:], '\nend_sgmt:\n', end_sgmt[-10:], '\nend_sig:\n', end_sig[-10:], '\nend_sum:\n', end_sum[-10:])
+
+                synthetic_sig = synthetic_sig[: -(wdw_size // 2)] + end_sum + end_sgmt
+                if i == 1:
+                    print('End of synth sig:', synthetic_sig[-20:])
+
+            else:
+                synthetic_sig += synthetic_sgmt
+
+    return np.array(synthetic_sig)
+
+def make_mary_bv_test_activations():
+    activations = []
+    for j in range(5):
+        # 8 divisions of 6 timesteps
+        comp = []
+        if j == 0: # lowest note
+            comp = [0.0001 if ((2*6) <= i < (3*6)) else 0.0000 for i in range(48)]
+        elif j == 2:
+            comp = [0.0001 if (((1*6) <= i < (2*6)) or ((3*6) <= i < (4*6))) else 0.0000 for i in range(48)]
+        elif j == 4:
+            comp = [0.0001 if ((0 <= i < (1*6)) or ((4*6) <= i < (7*6))) else 0.0000 for i in range(48)]
+        else:
+            comp = [0.0000 for i in range(48)]
+        activations.append(comp)
+    return np.array(activations)
+
+def plot_matrix(matrix, name, ratio=0.08):
+    num_wdws = matrix.shape[1]
+
+    fig, ax = plt.subplots()
+    ax.title.set_text(name)
+    ax.set_ylabel('Frequency (Hz)')
+    # Map the axis to a new correct frequency scale, something in imshow() 0 to 44100 / 2, step by window size
+    im = ax.imshow(np.log(matrix), extent=[0, num_wdws, STD_SR_HZ // 2, 0])
+    fig.tight_layout()
+    # bottom, top = plt.ylim()
+    # print('Bottom:', bottom, 'Top:', top)
+    plt.ylim(8000.0, 0.0)   # Crop an axis (to ~double the piano frequency max)
+    ax.set_aspect(ratio)    # Set a visually nice ratio
+    plt.show()
+
+
+def main():
+    if len(sys.argv) < 3 or len(sys.argv) > 4:
+        print('Usage: restore_audio.py <mode> <signal> [window_size]')
+        print('Parameter options:')
+        print('Mode             "DEBUG"         - Reconstructs signal from spectrogram')
+        print('                 "MAIN"          - Synthesizes restored signal via NMF')
+        print('Signal           filepath        - String denoting a WAV filepath')
+        print('                 list            - Signal represented by list formatted like "[0,1,1,0]"')
+        print('                 natural number  - Random element signal of this length')
+        print('Window size      natural number (power of 2 preferably, default: 4096 for piano)')
+        sys.exit(1)
+    
+    ova_flag = True
+
+    mode = sys.argv[1]
+
+    if sys.argv[2].startswith('['):
+        sig = np.array([int(num) for num in sys.argv[2][1:-1].split(',')])
+        file_prefix = "my_sig"
+    elif sys.argv[2][0].isdigit:
+        sig = np.random.rand(int(sys.argv[2].replace(',', '')))
+        file_prefix = "rand_sig"
+    else:
+        sr, sig = wavfile.read(sys.argv[2])
+        if sr != STD_SR_HZ:
+            sig, _ = librosa.load(sys.argv[2], sr=STD_SR_HZ)  # Upsample to 44.1kHz if necessary
+        file_prefix = sys.argv[2][(sys.argv[2].rindex('/') + 1): -4]
+    
+    wdw_size = int(sys.argv[3]) if (len(sys.argv) == 4) else PIANO_WDW_SIZE
+
+    # _, example_sig = wavfile.read("piano.wav")
+    # _, brahms_sig = wavfile.read(brahms_filepath)
+    # mary_sig, _ = librosa.load("Mary.wav", sr=STD_SR_HZ)   # Upsample Mary to 44.1kHz
+    # debug_sig = np.array([0,1,1,0])
+    # debug_sig = np.array([0,1,1,0,1,0])
+    # debug_sig_2 = np.random.rand(44100)
+
+    # DEBUG BLOCK - True for debug
+    if mode == 'DEBUG':
+        print('\n\n')
+        spectrogram, phases = make_spectrogram(debug_sig_2, DEBUG_WDW_SIZE, ova=ova_flag)
+        print('\n---SYNTHETIC SPGM TRANSITION----\n')
+        synthetic_sig = make_synthetic_signal(spectrogram, phases, DEBUG_WDW_SIZE, ova=ova_flag)
+        print('Debug Synthetic Sig:\n', synthetic_sig[:20])
+
+        # Also try actual sig
+        print('\n\n')
+        spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE, ova=ova_flag)
+        print('\n---SYNTHETIC SPGM TRANSITION----\n')
+        synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE, ova=ova_flag)
+        print('Actual Synthetic Sig:\n', np.array(synthetic_sig).astype('uint8')[:20])
+        # Make synthetic WAV file
+        out_filepath = debug_ova_filepath if ova_flag else debug_filepath
+        wavfile.write(out_filepath, STD_SR_HZ, np.array(synthetic_sig).astype('uint8'))
+
+    else:
+        basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=False)
+        spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE, ova=ova_flag)
+        plot_matrix(basis_vectors, name="Basis Vectors", ratio=BASIS_VECTOR_FULL_RATIO)
+        plot_matrix(spectrogram, name="Original Spectrogram", ratio=SPGM_BRAHMS_RATIO)
+
+        print('Shape of Spectrogram V:', spectrogram.shape)
+        print('Shape of Basis Vectors W:', basis_vectors.shape)
+        print('Learning Activations...')
+        activations = make_activations(spectrogram, basis_vectors)
+        print('Shape of Activations H:', activations.shape)
+
+        # activations = make_mary_bv_test_activations()
+        # print('Shape of Hand-made Activations H:', activations.shape)
+
+        # with open('learned_brahms_activations_trunc.csv', 'w') as a_f:
+        # # with open('learned_mary_activations_trunc.csv', 'w') as a_f:
+        #     for component in activations:
+        #         a_f.write(','.join([('%.4f' % x) for x in component]) + '\n')
+
+        synthetic_spgm = basis_vectors @ activations
+        plot_matrix(synthetic_spgm, name="Synthetic Spectrogram", ratio=SPGM_BRAHMS_RATIO)
+
+        print('---SYNTHETIC SPGM TRANSITION----')
+        synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, PIANO_WDW_SIZE, ova=ova_flag)
+        print('Synthesized signal (bad type for brahms):\n', synthetic_sig[:20])
+        # print('Synthesized signal:\n', synthetic_sig.astype('uint8')[:20])
+
+        synthetic_sig /= (4/3)
+
+        out_filepath = synthetic_ova_brahms_filepath if ova_flag else synthetic_brahms_filepath
+        # Make synthetic WAV file - for some reason, I must cast brahms signal elems to types of original signal (uint8) or else MUCH LOUDER
+        wavfile.write(out_filepath, STD_SR_HZ, synthetic_sig.astype('uint8'))
+        # wavfile.write("synthetic_Mary.wav", STD_SR_HZ, synthetic_sig)
+
+
+if __name__ == '__main__':
+    main()
