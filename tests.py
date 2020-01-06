@@ -103,7 +103,7 @@ if __name__ == '__main__':
     unittest.main()
 
 
-# Just saving stuff from past version of restore_audio:
+# Just saving stuff from past version of restore_audio (main):
 
 #  # _, example_sig = wavfile.read("piano.wav")
 #     # _, brahms_sig = wavfile.read(brahms_filepath)

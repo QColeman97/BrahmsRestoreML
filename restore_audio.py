@@ -59,11 +59,11 @@ SPGM_BRAHMS_RATIO = 0.08
 SPGM_MARY_RATIO = 0.008
 
 # Spectrogram (V) Part
-brahms_filepath = 'brahms.wav'
-synthetic_brahms_filepath = 'synthetic_brahms.wav'
-synthetic_ova_brahms_filepath = 'synthetic_brahms_ova.wav'
-debug_filepath = 'brahms_debug.wav'
-debug_ova_filepath = 'brahms_debug_ova.wav'
+# brahms_filepath = 'brahms.wav'
+# synthetic_brahms_filepath = 'synthetic_brahms.wav'
+# synthetic_ova_brahms_filepath = 'synthetic_brahms_ova.wav'
+# debug_filepath = 'brahms_debug.wav'
+# debug_ova_filepath = 'brahms_debug_ova.wav'
 
 
 # Functions
@@ -349,64 +349,68 @@ def plot_matrix(matrix, name, ratio=0.08):
 
 def main():
     if len(sys.argv) < 3 or len(sys.argv) > 4:
-        print('Usage: restore_audio.py <mode> <signal> [window_size]')
+        print('\nUsage: restore_audio.py <mode> <signal> <plot> [window_size]')
         print('Parameter options:')
         print('Mode             "DEBUG"         - Reconstructs signal from spectrogram')
         print('                 "MAIN"          - Synthesizes restored signal via NMF')
         print('Signal           filepath        - String denoting a WAV filepath')
         print('                 list            - Signal represented by list formatted like "[0,1,1,0]"')
         print('                 natural number  - Random element signal of this length')
-        print('Window size      natural number (power of 2 preferably, default: 4096 for piano)')
+        print('Plot             "TRUE"/"FALSE"  - Option to plot NMF matrices in main mode')
+        print('Window Size      natural number (power of 2 preferably, default is for piano: 4096)\n')
+        print('Currently not editable: Sampling Rate, Best Window & size of Basis Vectors\n')
         sys.exit(1)
-    
-    ova_flag = True
 
+    # CONFIGURATION
+    # Mode - DEBUG or MAIN
     mode = sys.argv[1]
-
+    out_filename = 'synthetic_' if mode == 'MAIN' else 'debug_'
+    # Signal - comes as a list, filepath or a length
+    sig_sr = STD_SR_HZ # Initialize sr to default
+    mary = False    # Special case for Mary.wav - basis vectors size optimization
     if sys.argv[2].startswith('['):
         sig = np.array([int(num) for num in sys.argv[2][1:-1].split(',')])
-        file_prefix = "my_sig"
-    elif sys.argv[2][0].isdigit:
+        out_filename += 'my_sig'
+    elif not sys.argv[2].endswith('.wav'):  # Work around for is a number
         sig = np.random.rand(int(sys.argv[2].replace(',', '')))
-        file_prefix = "rand_sig"
+        out_filename += 'rand_sig'
     else:
-        sr, sig = wavfile.read(sys.argv[2])
-        if sr != STD_SR_HZ:
+        if sys.argv[2] == 'Mary.wav': # Special case for Mary.wav - basis vectors size optimization
+            mary = True
+        sig_sr, sig = wavfile.read(sys.argv[2])
+        if sig_sr != STD_SR_HZ:
             sig, _ = librosa.load(sys.argv[2], sr=STD_SR_HZ)  # Upsample to 44.1kHz if necessary
-        file_prefix = sys.argv[2][(sys.argv[2].rindex('/') + 1): -4]
-    
-    wdw_size = int(sys.argv[3]) if (len(sys.argv) == 4) else PIANO_WDW_SIZE
+        start_index = (sys.argv[2].rindex('/') + 1) if (sys.argv[2].find('/') != -1) else 0
+        out_filename += sys.argv[2][start_index: -4]
+    # Plotting option
+    plot = True if sys.argv[3] == 'TRUE' else False
+    # Window Size
+    wdw_size = int(sys.argv[4]) if (len(sys.argv) == 5) else PIANO_WDW_SIZE
+    # Overlap-Add is Necessary & Default
+    ova_flag = True
+    out_filename += '_ova.wav'
 
-    # _, example_sig = wavfile.read("piano.wav")
-    # _, brahms_sig = wavfile.read(brahms_filepath)
-    # mary_sig, _ = librosa.load("Mary.wav", sr=STD_SR_HZ)   # Upsample Mary to 44.1kHz
-    # debug_sig = np.array([0,1,1,0])
-    # debug_sig = np.array([0,1,1,0,1,0])
-    # debug_sig_2 = np.random.rand(44100)
-
-    # DEBUG BLOCK - True for debug
-    if mode == 'DEBUG':
-        print('\n\n')
-        spectrogram, phases = make_spectrogram(debug_sig_2, DEBUG_WDW_SIZE, ova=ova_flag)
+    if mode == 'DEBUG': # DEBUG BLOCK
+        print('Initiating Debug Mode\n\n')
+        spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova_flag)
         print('\n---SYNTHETIC SPGM TRANSITION----\n')
-        synthetic_sig = make_synthetic_signal(spectrogram, phases, DEBUG_WDW_SIZE, ova=ova_flag)
+        synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, ova=ova_flag)
         print('Debug Synthetic Sig:\n', synthetic_sig[:20])
-
-        # Also try actual sig
-        print('\n\n')
-        spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE, ova=ova_flag)
-        print('\n---SYNTHETIC SPGM TRANSITION----\n')
-        synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE, ova=ova_flag)
-        print('Actual Synthetic Sig:\n', np.array(synthetic_sig).astype('uint8')[:20])
-        # Make synthetic WAV file
-        out_filepath = debug_ova_filepath if ova_flag else debug_filepath
-        wavfile.write(out_filepath, STD_SR_HZ, np.array(synthetic_sig).astype('uint8'))
-
-    else:
-        basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=False)
-        spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE, ova=ova_flag)
-        plot_matrix(basis_vectors, name="Basis Vectors", ratio=BASIS_VECTOR_FULL_RATIO)
-        plot_matrix(spectrogram, name="Original Spectrogram", ratio=SPGM_BRAHMS_RATIO)
+        
+        # Make synthetic WAV file - defaults to original sampling rate, TODO: Does that change things?
+        # Also for some reason, I must cast brahms signal elems to types of original signal (uint8) or else MUCH LOUDER
+        if sys.argv[2] == 'brahms.wav': # TODO: Just Brahms???
+            wavfile.write(out_filename, sig_sr, synthetic_sig.astype('uint8'))
+        else:
+            wavfile.write(out_filename, sig_sr, synthetic_sig)
+    
+    else:   # MAIN BLOCK
+        print('Initiating Main Mode\n\n')
+        basis_vectors = get_basis_vectors(BEST_WDW_NUM, wdw_size, mary=mary)
+        spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova_flag)
+        if plot:
+            plot_matrix(basis_vectors, name="Basis Vectors", ratio=BASIS_VECTOR_FULL_RATIO)
+            plot_matrix(spectrogram, name="Original Spectrogram", ratio=SPGM_BRAHMS_RATIO)
 
         print('Shape of Spectrogram V:', spectrogram.shape)
         print('Shape of Basis Vectors W:', basis_vectors.shape)
@@ -414,28 +418,19 @@ def main():
         activations = make_activations(spectrogram, basis_vectors)
         print('Shape of Activations H:', activations.shape)
 
-        # activations = make_mary_bv_test_activations()
-        # print('Shape of Hand-made Activations H:', activations.shape)
-
-        # with open('learned_brahms_activations_trunc.csv', 'w') as a_f:
-        # # with open('learned_mary_activations_trunc.csv', 'w') as a_f:
-        #     for component in activations:
-        #         a_f.write(','.join([('%.4f' % x) for x in component]) + '\n')
-
         synthetic_spgm = basis_vectors @ activations
-        plot_matrix(synthetic_spgm, name="Synthetic Spectrogram", ratio=SPGM_BRAHMS_RATIO)
+        if plot:
+            plot_matrix(synthetic_spgm, name="Synthetic Spectrogram", ratio=SPGM_BRAHMS_RATIO)
 
         print('---SYNTHETIC SPGM TRANSITION----')
-        synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, PIANO_WDW_SIZE, ova=ova_flag)
-        print('Synthesized signal (bad type for brahms):\n', synthetic_sig[:20])
-        # print('Synthesized signal:\n', synthetic_sig.astype('uint8')[:20])
+        synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=ova_flag)
+        print('Synthesized signal - bad type for brahms (not uint8):\n', synthetic_sig[:20])
 
-        synthetic_sig /= (4/3)
-
-        out_filepath = synthetic_ova_brahms_filepath if ova_flag else synthetic_brahms_filepath
         # Make synthetic WAV file - for some reason, I must cast brahms signal elems to types of original signal (uint8) or else MUCH LOUDER
-        wavfile.write(out_filepath, STD_SR_HZ, synthetic_sig.astype('uint8'))
-        # wavfile.write("synthetic_Mary.wav", STD_SR_HZ, synthetic_sig)
+        if sys.argv[2] == 'brahms.wav':
+            wavfile.write(out_filename, sig_sr, synthetic_sig.astype('uint8'))
+        else:
+            wavfile.write(out_filename, sig_sr, synthetic_sig)
 
 
 if __name__ == '__main__':
