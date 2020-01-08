@@ -223,33 +223,6 @@ def make_spectrogram(signal, wdw_size, ova=False, debug=False):
             deficit = wdw_size - len(sgmt)
             sgmt = np.pad(sgmt, (0,deficit))  # pads on right side (good b/c end of signal), (deficit, 0) pads on left side # , mode='constant')
 
-        # if debug and (i == 0 or i == 1):
-        #     print('Original segment (len =', len(sgmt), '):\n', sgmt[:5])
-        #     if ova:
-        #         # Perform lobing on ends of segment
-        #         sgmt *= np.hanning(wdw_size)
-        #         print('Hamming mult segment:\n', sgmt[:5])
-            
-        #     fft = np.fft.fft(sgmt)
-        #     print('FFT of wdw (len =', len(fft), '):\n', fft[:5])
-
-        #     phases_of_fft = np.angle(fft)
-        #     print('phases of FFT of wdw:\n', phases_of_fft[:5])
-        #     mag_fft = np.abs(fft)
-        #     print('mag FFT of wdw:\n', mag_fft[:5])
-
-        #     print('pos FFT of wdw:\n', fft[: (wdw_size // 2) + 1])
-
-        #     pos_phases_of_fft = phases_of_fft[: (wdw_size // 2) + 1]
-        #     pos_mag_fft = mag_fft[: (wdw_size // 2) + 1]
-
-        #     # print('\nType of elem in spectrogram:', type(pos_mag_fft[0]), pos_mag_fft[0].dtype, '\n')
-
-        #     print('positive mag FFT and phase lengths:', len(pos_mag_fft), len(pos_phases_of_fft))
-        #     print('positive mag FFT:\n', pos_mag_fft[:5])
-        #     print('positive phases:\n', pos_phases_of_fft[:5])
-        #     print('\nEnd of Segment -> FT\n')
-        # else:
         if debug and (i == 0 or i == 1):
             print('Original segment (len =', len(sgmt), '):\n', sgmt[:5])
 
