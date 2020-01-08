@@ -296,108 +296,65 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=False, debug=Fal
     # Construct synthetic waveform
     synthetic_sig = []
     for i in range(num_sgmts):
+        pos_mag_fft = synthetic_spgm[i]
+        
+        # Append the mirror of the synthetic magnitudes to itself
+        # mir_freq = pos_mag_fft[1: wdw_size // 2]   
+        neg_mag_fft = np.flip(pos_mag_fft[1: wdw_size // 2], 0)
+
+        # dft = np.append(dft, np.flip(mir_freq, 0), axis=0)
+        mag_fft = np.append(pos_mag_fft, neg_mag_fft, axis=0)
+
+        # phase = phases[i][: wdw_size // 2] # Eliminate extraneous data point
+        pos_phases_of_fft = phases[i]
+        # phase = np.append(phase, np.flip(phase[1: wdw_size // 2], 0), axis=0)
+        # mir_phase = phase[1: wdw_size // 2]
+        # mir_phase = [-x for x in phase[1: wdw_size // 2]]
+
+        neg_phases_of_fft = np.flip([-x for x in pos_phases_of_fft[1: wdw_size // 2]], 0)
+
+        # phase = np.append(np.array([phase[(wdw_size // 2) - 1]]), mir_phase, axis=0)
+        # phase = np.append(phase, np.flip(mir_phase, 0), axis=0)
+        phases_of_fft = np.append(pos_phases_of_fft, neg_phases_of_fft, axis=0)
+
+        # Multiply this magnitude spectrogram w/ phase
+        fft = mag_fft * np.exp(1j*phases_of_fft)
+        # Do ifft on the spectrogram -> waveform
+        ifft = np.fft.ifft(fft)
+        imaginaries = ifft.imag.tolist()
+        synthetic_sgmt = ifft.real.tolist()
+
         if debug and i == 0:
-            pos_mag_fft = synthetic_spgm[i]
-            
-            pos_phases_of_fft = phases[i]
-            # print('positive mag FFT:\n', pos_mag_fft[:5])
-            # print('positive phases:\n', pos_phases_of_fft[:5])
-            # print('positive mag FFT and phase lengths:', len(pos_mag_fft), len(pos_phases_of_fft))
-            
-            neg_mag_fft = np.flip(pos_mag_fft[1: wdw_size // 2], 0)
-            # print('negative mag FFT:\n', neg_mag_fft[:5])
-            
-            mag_fft = np.append(pos_mag_fft, neg_mag_fft, axis=0)
-            # print('mag FFT of wdw:\n', mag_fft[:5])
+            print('positive mag FFT:\n', pos_mag_fft[:5])
+            print('positive phases:\n', pos_phases_of_fft[:5])
+            print('positive mag FFT and phase lengths:', len(pos_mag_fft), len(pos_phases_of_fft))
+            print('negative mag FFT:\n', neg_mag_fft[:5])
+            print('mag FFT of wdw:\n', mag_fft[:5])
+            print('negative phases:\n', neg_phases_of_fft[:5])
+            print('phases of FFT of wdw:\n', phases_of_fft[:5])
+            print('FFT of wdw (len =', len(fft), '):\n', fft[:5])
+            print('Synthetic imaginaries:\n', imaginaries[:10])
+            print('Synthetic segment (len =', len(synthetic_sgmt), '):\n', synthetic_sgmt[:5])
 
-            neg_phases_of_fft = np.flip([-x for x in pos_phases_of_fft[1: wdw_size // 2]], 0)
-            # print('negative phases:\n', neg_phases_of_fft[:5])
-            phases_of_fft = np.append(pos_phases_of_fft, neg_phases_of_fft, axis=0)
-            # print('phases of FFT of wdw:\n', phases_of_fft[:5])
 
-            fft = mag_fft * np.exp(1j*phases_of_fft)
-            # print('FFT of wdw (len =', len(fft), '):\n', fft[:5])
+        # Do overlap-add operations if ova (but only if list has atleast 1 element)
+        if ova and len(synthetic_sig):
+            ova_sgmt = synthetic_sgmt[: wdw_size // 2]  # First half
+            end_sgmt = synthetic_sgmt[wdw_size // 2:]   # Second half
 
-            ifft = np.fft.ifft(fft)
+            end_sig = synthetic_sig[-(wdw_size // 2):]  # Last part of sig
+            end_sum = [sum(x) for x in zip(ova_sgmt, end_sig)]  # Summed last part w/ first half
+            if debug and i == 1:
+                print('ova_sgmt:\n', ova_sgmt[-10:], '\nend_sgmt:\n', end_sgmt[-10:], '\nend_sig:\n', end_sig[-10:], '\nend_sum:\n', end_sum[-10:])
 
-            imaginaries = ifft.imag.tolist()
-            synthetic_sgmt = ifft.real.tolist()
-            # print('Synthetic imaginaries:\n', imaginaries[:10])
-            # print('Synthetic segment (len =', len(synthetic_sgmt), '):\n', synthetic_sgmt[:5])
-
-            if ova and len(synthetic_sig):
-                ova_sgmt = synthetic_sgmt[: wdw_size // 2]
-                end_sgmt = synthetic_sgmt[wdw_size // 2:]
-
-                end_sig = synthetic_sig[-(wdw_size // 2):]
-                end_sum = [sum(x) for x in zip(ova_sgmt, end_sig)]
-
-                synthetic_sig = synthetic_sig[: -(wdw_size // 2)] + end_sum + end_sgmt
-
-            else:
-                synthetic_sig += synthetic_sgmt                
+            synthetic_sig = synthetic_sig[: -(wdw_size // 2)] + end_sum + end_sgmt
+            if debug and i == 1:
                 print('End of synth sig:', synthetic_sig[-20:])
 
         else:
-            pos_mag_fft = synthetic_spgm[i]
-            
-            # Append the mirror of the synthetic magnitudes to itself
-            # mir_freq = pos_mag_fft[1: wdw_size // 2]   
-            neg_mag_fft = np.flip(pos_mag_fft[1: wdw_size // 2], 0)
-
-            # dft = np.append(dft, np.flip(mir_freq, 0), axis=0)
-            mag_fft = np.append(pos_mag_fft, neg_mag_fft, axis=0)
-
-            # phase = phases[i][: wdw_size // 2] # Eliminate extraneous data point
-            pos_phases_of_fft = phases[i]
-            # phase = np.append(phase, np.flip(phase[1: wdw_size // 2], 0), axis=0)
-            # mir_phase = phase[1: wdw_size // 2]
-            # mir_phase = [-x for x in phase[1: wdw_size // 2]]
-
-            neg_phases_of_fft = np.flip([-x for x in pos_phases_of_fft[1: wdw_size // 2]], 0)
-
-            # phase = np.append(np.array([phase[(wdw_size // 2) - 1]]), mir_phase, axis=0)
-            # phase = np.append(phase, np.flip(mir_phase, 0), axis=0)
-            phases_of_fft = np.append(pos_phases_of_fft, neg_phases_of_fft, axis=0)
-
-            # Multiply this magnitude spectrogram w/ phase
-            fft = mag_fft * np.exp(1j*phases_of_fft)
-            # Do ifft on the spectrogram -> waveform
-            ifft = np.fft.ifft(fft)
-            imaginaries = ifft.imag.tolist()
-            synthetic_sgmt = ifft.real.tolist()
-
+            synthetic_sig += synthetic_sgmt
             if debug and i == 0:
-                print('positive mag FFT:\n', pos_mag_fft[:5])
-                print('positive phases:\n', pos_phases_of_fft[:5])
-                print('positive mag FFT and phase lengths:', len(pos_mag_fft), len(pos_phases_of_fft))
-                print('negative mag FFT:\n', neg_mag_fft[:5])
-                print('mag FFT of wdw:\n', mag_fft[:5])
-                print('negative phases:\n', neg_phases_of_fft[:5])
-                print('phases of FFT of wdw:\n', phases_of_fft[:5])
-                print('FFT of wdw (len =', len(fft), '):\n', fft[:5])
-                print('Synthetic imaginaries:\n', imaginaries[:10])
-                print('Synthetic segment (len =', len(synthetic_sgmt), '):\n', synthetic_sgmt[:5])
-
-
-            # Do overlap-add operations if ova (but only if list has atleast 1 element)
-            if ova and len(synthetic_sig):
-                ova_sgmt = synthetic_sgmt[: wdw_size // 2]  # First half
-                end_sgmt = synthetic_sgmt[wdw_size // 2:]   # Second half
-
-                end_sig = synthetic_sig[-(wdw_size // 2):]  # Last part of sig
-                end_sum = [sum(x) for x in zip(ova_sgmt, end_sig)]  # Summed last part w/ first half
-                if debug and i == 1:
-                    print('ova_sgmt:\n', ova_sgmt[-10:], '\nend_sgmt:\n', end_sgmt[-10:], '\nend_sig:\n', end_sig[-10:], '\nend_sum:\n', end_sum[-10:])
-
-                synthetic_sig = synthetic_sig[: -(wdw_size // 2)] + end_sum + end_sgmt
-                if debug and i == 1:
-                    print('End of synth sig:', synthetic_sig[-20:])
-
-            else:
-                synthetic_sig += synthetic_sgmt
-                if debug and i == 0:
-                    print('End of synth sig:', synthetic_sig[-20:])
+                print('End of synth sig:', synthetic_sig[-20:])
 
     if debug:
         print('Synthetic Sig - bad type for brahms (not uint8):\n', np.array(synthetic_sig)[:20])
