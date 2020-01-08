@@ -247,7 +247,6 @@ def make_spectrogram(signal, wdw_size, ova=False, debug=False):
             print('positive phases:\n', pos_phases_of_fft[:5])
             print('\nEnd of Segment -> FT\n')
 
-
         spectrogram.append(pos_mag_fft)
         pos_phases.append(pos_phases_of_fft)
 
@@ -301,30 +300,30 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=False, debug=Fal
             pos_mag_fft = synthetic_spgm[i]
             
             pos_phases_of_fft = phases[i]
-            print('positive mag FFT:\n', pos_mag_fft[:5])
-            print('positive phases:\n', pos_phases_of_fft[:5])
-            print('positive mag FFT and phase lengths:', len(pos_mag_fft), len(pos_phases_of_fft))
+            # print('positive mag FFT:\n', pos_mag_fft[:5])
+            # print('positive phases:\n', pos_phases_of_fft[:5])
+            # print('positive mag FFT and phase lengths:', len(pos_mag_fft), len(pos_phases_of_fft))
             
             neg_mag_fft = np.flip(pos_mag_fft[1: wdw_size // 2], 0)
-            print('negative mag FFT:\n', neg_mag_fft[:5])
+            # print('negative mag FFT:\n', neg_mag_fft[:5])
             
             mag_fft = np.append(pos_mag_fft, neg_mag_fft, axis=0)
-            print('mag FFT of wdw:\n', mag_fft[:5])
+            # print('mag FFT of wdw:\n', mag_fft[:5])
 
             neg_phases_of_fft = np.flip([-x for x in pos_phases_of_fft[1: wdw_size // 2]], 0)
-            print('negative phases:\n', neg_phases_of_fft[:5])
+            # print('negative phases:\n', neg_phases_of_fft[:5])
             phases_of_fft = np.append(pos_phases_of_fft, neg_phases_of_fft, axis=0)
-            print('phases of FFT of wdw:\n', phases_of_fft[:5])
+            # print('phases of FFT of wdw:\n', phases_of_fft[:5])
 
             fft = mag_fft * np.exp(1j*phases_of_fft)
-            print('FFT of wdw (len =', len(fft), '):\n', fft[:5])
+            # print('FFT of wdw (len =', len(fft), '):\n', fft[:5])
 
             ifft = np.fft.ifft(fft)
 
             imaginaries = ifft.imag.tolist()
             synthetic_sgmt = ifft.real.tolist()
-            print('Synthetic imaginaries:\n', imaginaries[:10])
-            print('Synthetic segment (len =', len(synthetic_sgmt), '):\n', synthetic_sgmt[:5])
+            # print('Synthetic imaginaries:\n', imaginaries[:10])
+            # print('Synthetic segment (len =', len(synthetic_sgmt), '):\n', synthetic_sgmt[:5])
 
             if ova and len(synthetic_sig):
                 ova_sgmt = synthetic_sgmt[: wdw_size // 2]
@@ -368,6 +367,19 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=False, debug=Fal
             imaginaries = ifft.imag.tolist()
             synthetic_sgmt = ifft.real.tolist()
 
+            if debug and i == 0:
+                print('positive mag FFT:\n', pos_mag_fft[:5])
+                print('positive phases:\n', pos_phases_of_fft[:5])
+                print('positive mag FFT and phase lengths:', len(pos_mag_fft), len(pos_phases_of_fft))
+                print('negative mag FFT:\n', neg_mag_fft[:5])
+                print('mag FFT of wdw:\n', mag_fft[:5])
+                print('negative phases:\n', neg_phases_of_fft[:5])
+                print('phases of FFT of wdw:\n', phases_of_fft[:5])
+                print('FFT of wdw (len =', len(fft), '):\n', fft[:5])
+                print('Synthetic imaginaries:\n', imaginaries[:10])
+                print('Synthetic segment (len =', len(synthetic_sgmt), '):\n', synthetic_sgmt[:5])
+
+
             # Do overlap-add operations if ova (but only if list has atleast 1 element)
             if ova and len(synthetic_sig):
                 ova_sgmt = synthetic_sgmt[: wdw_size // 2]  # First half
@@ -384,6 +396,8 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=False, debug=Fal
 
             else:
                 synthetic_sig += synthetic_sgmt
+                if debug and i == 0:
+                    print('End of synth sig:', synthetic_sig[-20:])
 
     if debug:
         print('Synthetic Sig - bad type for brahms (not uint8):\n', np.array(synthetic_sig)[:20])
