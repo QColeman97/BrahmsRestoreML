@@ -52,6 +52,7 @@ PIANO_WDW_SIZE = 4096 # 32768 # 16384 # 8192 # 4096 # 2048
 DEBUG_WDW_SIZE = 4
 RES = STD_SR_HZ / PIANO_WDW_SIZE
 BEST_WDW_NUM = 5
+NUM_NOISE_BV = 5
 # Activation Matrix (H) Learning Part
 MAX_LEARN_ITER = 100
 BASIS_VECTOR_FULL_RATIO = 0.01
@@ -69,7 +70,12 @@ SPGM_MARY_RATIO = 0.008
 
 
 # Functions
-def make_basis_vector(waveform, sgmt_num, wdw_size, avg=False):
+# Learning optimization
+def make_row_sum_matrix(mtx, out_shape):
+    row_sums = mtx.sum(axis=1)
+    return np.repeat(row_sums, out_shape[1], axis=0)
+
+def make_basis_vector(waveform, sgmt_num, wdw_size, ova=False, avg=False):
     if avg:
         num_sgmts = math.floor(len(waveform) / wdw_size) # Including incomplete windows throws off averaging
         all_sgmts = np.array([waveform[i * wdw_size: (i + 1) * wdw_size] for i in range(num_sgmts)])
@@ -81,19 +87,50 @@ def make_basis_vector(waveform, sgmt_num, wdw_size, avg=False):
         if len(sgmt) != wdw_size:
                 deficit = wdw_size - len(sgmt)
                 sgmt = np.pad(sgmt, (deficit, 0), mode='constant')
-
+    if ova:
+        sgmt *= np.hanning(wdw_size)
     # Positive frequencies in ascending order, including 0Hz and the middle frequency (pos & neg)
     return np.abs(np.fft.fft(sgmt))[: (wdw_size // 2) + 1]
 
-# Learning optimization
-def make_row_sum_matrix(mtx, out_shape):
-    row_sums = mtx.sum(axis=1)
-    return np.repeat(row_sums, out_shape[1], axis=0)
+# TODO: If this isn't effective, try whole beginning of brahms (including little ticks) before speaking
+# Time/#segments is irrelevant to # of basis vectors made (so maximize)
+def make_noise_basis_vectors(wdw_size, ova=False, eq=False, debug=False):
+    sr, brahms_sig = wavfile.read('../brahms.wav')
+    # Convert to mono signal (avg left & right channels) 
+    brahms_sig = np.array([((x[0] + x[1]) / 2) for x in brahms_sig.astype('float64')])
+    
+    # noise_sig_len = (NUM_NOISE_BV - 2) if ova else NUM_NOISE_BV
+    # # Second 2 hits solid noise - based on Audacity waveform (22nd wdw if sr=44100, wdw_size=4096)
+    # noise_sgmt_num = math.ceil((STD_SR_HZ * 2) / wdw_size)
+    # noise_sig = brahms_sig[(noise_sgmt_num - 1) * wdw_size: (noise_sgmt_num + noise_sig_len - 1) * wdw_size]    # sgmt_num is naturally-indexed
+    
+    noise_sig_len = 2 if ova else 1 # The 1 is a guess, 2 is empircally derived
+    # Second 2 hits solid noise - based on Audacity waveform (22nd wdw if sr=44100, wdw_size=4096)
+    noise_sgmt_num = math.ceil((STD_SR_HZ * 2.2) / wdw_size)    # 2.2 seconds (24rd window to (not including) 26th window)
+    # print('Noise segment num:', noise_sgmt_num)
+    noise_sig = brahms_sig[(noise_sgmt_num - 1) * wdw_size: (noise_sgmt_num + noise_sig_len - 1) * wdw_size] 
 
+    print('\n----Making Noise Spectrogram--\n')
+    spectrogram, phases = make_spectrogram(noise_sig, wdw_size, ova=ova, debug=debug)
+    print('\n----Learning Noise Basis Vectors--\n')
+    _, noise_basis_vectors = nmf_learn(spectrogram, NUM_NOISE_BV, debug=debug)
+    if debug:
+        print('Shape of Noise Spectogram V:', spectrogram.shape)
+        print('Shape of Learned Noise Basis Vectors W:', noise_basis_vectors.shape)
+
+    if eq:  # Make louder
+        new_bvs = []
+        for bv in noise_basis_vectors:
+            while np.max(bv[1:]) < bv_thresh:
+                bv *= 1.1
+            new_bvs.append(bv)
+        noise_basis_vectors = new_bvs
+
+    return list(noise_basis_vectors.T)    # List format is for use in get_basis_vectors(), transpose into similar format
 
 # W LOGIC
 # Basis vectors in essence are the "best" dft of a sound w/ constant pitch (distinct freq signature)
-def get_basis_vectors(wdw_num, wdw_size, mary=False, noise=False, avg=False, eq=False, debug=False):
+def get_basis_vectors(wdw_num, wdw_size, ova=False, mary=False, noise=False, avg=False, eq=False, debug=False):
     # To get threshold
     # max_val = None
     bv_thresh = 800000 # Based on max_val (not including first freq bin) - (floor) is 943865
@@ -102,6 +139,8 @@ def get_basis_vectors(wdw_num, wdw_size, mary=False, noise=False, avg=False, eq=
     filename = 'basis_vectors'
     if mary:
         filename += '_mary'
+    if ova:
+        filename += '_ova'
     if noise:
         filename += '_noise'
     if avg:
@@ -129,19 +168,22 @@ def get_basis_vectors(wdw_num, wdw_size, mary=False, noise=False, avg=False, eq=
             audio_files = sorted(unsorted_audio_files, key=lambda x: sorted_file_names.index(x))
 
             if noise:   # Retrieve noise from brahms sig
-                sr, brahms_sig = wavfile.read('../brahms.wav')
-                # Convert to mono signal (avg left & right channels) 
-                brahms_sig = np.array([((x[0] + x[1]) / 2) for x in brahms_sig.astype('float64')])
-                # Second 2 hits solid noise - based on Audacity waveform (22nd wdw if sr=44100, wdw_size=4096)
-                noise_wdw = math.ceil((STD_SR_HZ * 2) / wdw_size)
-                noise_basis_vector = make_basis_vector(brahms_sig, noise_wdw, wdw_size)
+                print('\n----Making Noise Basis Vectors--\n')
+                # sr, brahms_sig = wavfile.read('../brahms.wav')
+                # # Convert to mono signal (avg left & right channels) 
+                # brahms_sig = np.array([((x[0] + x[1]) / 2) for x in brahms_sig.astype('float64')])
+                # # Second 2 hits solid noise - based on Audacity waveform (22nd wdw if sr=44100, wdw_size=4096)
+                # noise_wdw = math.ceil((STD_SR_HZ * 2) / wdw_size)
+                # noise_basis_vector = make_basis_vector(brahms_sig, noise_wdw, wdw_size, ova=ova)
 
-                if eq:  # Make louder
-                    while np.max(noise_basis_vector[1:]) < bv_thresh:
-                        noise_basis_vector *= 1.1
+                # if eq:  # Make louder
+                #     while np.max(noise_basis_vector[1:]) < bv_thresh:
+                #         noise_basis_vector *= 1.1
 
-                basis_vectors.append(noise_basis_vector)
-                bv_f.write(','.join([str(x) for x in noise_basis_vector]) + '\n')
+                # basis_vectors.append(noise_basis_vector)
+                basis_vectors += make_noise_basis_vectors(wdw_size, ova=ova, eq=eq, debug=debug)
+                for basis_vector in basis_vectors:
+                    bv_f.write(','.join([str(x) for x in basis_vector]) + '\n')
 
                 # if max_val is None or np.max(noise_basis_vector[1:]) > max_val:
                 #     max_val = np.max(noise_basis_vector)
@@ -164,7 +206,7 @@ def get_basis_vectors(wdw_num, wdw_size, mary=False, noise=False, avg=False, eq=
                 while sig[-1] < amp_thresh:
                     sig = sig[:-1]
 
-                basis_vector = make_basis_vector(sig, wdw_num, wdw_size, avg=avg)
+                basis_vector = make_basis_vector(sig, wdw_num, wdw_size, ova=ova, avg=avg)
 
                 if eq:  # Make it louder
                     while np.max(basis_vector[1:]) < bv_thresh:
@@ -182,8 +224,8 @@ def get_basis_vectors(wdw_num, wdw_size, mary=False, noise=False, avg=False, eq=
 
     basis_vectors = np.array(basis_vectors).T   # T Needed? Yes
     if debug:
-        # print('Shape of Basis Vectors W:', basis_vectors.shape)
-        plot_matrix(basis_vectors, name="Original Basis Vectors", ratio=BASIS_VECTOR_FULL_RATIO)
+        print('Shape of built basis vectors:', basis_vectors.shape)
+        plot_matrix(basis_vectors, name="Built Basis Vectors", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
 
     return basis_vectors
 
@@ -205,9 +247,10 @@ def make_spectrogram(signal, wdw_size, ova=False, debug=False):
     spectrogram, pos_phases = [], []
     if ova:
         # Probably fine, but broken (makes 3 sgmts for a 6 elem sig w/ 4 elem wdwsize)
-        num_sgmts = (math.ceil(num_spls / wdw_size) * 2) - 1
-        if len(sig) == 6:
-            num_sgmts = 2
+        # num_sgmts = (math.ceil(num_spls / wdw_size) * 2) - 1
+        # if len(sig) == 6:
+        #     num_sgmts = 2
+        num_sgmts = math.ceil(num_spls / (wdw_size // 2)) - 1
     else:
         num_sgmts = math.ceil(num_spls / wdw_size)
 
@@ -216,6 +259,7 @@ def make_spectrogram(signal, wdw_size, ova=False, debug=False):
         print('Num segments:', num_sgmts)
 
     for i in range(num_sgmts):
+        # TODO: Does slicing a list make a copy? B/c appears not to
         sgmt = sig[i * hop_size: (i * hop_size) + wdw_size].copy()
 
         # print("Type of elem in spectrogram:", type(wdw[0]))
@@ -236,7 +280,7 @@ def make_spectrogram(signal, wdw_size, ova=False, debug=False):
 
         if debug and (i == 0 or i == 1):
             if ova:
-                print('Hamming mult segment:\n', sgmt[:5])
+                print('hanning mult segment:\n', sgmt[:5])
             print('FFT of wdw (len =', len(fft), '):\n', fft[:5])
             print('phases of FFT of wdw:\n', phases_of_fft[:5])
             print('mag FFT of wdw:\n', mag_fft[:5])
@@ -253,40 +297,72 @@ def make_spectrogram(signal, wdw_size, ova=False, debug=False):
     # Spectrogram matrix w/ correct orientation
     spectrogram = np.array(spectrogram).T   # T Needed? Yes
     if debug:
-        # print('Shape of Spectrogram V:', spectrogram.shape)
-        plot_matrix(spectrogram, name="Original Spectrogram", ratio=SPGM_BRAHMS_RATIO)
+        plot_matrix(spectrogram, name='Built Spectrogram', ylabel='Frequency (Hz)', ratio=SPGM_BRAHMS_RATIO)
 
     return spectrogram, pos_phases
 
 # H LOGIC - Learn / Approximate Activation Matrix
+# NMF Basics
+# V (FxT) = W (FxC) @ H (CxT)
+# Dimensions: F = # freq. bins, C = # components(piano keys), T = # windows in time/timesteps
+# Matrices: V = Spectrogram, W = Basis Vectors, H = Activations
 # Main dimensions: freq bins = spectrogram.shape[0], piano keys (components?) = num_notes OR basis_vectors.shape[1], windows = bm_num_wdws OR spectrogram.shape[1]
-def make_activations(spectrogram, basis_vectors, noise=False, debug=False):
+# def nmf_learn(spectrogram, basis_vectors, noise=False, debug=False):
+def nmf_learn(spectrogram, num_components, debug=False):
     # CHANGE BACK IF BUG:
     # activations = np.random.rand(num_notes, bm_num_wdws)
-    activations = np.random.rand(basis_vectors.shape[1], spectrogram.shape[1])
+    # learned_activations = np.random.rand(len(SORTED_NOTES), spectrogram.shape[1])
+    # learned_basis_vectors = np.random.rand(spectrogram.shape[0], len(SORTED_NOTES))
+    learned_activations = np.random.rand(num_components, spectrogram.shape[1])
+    learned_basis_vectors = np.random.rand(spectrogram.shape[0], num_components)
     ones = np.ones(spectrogram.shape) # so dimenstions match W transpose dot w/ V
 
+    # How do we use basis vectors, if we haven't learned them yet?
     for i in range(MAX_LEARN_ITER):
         # H +1 = H * ((Wt dot (V / (W dot H))) / (Wt dot 1) )
-        activations *= ((basis_vectors.T @ (spectrogram / (basis_vectors @ activations))) / (basis_vectors.T @ ones))
+        # learned_activations *= ((basis_vectors.T @ (spectrogram / (basis_vectors @ learned_activations))) / (basis_vectors.T @ ones))
+        
+        learned_activations *= ((learned_basis_vectors.T @ (spectrogram / (learned_basis_vectors @ learned_activations))) / (learned_basis_vectors.T @ ones))
+
         # UNCOMMENT FOR BUGGY OPTIMIZATION:
         # denom = make_row_sum_matrix(basis_vectors.T, spectrogram.shape)
-        # activations *= (basis_vectors.T @ (spectrogram / (basis_vectors @ activations))) / denom
+        # learned_activations *= (basis_vectors.T @ (spectrogram / (basis_vectors @ learned_activations))) / denom
+
+        # Make learned basis vectors
+        # W +1 = W * (((V / (W dot H)) dot Ht) / (1 dot Ht) )
+        learned_basis_vectors *= (((spectrogram / (learned_basis_vectors @ learned_activations)) @ learned_activations.T) / (ones @ learned_activations.T))
 
     if debug:
-        print('Shape of Original Activations H:', activations.shape)
-        plot_matrix(activations, name="Original Activations", ratio=ACTIVATION_RATIO)
+        print('Shape of Learned Activations H:', learned_activations.shape)
+        # print('First rows of activations (components):\n', learned_activations[0,:], '\n', learned_activations[1,:], '\n', learned_activations[2,:], '\n')
+        # print('First columns of activations (windows):\n', learned_activations[:,0], '\n', learned_activations[:,1], '\n', learned_activations[:,2], '\n')
+        plot_matrix(learned_activations, name="Learned Activations", ylabel='Components', ratio=ACTIVATION_RATIO)
 
-    if noise: # Remove noise component so no noise in synthetic spectrogram
-        basis_vectors = basis_vectors.T[1:].T
-        activations = activations[1:]
-        if debug:
-            # print('Shape of De-noised Basis Vectors W:', activations.shape)
-            plot_matrix(basis_vectors, name="De-noised Basis Vectors", ratio=BASIS_VECTOR_FULL_RATIO)
-            # print('Shape of De-noised Activations H:', activations.shape)
-            plot_matrix(activations, name="De-noised Activations", ratio=ACTIVATION_RATIO)
+        print('Shape of Learned Basis Vectors W:', learned_basis_vectors.shape)
+        # print('First rows of basis vectors (freq bins):\n', learned_activations[0,:], '\n', learned_activations[1,:], '\n', learned_activations[2,:], '\n')
+        # print('First columns of basis vectors (components):\n', learned_activations[:,0], '\n', learned_activations[:,1], '\n', learned_activations[:,2], '\n')
+        plot_matrix(learned_basis_vectors, name="Learned Basis Vectors", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
 
+    # if noise: # Remove noise component so no noise in synthetic spectrogram
+    #     basis_vectors = basis_vectors.T[1:].T
+    #     learned_activations = learned_activations[1:]
+    #     if debug:
+    #         # print('Shape of De-noised Basis Vectors W:', activations.shape)
+    #         plot_matrix(basis_vectors, name="De-noised Basis Vectors", ratio=BASIS_VECTOR_FULL_RATIO)
+    #         # print('Shape of De-noised Activations H:', activations.shape)
+    #         plot_matrix(learned_activations, name="De-noised Activations", ratio=ACTIVATION_RATIO)
+
+    return learned_activations, learned_basis_vectors
+
+
+def remove_noise_vectors(activations, basis_vectors, debug=False):
+    basis_vectors = basis_vectors.T[NUM_NOISE_BV:].T
+    activations = activations[NUM_NOISE_BV:]
+    if debug:
+        plot_matrix(basis_vectors, name="De-noised Basis Vectors", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
+        plot_matrix(activations, name="De-noised Activations", ylabel='Components', ratio=ACTIVATION_RATIO)
     return activations, basis_vectors
+
 
 # Construct synthetic waveform
 def make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=False, debug=False):
@@ -336,13 +412,12 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=False, debug=Fal
             print('Synthetic imaginaries:\n', imaginaries[:10])
             print('Synthetic segment (len =', len(synthetic_sgmt), '):\n', synthetic_sgmt[:5])
 
-
         # Do overlap-add operations if ova (but only if list has atleast 1 element)
         if ova and len(synthetic_sig):
-            ova_sgmt = synthetic_sgmt[: wdw_size // 2]  # First half
-            end_sgmt = synthetic_sgmt[wdw_size // 2:]   # Second half
+            ova_sgmt = synthetic_sgmt[: wdw_size // 2].copy()   # First half
+            end_sgmt = synthetic_sgmt[wdw_size // 2:].copy()    # Second half
 
-            end_sig = synthetic_sig[-(wdw_size // 2):]  # Last part of sig
+            end_sig = synthetic_sig[-(wdw_size // 2):].copy()   # Last part of sig
             end_sum = [sum(x) for x in zip(ova_sgmt, end_sig)]  # Summed last part w/ first half
             if debug and i == 1:
                 print('ova_sgmt:\n', ova_sgmt[-10:], '\nend_sgmt:\n', end_sgmt[-10:], '\nend_sig:\n', end_sig[-10:], '\nend_sum:\n', end_sum[-10:])
@@ -361,6 +436,7 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=False, debug=Fal
 
     return np.array(synthetic_sig)
 
+
 def make_mary_bv_test_activations():
     activations = []
     for j in range(5):
@@ -377,12 +453,13 @@ def make_mary_bv_test_activations():
         activations.append(comp)
     return np.array(activations)
 
-def plot_matrix(matrix, name, ratio=0.08):
+
+def plot_matrix(matrix, name, ylabel, ratio=0.08):
     num_wdws = matrix.shape[1]
 
     fig, ax = plt.subplots()
     ax.title.set_text(name)
-    ax.set_ylabel('Frequency (Hz)')
+    ax.set_ylabel(ylabel)
     # Map the axis to a new correct frequency scale, something in imshow() 0 to 44100 / 2, step by window size
     im = ax.imshow(np.log(matrix), extent=[0, num_wdws, STD_SR_HZ // 2, 0])
     fig.tight_layout()
@@ -391,6 +468,14 @@ def plot_matrix(matrix, name, ratio=0.08):
     plt.ylim(8000.0, 0.0)   # Crop an axis (to ~double the piano frequency max)
     ax.set_aspect(ratio)    # Set a visually nice ratio
     plt.show()
+
+
+
+def reconstruct_audio():
+    pass
+
+def restore_audio():
+    pass
 
 
 def main():
@@ -407,8 +492,11 @@ def main():
         print('Currently not editable: Sampling Rate, Best Window & size of Basis Vectors\n')
         sys.exit(1)
 
-    noisebv_flag = False
-    avgbv_flag = False
+
+    noisebv_flag = True
+    avgbv_flag = True
+    ova_flag = True
+    mary_flag = False    # Special case for Mary.wav - basis vectors size optimization
     # TODO: Use argparse library
     # CONFIGURATION
     # Mode - RECONST or RESTORE
@@ -416,7 +504,6 @@ def main():
     out_filename = 'synthetic_' if mode == 'RESTORE' else 'reconst_'
     # Signal - comes as a list, filepath or a length
     sig_sr = STD_SR_HZ # Initialize sr to default
-    mary_flag = False    # Special case for Mary.wav - basis vectors size optimization
     if sys.argv[2].startswith('['):
         sig = np.array([int(num) for num in sys.argv[2][1:-1].split(',')])
         orig_type = sig.dtype
@@ -437,7 +524,6 @@ def main():
     # Window Size
     wdw_size = int(sys.argv[4]) if (len(sys.argv) == 5) else PIANO_WDW_SIZE
     # Overlap-Add is Necessary & Default
-    ova_flag = True
     if ova_flag:
         out_filename += '_ova'
     if noisebv_flag and mode == 'RESTORE':
@@ -446,48 +532,64 @@ def main():
         out_filename += '_avgbv'
     out_filename += '.wav'
 
+
     if mode == 'RECONST': # RECONSTRUCT BLOCK
-        print('Initiating Reconstruct Mode')
+        print('--Initiating Reconstruct Mode--')
+
+        # # TEMP SO WE CAN FIND MAX NOISE SEGMENT - noise from 1.8 ro 2.1 seconds
+        # noise_sig_len = 2
+        # # Second 2 hits solid noise - based on Audacity waveform (22nd wdw if sr=44100, wdw_size=4096)
+        # noise_sgmt_num = math.ceil((STD_SR_HZ * 2.2) / wdw_size)    # 2.1 seconds (23rd window to (not including) 25th window)
+        # # print('Noise segment num:', noise_sgmt_num)
+        # noise_sig = sig[(noise_sgmt_num - 1) * wdw_size: (noise_sgmt_num + noise_sig_len - 1) * wdw_size] 
+        # # noise_sig = sig[23 * wdw_size: 25 * wdw_size] 
+        # # 23 25
+        # out_filename = 'practice_' + out_filename
+        # spectrogram, phases = make_spectrogram(noise_sig, wdw_size, ova=ova_flag, debug=debug_flag)
+
+        print('\n--Making Signal Spectrogram--\n')
         spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova_flag, debug=debug_flag)
-        # print('\n---SYNTHETIC SPGM TRANSITION----\n')
+        print('\n--Making Synthetic Signal--\n')
         synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, ova=ova_flag, debug=debug_flag)
-        # print('Reconstructed Sig:\n', synthetic_sig[:20])
-        
         # Make synthetic WAV file - defaults to original sampling rate, TODO: Does that change things?
         # Important: signal elems to types of original signal (uint8 for brahms) or else MUCH LOUDER
         wavfile.write(out_filename, sig_sr, synthetic_sig.astype(sig.dtype))
     
     else:   # MAIN RESTORE BLOCK
-        print('Initiating Restore Mode')
-        basis_vectors = get_basis_vectors(BEST_WDW_NUM, wdw_size, mary=mary_flag, noise=noisebv_flag, avg=avgbv_flag, debug=debug_flag)
+        print('--Initiating Restore Mode--')
+        print('\n--Making Piano Basis Vectors--\n')
+        basis_vectors = get_basis_vectors(BEST_WDW_NUM, wdw_size, ova=ova_flag, mary=mary_flag, noise=noisebv_flag, avg=avgbv_flag, debug=debug_flag)
+        print('\n--Making Signal Spectrogram--\n')
         spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova_flag, debug=debug_flag)
-        # if debug_flag:
-        #     plot_matrix(basis_vectors, name="Original Basis Vectors", ratio=BASIS_VECTOR_FULL_RATIO)
-        #     plot_matrix(spectrogram, name="Original Spectrogram", ratio=SPGM_BRAHMS_RATIO)
 
         if debug_flag:
-            print('Shape of Original Basis Vectors W:', basis_vectors.shape)
-            print('Shape of Spectrogram V:', spectrogram.shape)
+            print('Shape of Original Piano Basis Vectors W:', basis_vectors.shape)
+            print('Shape of Signal Spectrogram V:', spectrogram.shape)
             
-        # print('\nLearning Activations...\n')
-        activations, basis_vectors = make_activations(spectrogram, basis_vectors, noise=noisebv_flag, debug=debug_flag)
-
-        synthetic_spgm = basis_vectors @ activations
-        
+        print('\n--Learning Piano Activations--\n')
+        # activations, _ = nmf_learn(spectrogram, basis_vectors, noise=noisebv_flag, debug=debug_flag)
+        num_components = len(SORTED_NOTES) + 5 if noisebv_flag else len(SORTED_NOTES)
+        activations, _ = nmf_learn(spectrogram, num_components, debug=debug_flag)
+        if noisebv_flag:
+            activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug_flag)
         if debug_flag:
-            print('Shape of Basis Vectors W:', basis_vectors.shape)
-            print('Shape of Activations H:', activations.shape)
-            # plot_matrix(basis_vectors, name="(De-noised) Basis Vectors", ratio=BASIS_VECTOR_FULL_RATIO)
-            # plot_matrix(activations, name="(De-noised) Activations", ratio=ACTIVATION_RATIO)
-            print('Shape of Synthetic Spectrogram V\':', synthetic_spgm.shape)
-            plot_matrix(synthetic_spgm, name="Synthetic Spectrogram", ratio=SPGM_BRAHMS_RATIO)
+            if noisebv_flag:
+                print('Shape of De-noised Piano Basis Vectors W:', basis_vectors.shape)
+                print('Shape of De-noised Piano Activations H:', activations.shape)
+            else:
+                print('Shape of Piano Activations H:', activations.shape)
+        
+        print('\n--Making Synthetic Spectrogram--\n')
+        synthetic_spgm = basis_vectors @ activations
+        if debug_flag:
+            print('Shape of Synthetic Signal Spectrogram V\':', synthetic_spgm.shape)
+            plot_matrix(synthetic_spgm, name='Synthetic Spectrogram', ylabel='Frequency (Hz)', ratio=SPGM_BRAHMS_RATIO)
 
-        # print('\n---SYNTHETIC SPGM TRANSITION----\n')
+        print('\n--Making Synthetic Signal--\n')
         synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=ova_flag, debug=debug_flag)
-        # print('Synthesized signal - bad type for brahms (not uint8):\n', synthetic_sig[:20])
-
         # Make synthetic WAV file - Important: signal elems to types of original signal (uint8 for brahms) or else MUCH LOUDER
         wavfile.write(out_filename, sig_sr, synthetic_sig.astype(sig.dtype))
+
 
 if __name__ == '__main__':
     main()

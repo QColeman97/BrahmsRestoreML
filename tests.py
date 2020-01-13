@@ -58,6 +58,67 @@ class RestoreAudioTests(unittest.TestCase):
 
         self.assertAlmostEqual(ratios[0], 4/3)
 
+    def test_reconst_beginning(self):
+        # sig = [5]*12
+        sig = np.ones(12)
+        wdw_size = 6
+        spectrogram, phases = make_spectrogram(sig, wdw_size)
+        synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size)
+
+        # print('Synthetic non-OVA sig:\n', synthetic_sig, '\n', synthetic_sig[:wdw_size // 2])
+
+        # match = (np.array([5]*wdw_size) * np.hanning(wdw_size))[:wdw_size // 2]
+        match = np.ones(wdw_size)[:wdw_size // 2]
+
+        np.testing.assert_array_equal(synthetic_sig[:wdw_size // 2], match)
+
+    def test_overlap_add_beginning(self):
+        # sig = [5]*12
+        sig = np.ones(12)
+        wdw_size = 6
+        spectrogram, phases = make_spectrogram(sig, wdw_size, ova=True, debug=False)
+        synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, ova=True, debug=False)
+
+        print('Synthetic OVA sig beginning:\n', synthetic_sig, '\n', synthetic_sig[:wdw_size // 2])
+        # [0.        0.3454915 0.9045085]
+
+        # match = (np.array([5]*wdw_size) * np.hanning(wdw_size))[:wdw_size // 2]
+        match = np.hanning(wdw_size)[:wdw_size // 2]
+
+        np.testing.assert_array_almost_equal(synthetic_sig[:wdw_size // 2], match)
+
+    # def test_overlap_add_middle(self):
+    #     # sig = [5]*12
+    #     sig = np.ones(12)
+    #     wdw_size = 6
+    #     spectrogram, phases = make_spectrogram(sig, wdw_size, ova=True)
+    #     synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, ova=True)
+
+    #     print('Synthetic OVA sig middle:\n', synthetic_sig, '\n', synthetic_sig[wdw_size // 2: -(wdw_size // 2)])
+
+    #     # match = (np.array([5]*wdw_size) * np.hanning(wdw_size))[wdw_size // 2: -(wdw_size // 2)]
+    #     match = np.hanning(wdw_size)[wdw_size // 2: -(wdw_size // 2)]
+    #     print('Match:\n', match)
+    #     print()
+
+    #     np.testing.assert_array_almost_equal(synthetic_sig[wdw_size // 2: -(wdw_size // 2)], match)
+
+    def test_overlap_add_end(self):
+        # sig = [5]*12
+        sig = np.ones(12)
+        wdw_size = 6
+        spectrogram, phases = make_spectrogram(sig, wdw_size, ova=True)
+        synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, ova=True)
+
+        # print('Synthetic OVA sig end:\n', synthetic_sig, '\n', synthetic_sig[-(wdw_size // 2):])
+
+        # match = (np.array([5]*wdw_size) * np.hanning(wdw_size))[wdw_size // 2:]
+        match = np.hanning(wdw_size)[-(wdw_size // 2):]
+        # print('Match:\n', match)
+        # print()
+
+        np.testing.assert_array_almost_equal(synthetic_sig[-(wdw_size // 2):], match)
+
     # # Useless test
     # def test_mary_activations_mary_bv(self):
     #     mary_activations = make_mary_bv_test_activations()
