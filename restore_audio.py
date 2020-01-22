@@ -55,7 +55,7 @@ PIANO_WDW_SIZE = 4096 # 32768 # 16384 # 8192 # 4096 # 2048
 DEBUG_WDW_SIZE = 4
 RES = STD_SR_HZ / PIANO_WDW_SIZE
 BEST_WDW_NUM = 5
-NUM_NOISE_BV = 5
+NUM_NOISE_BV = 20 # 3 # 10 # 5
 # Activation Matrix (H) Learning Part
 MAX_LEARN_ITER = 100
 BASIS_VECTOR_FULL_RATIO = 0.01
@@ -146,7 +146,7 @@ def get_basis_vectors(wdw_num, wdw_size, ova=False, mary=False, noise=False, avg
     # if semisuplearn == 'Piano':
     #     filename += '_just'
     if noise: # MUST BE TRUE if semisuplearn is 'Piano', why I continue the clause
-        filename += '_noise'
+        filename += ('_' + str(NUM_NOISE_BV) + 'noise')
     # if semisuplearn == 'Noise':
     #     filename += '_no_noise'
     
@@ -679,8 +679,8 @@ def main():
 
     # Ternary flag - 'Piano', 'Noise', or 'None'
     # If 'Piano', noisebv_flag MUST BE TRUE
-    semi_sup_learn = 'Noise'
-    semi_sup_made_init = True
+    semi_sup_learn = 'Piano'
+    semi_sup_made_init = True   # Only considered when semi_sup_learn != 'None'
 
     # TODO: Use argparse library
     # Configure params
@@ -716,12 +716,14 @@ def main():
     else:   # MAIN RESTORE BLOCK
         if semi_sup_learn == 'Piano':
             out_filename += '_sslrnpiano'
+            if semi_sup_made_init:
+                out_filename += '_madeinit'
         elif semi_sup_learn == 'Noise':
             out_filename += '_sslrnnoise'
-        if semi_sup_made_init:
-            out_filename += '_madeinit'
+            if semi_sup_made_init:
+                out_filename += '_madeinit'
         if noisebv_flag:
-            out_filename += '_noisebv'
+            out_filename += ('_' + str(NUM_NOISE_BV) + 'noisebv')
         if avgbv_flag:
             out_filename += '_avgbv'
         out_filename += '.wav'
