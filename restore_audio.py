@@ -64,6 +64,14 @@ ACTIVATION_RATIO = 0.08
 SPGM_BRAHMS_RATIO = 0.08
 SPGM_MARY_RATIO = 0.008
 
+
+# TODO: Do this for safety
+def write_notes_to_file():
+    with open('notes_and_freqs.csv', 'w') as nf:
+        for i in range(len(SORTED_NOTES)):
+            nf.write(SORTED_NOTES[i] + ',' + str(SORTED_FUND_FREQ[i]) + '\n')
+
+
 # Functions
 # Learning optimization
 def make_row_sum_matrix(mtx, out_shape):
@@ -354,7 +362,7 @@ def nmf_learn(spectrogram, activations=None, basis_vectors=None, l_act=None, l_b
         # Fix don't make smaller, but keep same size by concatenating
         # learned_basis_vectors = np.random.rand(spectrogram.shape[0], num_components - basis_vectors.shape[1])
         # learned_activations = np.random.rand(num_components - basis_vectors.shape[1], spectrogram.shape[1])
-        
+
         # Learn part initialization
         if l_bv is not None:
             learn_part = l_bv
@@ -658,6 +666,8 @@ def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, 
 
 
 def main():
+    # write_notes_to_file()
+
     if len(sys.argv) < 3 or len(sys.argv) > 4:
         print('\nUsage: restore_audio.py <mode> <signal> <debug> [window_size]')
         print('Parameter options:')
