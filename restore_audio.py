@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 # import errno - use commented out
 
 # Constants
-# TODO - move to a file
+# TODO - Read this in from the file instead! Then delete
 SORTED_NOTES = ["A0", "Bb0", "B0", "C1", 
                 "Db1", "D1", "Eb1", "E1", "F1", "Gb1", "G1", "Ab1", "A1", "Bb1", "B1", "C2", 
                 "Db2", "D2", "Eb2", "E2", "F2", "Gb2", "G2", "Ab2", "A2", "Bb2", "B2", "C3", 
@@ -36,7 +36,7 @@ SORTED_NOTES = ["A0", "Bb0", "B0", "C1",
                 "Db6", "D6", "Eb6", "E6", "F6", "Gb6", "G6", "Ab6", "A6", "Bb6", "B6", "C7", 
                 "Db7", "D7", "Eb7", "E7", "F7", "Gb7", "G7", "Ab7", "A7", "Bb7", "B7", "C8"]
 
-# TODO - move to a file
+# TODO - Read this in from the file instead! Then delete
 SORTED_FUND_FREQ = [28, 29, 31, 33, 
                     35, 37, 39, 41, 44, 46, 49, 52, 55, 58, 62, 65, 
                     69, 73, 78, 82, 87, 93, 98, 104, 110, 117, 123, 131, 
@@ -67,7 +67,7 @@ SPGM_MARY_RATIO = 0.008
 
 # TODO: Do this for safety
 def write_notes_to_file():
-    with open('notes_and_freqs.csv', 'w') as nf:
+    with open('piano_notes_and_fund_freqs.csv', 'w') as nf:
         for i in range(len(SORTED_NOTES)):
             nf.write(SORTED_NOTES[i] + ',' + str(SORTED_FUND_FREQ[i]) + '\n')
 
@@ -145,38 +145,38 @@ def get_basis_vectors(wdw_num, wdw_size, ova=False, mary=False, noise=False, avg
     bv_thresh = 800000 # Based on max_val (not including first freq bin) - (floor) is 943865
     
     # To make a csv file for dennis
-    filename = 'basis_vectors'
+    filepath = 'csv_saves_bv/basis_vectors'
     if mary:
-        filename += '_mary'
+        filepath += '_mary'
     if ova:
-        filename += '_ova'
+        filepath += '_ova'
 
     # if semisuplearn == 'Piano':
-    #     filename += '_just'
+    #     filepath += '_just'
     if noise: # MUST BE TRUE if semisuplearn is 'Piano', why I continue the clause
-        filename += ('_' + str(NUM_NOISE_BV) + 'noise')
+        filepath += ('_' + str(NUM_NOISE_BV) + 'noise')
     # if semisuplearn == 'Noise':
-    #     filename += '_no_noise'
+    #     filepath += '_no_noise'
     
     if avg:
-        filename += '_avg'
+        filepath += '_avg'
     if eq:
-        filename += ('_eq_piano' + str(bv_thresh))
-    filename += '.csv'
+        filepath += ('_eq_piano' + str(bv_thresh))
+    filepath += '.csv'
 
     try:
         # Line to bypass read from file - no need
         # raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), 'foo')
 
-        with open(filename, 'r') as bv_f:
+        with open(filepath, 'r') as bv_f:
             print('FILE FOUND - READING IN BASIS VECTORS')
             basis_vectors = [[float(sub) for sub in string.split(',')] for string in bv_f.readlines()]
     except FileNotFoundError:
         print('FILE NOT FOUND - MAKING BASIS VECTORS')
-        with open(filename, 'w') as bv_f:
+        with open(filepath, 'w') as bv_f:
             basis_vectors = []
             base_dir = os.getcwd()
-            os.chdir('all_notes_ff')
+            os.chdir('all_notes_ff_wav')
             # audio_files is a list of strings, need to sort it by note
             unsorted_audio_files = [x for x in os.listdir(os.getcwd()) if x.endswith('wav')]
             sorted_file_names = ['Piano.ff.' + x + '.wav' for x in SORTED_NOTES]
@@ -682,13 +682,13 @@ def main():
         sys.exit(1)
 
     # Pre-configured params
-    noisebv_flag = True
-    avgbv_flag = True
-    ova_flag = True
+    noisebv_flag = True     # Confirmed helps - to be kept true
+    avgbv_flag = True       # Confirmed helps - to be kept true
+    ova_flag = True         # Confirmed helps - to be kept true
     marybv_flag = False     # Special case for Mary.wav - basis vectors size optimization test
 
     # Ternary flag - 'Piano', 'Noise', or 'None'
-    # If 'Piano', noisebv_flag MUST BE TRUE
+    #       If 'Piano', noisebv_flag MUST BE TRUE
     semi_sup_learn = 'Piano'
     semi_sup_made_init = True   # Only considered when semi_sup_learn != 'None'
 
@@ -696,48 +696,48 @@ def main():
     # Configure params
     # Mode - RECONST or RESTORE
     mode = sys.argv[1]
-    out_filename = 'restored_' if mode == 'RESTORE' else 'reconst_'
+    out_filepath = 'output_restored_wav_v2/' if mode == 'RESTORE' else 'output_reconstructed_wav/'
     # Signal - comes as a list, filepath or a length
     sig_sr = STD_SR_HZ # Initialize sr to default
     if sys.argv[2].startswith('['):
         sig = np.array([int(num) for num in sys.argv[2][1:-1].split(',')])
-        out_filename += 'my_sig'
+        out_filepath += 'my_sig'
     elif not sys.argv[2].endswith('.wav'):  # Work around for is a number
         sig = np.random.rand(int(sys.argv[2].replace(',', '')))
-        out_filename += 'rand_sig'
+        out_filepath += 'rand_sig'
     else:
         sig_sr, sig = wavfile.read(sys.argv[2])
         if sig_sr != STD_SR_HZ:
             sig, _ = librosa.load(sys.argv[2], sr=STD_SR_HZ)  # Upsample to 44.1kHz if necessary
         start_index = (sys.argv[2].rindex('/') + 1) if (sys.argv[2].find('/') != -1) else 0
-        out_filename += sys.argv[2][start_index: -4]
+        out_filepath += sys.argv[2][start_index: -4]
     # Debug-print/plot option
     debug_flag = True if sys.argv[3] == 'TRUE' else False
     # Window Size
     wdw_size = int(sys.argv[4]) if (len(sys.argv) == 5) else PIANO_WDW_SIZE
     # Overlap-Add is Necessary & Default
     if ova_flag:
-        out_filename += '_ova'
+        out_filepath += '_ova'
 
     if mode == 'RECONST': # RECONSTRUCT BLOCK
-        out_filename += '.wav'
-        reconstruct_audio(sig, wdw_size, out_filename, sig_sr, ova=ova_flag, segment=False, 
+        out_filepath += '.wav'
+        reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=ova_flag, segment=False, 
                           write_file=True, debug=debug_flag)
     else:   # MAIN RESTORE BLOCK
         if semi_sup_learn == 'Piano':
-            out_filename += '_sslrnpiano'
+            out_filepath += '_sslrnpiano'
             if semi_sup_made_init:
-                out_filename += '_madeinit'
+                out_filepath += '_madeinit'
         elif semi_sup_learn == 'Noise':
-            out_filename += '_sslrnnoise'
+            out_filepath += '_sslrnnoise'
             if semi_sup_made_init:
-                out_filename += '_madeinit'
+                out_filepath += '_madeinit'
         if noisebv_flag:
-            out_filename += ('_' + str(NUM_NOISE_BV) + 'noisebv')
+            out_filepath += ('_' + str(NUM_NOISE_BV) + 'noisebv')
         if avgbv_flag:
-            out_filename += '_avgbv'
-        out_filename += '.wav'
-        restore_audio(sig, wdw_size, out_filename, sig_sr, ova=ova_flag, marybv=marybv_flag, noisebv=noisebv_flag, 
+            out_filepath += '_avgbv'
+        out_filepath += '.wav'
+        restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=ova_flag, marybv=marybv_flag, noisebv=noisebv_flag, 
                       avgbv=avgbv_flag, semisuplearn=semi_sup_learn, semisupmadeinit=semi_sup_made_init, write_file=True, debug=debug_flag)
 
 

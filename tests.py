@@ -30,7 +30,7 @@ SPGM_MARY_RATIO = 0.008
 # Spectrogram (V) Part
 brahms_filepath = 'brahms.wav'
 mary_filepath = 'Mary.wav'
-test_path = 'test_output/'
+test_path = 'output_test/'
 
 class RestoreAudioTests(unittest.TestCase):
 
