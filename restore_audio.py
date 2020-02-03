@@ -55,7 +55,8 @@ PIANO_WDW_SIZE = 4096 # 32768 # 16384 # 8192 # 4096 # 2048
 DEBUG_WDW_SIZE = 4
 RES = STD_SR_HZ / PIANO_WDW_SIZE
 BEST_WDW_NUM = 5
-NUM_NOISE_BV = 20 # 3 # 10 # 5
+NUM_NOISE_BV = 5 # 50 # 20 # 3 # 10 # 5 # 10000 is when last good # 100000 is when it gets bad
+# BUT 1000 sounds bad in tests.py
 # Activation Matrix (H) Learning Part
 MAX_LEARN_ITER = 100
 BASIS_VECTOR_FULL_RATIO = 0.01
@@ -64,12 +65,17 @@ ACTIVATION_RATIO = 0.08
 SPGM_BRAHMS_RATIO = 0.08
 SPGM_MARY_RATIO = 0.008
 
+WDW_NUM_AFTER_VOICE = 77
 
-# TODO: Do this for safety
-def write_notes_to_file():
-    with open('piano_notes_and_fund_freqs.csv', 'w') as nf:
-        for i in range(len(SORTED_NOTES)):
-            nf.write(SORTED_NOTES[i] + ',' + str(SORTED_FUND_FREQ[i]) + '\n')
+# L1_PENALTY = 1000000000000000000 # Quintillion
+L1_PENALTY = 0 # 10 ** 19 # 10^9 = 1Bill, 12 = trill, 15 = quad, 18 = quin, 19 = max for me
+
+# TODO: Read notes (& freq if we ever do) in from file, not our program (RAM)
+# # Did this for safety
+# def write_notes_to_file():
+#     with open('piano_notes_and_fund_freqs.csv', 'w') as nf:
+#         for i in range(len(SORTED_NOTES)):
+#             nf.write(SORTED_NOTES[i] + ',' + str(SORTED_FUND_FREQ[i]) + '\n')
 
 
 # Functions
@@ -99,7 +105,8 @@ def make_basis_vector(waveform, sgmt_num, wdw_size, ova=False, avg=False):
 
 # Time/#segments is irrelevant to # of basis vectors made (so maximize)
 def make_noise_basis_vectors(wdw_size, ova=False, eq=False, debug=False, precise_noise=False, bv_thresh=800000):
-    sr, brahms_sig = wavfile.read('../brahms.wav')
+    # sr, brahms_sig = wavfile.read('../brahms.wav')
+    sr, brahms_sig = wavfile.read('/Users/quinnmc/Desktop/AudioRestore/brahms.wav')
     # Convert to mono signal (avg left & right channels) 
     brahms_sig = np.array([((x[0] + x[1]) / 2) for x in brahms_sig.astype('float64')])
     
@@ -136,6 +143,9 @@ def make_noise_basis_vectors(wdw_size, ova=False, eq=False, debug=False, precise
 
     return list(noise_basis_vectors.T)    # List format is for use in get_basis_vectors(), transpose into similar format
 
+# TODO: Temporary, we don't save bvs w/ noise anymnore, 
+# we just calc noise and pop it on top of restored-from-file piano bvs
+
 # W LOGIC
 # Basis vectors in essence are the "best" dft of a sound w/ constant pitch (distinct freq signature)
 # def get_basis_vectors(wdw_num, wdw_size, ova=False, mary=False, noise=False, avg=False, semisuplearn='None', semisupmadeinit=False, debug=False, precise_noise=False, eq=False):
@@ -168,11 +178,26 @@ def get_basis_vectors(wdw_num, wdw_size, ova=False, mary=False, noise=False, avg
         # Line to bypass read from file - no need
         # raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), 'foo')
 
+        if noise:
+            filepath = filepath.replace(('_' + str(NUM_NOISE_BV) + 'noise'), '')
+
         with open(filepath, 'r') as bv_f:
-            print('FILE FOUND - READING IN BASIS VECTORS')
+            print('FILE FOUND - READING IN BASIS VECTORS:', filepath)
             basis_vectors = [[float(sub) for sub in string.split(',')] for string in bv_f.readlines()]
+            # print('Basis Vectors Length After adding to from file:', len(basis_vectors))
+
+        noise_basis_vectors = []
+        if noise:
+            noise_basis_vectors = make_noise_basis_vectors(wdw_size, ova=ova, eq=eq, debug=debug, 
+                                                        precise_noise=precise_noise, bv_thresh=800000)
+        
+        print('Basis Vectors Length after making noise bv:', len(basis_vectors))
+        print('Noise Basis Vectors Length after making noise bv:', len(noise_basis_vectors))
+        basis_vectors = (noise_basis_vectors + basis_vectors)
+        print('Basis Vectors Length After putting together:', len(basis_vectors))
+
     except FileNotFoundError:
-        print('FILE NOT FOUND - MAKING BASIS VECTORS')
+        print('FILE NOT FOUND - MAKING BASIS VECTORS:', filepath)
         with open(filepath, 'w') as bv_f:
             basis_vectors = []
             base_dir = os.getcwd()
@@ -182,27 +207,27 @@ def get_basis_vectors(wdw_num, wdw_size, ova=False, mary=False, noise=False, avg
             sorted_file_names = ['Piano.ff.' + x + '.wav' for x in SORTED_NOTES]
             audio_files = sorted(unsorted_audio_files, key=lambda x: sorted_file_names.index(x))
 
-            # if semisuplearn == 'Piano' or semisuplearn == 'None':
-            if noise:   # Retrieve noise from brahms sig
-                print('\n----Making Noise Basis Vectors--\n')
-                # sr, brahms_sig = wavfile.read('../brahms.wav')
-                # # Convert to mono signal (avg left & right channels) 
-                # brahms_sig = np.array([((x[0] + x[1]) / 2) for x in brahms_sig.astype('float64')])
-                # # Second 2 hits solid noise - based on Audacity waveform (22nd wdw if sr=44100, wdw_size=4096)
-                # noise_wdw = math.ceil((STD_SR_HZ * 2) / wdw_size)
-                # noise_basis_vector = make_basis_vector(brahms_sig, noise_wdw, wdw_size, ova=ova)
+            # # if semisuplearn == 'Piano' or semisuplearn == 'None':
+            # if noise:   # Retrieve noise from brahms sig
+            #     print('\n----Making Noise Basis Vectors--\n')
+            #     # sr, brahms_sig = wavfile.read('../brahms.wav')
+            #     # # Convert to mono signal (avg left & right channels) 
+            #     # brahms_sig = np.array([((x[0] + x[1]) / 2) for x in brahms_sig.astype('float64')])
+            #     # # Second 2 hits solid noise - based on Audacity waveform (22nd wdw if sr=44100, wdw_size=4096)
+            #     # noise_wdw = math.ceil((STD_SR_HZ * 2) / wdw_size)
+            #     # noise_basis_vector = make_basis_vector(brahms_sig, noise_wdw, wdw_size, ova=ova)
 
-                # if eq:  # Make louder
-                #     while np.max(noise_basis_vector[1:]) < bv_thresh:
-                #         noise_basis_vector *= 1.1
+            #     # if eq:  # Make louder
+            #     #     while np.max(noise_basis_vector[1:]) < bv_thresh:
+            #     #         noise_basis_vector *= 1.1
 
-                # basis_vectors.append(noise_basis_vector)
-                basis_vectors += make_noise_basis_vectors(wdw_size, ova=ova, eq=eq, debug=debug, precise_noise=precise_noise, bv_thresh=800000)
-                for basis_vector in basis_vectors:
-                    bv_f.write(','.join([str(x) for x in basis_vector]) + '\n')
+            #     # basis_vectors.append(noise_basis_vector)
+            #     basis_vectors += make_noise_basis_vectors(wdw_size, ova=ova, eq=eq, debug=debug, precise_noise=precise_noise, bv_thresh=800000)
+            #     for basis_vector in basis_vectors:
+            #         bv_f.write(','.join([str(x) for x in basis_vector]) + '\n')
 
-                # if max_val is None or np.max(noise_basis_vector[1:]) > max_val:
-                #     max_val = np.max(noise_basis_vector)
+            #     # if max_val is None or np.max(noise_basis_vector[1:]) > max_val:
+            #     #     max_val = np.max(noise_basis_vector)
 
             # if semisuplearn == 'Noise' or semisuplearn == 'None':
             if mary:
@@ -319,6 +344,97 @@ def make_spectrogram(signal, wdw_size, ova=False, debug=False):
 
     return spectrogram, pos_phases
 
+# NEW - general case NMF algorithm!
+# spectrogram = input_matrix
+def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, madeinit=False, debug=False, incorrect=False):
+    activations = np.random.rand(num_components, input_matrix.shape[1])
+    ones = np.ones(input_matrix.shape) # so dimensions match W transpose dot w/ V
+
+    # NMF Learning step formulas:
+    # H +1 = H * ((Wt dot (V / (W dot H))) / (Wt dot 1) )
+    # W +1 = W * (((V / (W dot H)) dot Ht) / (1 dot Ht) )
+
+    # If basis_vectors provided
+    if basis_vectors:
+        if learn_index == 0:
+            # Sup Learning
+            # Do NMF w/ whole W, only H learn step, get H
+            for _ in range(MAX_LEARN_ITER):
+                activations *= ((basis_vectors.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors.T @ ones) + L1_PENALTY))
+        else:
+            # Semi-Sup Learning
+            if learn_index > 0:     # Fixed part is left side
+                # So I don't make a memory mistake
+                basis_vectors_fixed = basis_vectors[:, :learn_index].copy()
+                basis_vectors_learn = basis_vectors[:, learn_index:].copy()
+                activations_from_fixed = activations[:learn_index, :].copy()
+                activations_from_learn = activations[learn_index:, :].copy()
+            
+            else:                   # Fixed part is right side
+                # So I don't make a memory mistake
+                basis_vectors_fixed = basis_vectors[:, learn_index:].copy()
+                basis_vectors_learn = basis_vectors[:, :learn_index].copy()
+                activations_from_fixed = activations[learn_index:, :].copy()
+                activations_from_learn = activations[:learn_index, :].copy()
+
+            if not madeinit:
+                basis_vectors_learn = np.random.rand(basis_vectors_learn.shape[0], basis_vectors_learn.shape[1])
+
+            # For results of bug
+            if incorrect:
+                # Don't fix the fixed part
+                # W = Wfix and Wlearn concatenated together, same w/ H
+                if learn_index > 0:
+                    activations = np.concatenate((activations_from_fixed, activations_from_learn), axis=0)
+                    basis_vectors = np.concatenate((basis_vectors_fixed, basis_vectors_learn), axis=1)
+                else:
+                    activations = np.concatenate((activations_from_learn, activations_from_fixed), axis=0)
+                    basis_vectors = np.concatenate((basis_vectors_learn, basis_vectors_fixed), axis=1)
+
+                for _ in range(MAX_LEARN_ITER):
+                    activations *= ((basis_vectors.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors.T @ ones) + L1_PENALTY))
+                    basis_vectors *= (((input_matrix / (basis_vectors @ activations)) @ activations.T) / (ones @ activations.T))
+
+            else:
+                # Do NMF w/ Wfix (W given subset), only H learn step, get H
+                for _ in range(MAX_LEARN_ITER):
+                    activations_from_fixed *= ((basis_vectors_fixed.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors_fixed.T @ ones) + L1_PENALTY))
+            
+                # Do NMF w/ Wlearn (W given subset OR random mtx), both W and H learn steps, get W and H
+                for _ in range(MAX_LEARN_ITER):
+                    activations_from_learn *= ((basis_vectors_learn.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors_learn.T @ ones) + L1_PENALTY))
+                    basis_vectors_learn *= (((input_matrix / (basis_vectors @ activations)) @ activations_from_learn.T) / (ones @ activations_from_learn.T))
+                
+                # W = Wfix and Wlearn concatenated together, same w/ H
+                if learn_index > 0:
+                    activations = np.concatenate((activations_from_fixed, activations_from_learn), axis=0)
+                    basis_vectors = np.concatenate((basis_vectors_fixed, basis_vectors_learn), axis=1)
+                else:
+                    activations = np.concatenate((activations_from_learn, activations_from_fixed), axis=0)
+                    basis_vectors = np.concatenate((basis_vectors_learn, basis_vectors_fixed), axis=1)
+    
+    else:
+        # Unsup learning
+        # Do NMF, both W and H learn steps, get W and H
+        basis_vectors = np.random.rand(input_matrix.shape[0], num_components)
+        for _ in range(MAX_LEARN_ITER):
+            activations *= ((basis_vectors.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors.T @ ones) + L1_PENALTY))
+            basis_vectors *= (((input_matrix / (basis_vectors @ activations)) @ activations.T) / (ones @ activations.T))
+
+    if debug:
+        print('In Learn - Shape of Learned Activations H:', learned_activations.shape)
+        # print('First rows of activations (components):\n', learned_activations[0,:], '\n', learned_activations[1,:], '\n', learned_activations[2,:], '\n')
+        # print('First columns of activations (windows):\n', learned_activations[:,0], '\n', learned_activations[:,1], '\n', learned_activations[:,2], '\n')
+        plot_matrix(learned_activations, name="Learned Activations", ylabel='Components', ratio=ACTIVATION_RATIO)
+
+        print('In Learn - Shape of Learned Basis Vectors W:', learned_basis_vectors.shape)
+        # print('First rows of basis vectors (freq bins):\n', learned_activations[0,:], '\n', learned_activations[1,:], '\n', learned_activations[2,:], '\n')
+        # print('First columns of basis vectors (components):\n', learned_activations[:,0], '\n', learned_activations[:,1], '\n', learned_activations[:,2], '\n')
+        plot_matrix(learned_basis_vectors, name="Learned Basis Vectors", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
+
+    return activations, basis_vectors
+
+
 # H LOGIC - Learn / Approximate Activation Matrix
 # NMF Basics
 # V (FxT) = W (FxC) @ H (CxT)
@@ -346,78 +462,144 @@ def make_spectrogram(signal, wdw_size, ova=False, debug=False):
 #   Example, if Wpiano being learned, start with rand matrix or already made Wpiano
 #       Initialization case 1: rand matrix - check
 #       Initialization case 2: made Wpiano
-def nmf_learn(spectrogram, activations=None, basis_vectors=None, l_act=None, l_bv=None, num_components=None, debug=False):
+
+# ACTUALLY TODO: Have a param to specify when to NOT learn voice in our basis vectors (we shouldn't) 
+# For now, no param and we just shorten the brahms sig before this call
+
+# TODO: Add support for activations given, now we ignore checking for given activations (I think for good reason)
+
+def nmf_learn_old(spectrogram, activations=None, basis_vectors=None, semisuplearn='None', madeinit=False, num_components=None, debug=False):
     learned_activations = np.random.rand(num_components, spectrogram.shape[1])
-    learned_basis_vectors = np.random.rand(spectrogram.shape[0], num_components)
     ones = np.ones(spectrogram.shape) # so dimenstions match W transpose dot w/ V
 
-    # Note: must concat fixed w/ to-learn before learning, so we get full activations 
-
-    # Case 1.1 - given built Wpiano, learn Wnoise and Hbrahms
-    # basis_vectors shape is (2049, 88), learned_bv shape is (2049, 93) -> (2049, 5)
-    # Case 1.2 - given built Wnoise, learn Wpiano and Hbrahms
-    # basis_vectors shape is (2049, 5), learned_bv shape is (2049, 93) -> (2049, 88)
-    if basis_vectors is not None and (basis_vectors.shape != learned_basis_vectors.shape):
-        # Given part of W (smaller C or shape[1]) - semi-supervised NMF
-        # Fix don't make smaller, but keep same size by concatenating
-        # learned_basis_vectors = np.random.rand(spectrogram.shape[0], num_components - basis_vectors.shape[1])
-        # learned_activations = np.random.rand(num_components - basis_vectors.shape[1], spectrogram.shape[1])
-
-        # Learn part initialization
-        if l_bv is not None:
-            learn_part = l_bv
-        else:
-            learn_part = np.random.rand(spectrogram.shape[0], num_components - basis_vectors.shape[1])
-
-        if basis_vectors.shape[1] != len(SORTED_NOTES): # Supplied piano bv
-            learned_basis_vectors = np.concatenate((basis_vectors, learn_part), axis=1)
-        else:                                           # Supplied noise bv
-            learned_basis_vectors = np.concatenate((learn_part, basis_vectors), axis=1)
-
+    if semisuplearn == 'Piano':
         if debug:
             print('In Learn - Shape of Given Basis Vectors W:', basis_vectors.shape)
-            print('In Learn - Shape of Learn Part :', learn_part.shape)
-            print('In Learn - Shape of To-Learn Basis Vectors W:', learned_basis_vectors.shape)
+        # Split basis vectors up
+        piano_basis_vectors = basis_vectors[:,NUM_NOISE_BV:].copy()
+        noise_basis_vectors = basis_vectors[:,:NUM_NOISE_BV].copy()
 
-    # Case 2.1 - given built Hpiano, learn Hnoise and Wbrahms
-    # activations shape is (88, 1000), learned_act shape is (93, 1000)
-    # Case 2.2 - given built Hnoise, learn Hpiano and Wbrahms
-    # activations shape is (5, 1000), learned_act shape is (93, 1000)
-    if activations is not None and (activations.shape != learned_activations.shape):
-        # Given part of H (smaller C or shape[0]) - semi-supervised NMF
-        # learned_basis_vectors = np.random.rand(spectrogram.shape[0], num_components - activations.shape[0])
-        # learned_activations = np.random.rand(num_components - activations.shape[0], spectrogram.shape[1])
-        
-        # Learn part initialization
-        if l_act is not None:
-            learn_part = l_act
+        if madeinit:
+            # Fix Wnoise, learn Wpiano (learn part init to made) = Both made
+            learned_basis_vectors = basis_vectors.copy()
         else:
-            learn_part = np.random.rand(num_components - activations.shape[0], spectrogram.shape[1])
+            # Fix Wnoise, learn Wpiano (learn part init to rand)
+            rand_part = np.random.rand(piano_basis_vectors.shape[0], piano_basis_vectors.shape[1])
+            learned_basis_vectors = np.concatenate((noise_basis_vectors, rand_part), axis=1)
+
+            if debug:
+                print('In Learn - Shape of Rand Part :', rand_part.shape)
+    
+    elif semisuplearn == 'Noise':
+        if debug:
+            print('In Learn - Shape of Given Basis Vectors W:', basis_vectors.shape)
+        # Split basis vectors up
+        piano_basis_vectors = basis_vectors[:,NUM_NOISE_BV:].copy()
+        noise_basis_vectors = basis_vectors[:,:NUM_NOISE_BV].copy()
         
-        if activations.shape[0] != len(SORTED_NOTES):   # Supplied piano act
-            learned_activations = np.concatenate((activations, learn_part), axis=0)
-        else:                                           # Supplied noise act
-            learned_activations = np.concatenate((learn_part, activations), axis=0)
+        if madeinit:
+            # Fix Wnoise, learn Wnoise (learn part init to made) = Both made
+            learned_basis_vectors = basis_vectors.copy()
+        else:
+            # Fix Wpiano, learn Wnoise (learn part init to rand)
+            rand_part = np.random.rand(noise_basis_vectors.shape[0], noise_basis_vectors.shape[1])
+            learned_basis_vectors = np.concatenate((rand_part, piano_basis_vectors), axis=1)
+
+            if debug:
+                print('In Learn - Shape of Rand Part :', rand_part.shape)
+                
+    else:
+        # Supervised or unsupervised NMF case (only unsupervised uses this)
+        learned_basis_vectors = np.random.rand(spectrogram.shape[0], num_components)
+
+    learned_bv_copy = learned_basis_vectors.copy()
+
+    if debug:
+        print('In Learn - Shape of To-Learn Basis Vectors W:', learned_basis_vectors.shape)
+
+    # # Note: must concat fixed w/ to-learn before learning, so we get full activations 
+
+    # # Case 1.1 - given built Wpiano, learn Wnoise and Hbrahms
+    # # basis_vectors shape is (2049, 88), learned_bv shape is (2049, 93) -> (2049, 5)
+    # # Case 1.2 - given built Wnoise, learn Wpiano and Hbrahms
+    # # basis_vectors shape is (2049, 5), learned_bv shape is (2049, 93) -> (2049, 88)
+    # if basis_vectors is not None and (basis_vectors.shape != learned_basis_vectors.shape):
+    #     # Given part of W (smaller C or shape[1]) - semi-supervised NMF
+    #     # Fix don't make smaller, but keep same size by concatenating
+    #     # learned_basis_vectors = np.random.rand(spectrogram.shape[0], num_components - basis_vectors.shape[1])
+    #     # learned_activations = np.random.rand(num_components - basis_vectors.shape[1], spectrogram.shape[1])
+
+    #     # Learn part initialization
+    #     if l_bv is not None:
+    #         learn_part = l_bv
+    #     else:
+    #         learn_part = np.random.rand(spectrogram.shape[0], num_components - basis_vectors.shape[1])
+
+    #     if basis_vectors.shape[1] != len(SORTED_NOTES): # Supplied piano bv
+    #         learned_basis_vectors = np.concatenate((basis_vectors, learn_part), axis=1)
+    #     else:                                           # Supplied noise bv
+    #         learned_basis_vectors = np.concatenate((learn_part, basis_vectors), axis=1)
+
+    #     if debug:
+    #         print('In Learn - Shape of Given Basis Vectors W:', basis_vectors.shape)
+    #         print('In Learn - Shape of Learn Part :', learn_part.shape)
+    #         print('In Learn - Shape of To-Learn Basis Vectors W:', learned_basis_vectors.shape)
+
+    # # Case 2.1 - given built Hpiano, learn Hnoise and Wbrahms
+    # # activations shape is (88, 1000), learned_act shape is (93, 1000)
+    # # Case 2.2 - given built Hnoise, learn Hpiano and Wbrahms
+    # # activations shape is (5, 1000), learned_act shape is (93, 1000)
+    # if activations is not None and (activations.shape != learned_activations.shape):
+    #     # Given part of H (smaller C or shape[0]) - semi-supervised NMF
+    #     # learned_basis_vectors = np.random.rand(spectrogram.shape[0], num_components - activations.shape[0])
+    #     # learned_activations = np.random.rand(num_components - activations.shape[0], spectrogram.shape[1])
+        
+    #     # Learn part initialization
+    #     if l_act is not None:
+    #         learn_part = l_act
+    #     else:
+    #         learn_part = np.random.rand(num_components - activations.shape[0], spectrogram.shape[1])
+        
+    #     if activations.shape[0] != len(SORTED_NOTES):   # Supplied piano act
+    #         learned_activations = np.concatenate((activations, learn_part), axis=0)
+    #     else:                                           # Supplied noise act
+    #         learned_activations = np.concatenate((learn_part, activations), axis=0)
 
     # LEARN LOOP
     for i in range(MAX_LEARN_ITER):
-        # Learn activations
-        # H +1 = H * ((Wt dot (V / (W dot H))) / (Wt dot 1) )
-        if (basis_vectors is None) or (basis_vectors.shape != learned_basis_vectors.shape):
-            learned_activations *= ((learned_basis_vectors.T @ (spectrogram / (learned_basis_vectors @ learned_activations))) / (learned_basis_vectors.T @ ones))
-        else:
-            learned_activations *= ((basis_vectors.T @ (spectrogram / (basis_vectors @ learned_activations))) / (basis_vectors.T @ ones))
         # UNCOMMENT FOR BUGGY OPTIMIZATION:
         # denom = make_row_sum_matrix(basis_vectors.T, spectrogram.shape)
+        # Example usage line below
         # learned_activations *= (basis_vectors.T @ (spectrogram / (basis_vectors @ learned_activations))) / denom
+
+        # Only do L1 Penalization for Learning Brahms Activations (semi and supervised)
+
+        # Learn activations
+        # H +1 = H * ((Wt dot (V / (W dot H))) / (Wt dot 1) )
+        # if (basis_vectors is None) or (basis_vectors.shape != learned_basis_vectors.shape):
+        if (basis_vectors is None):
+            # UNSUPERVISED
+            learned_activations *= ((learned_basis_vectors.T @ (spectrogram / (learned_basis_vectors @ learned_activations))) / (learned_basis_vectors.T @ ones))
+        elif semisuplearn != 'None':
+            # SEMI-SUPERVISED
+            learned_activations *= ((learned_basis_vectors.T @ (spectrogram / (learned_basis_vectors @ learned_activations))) / ((learned_basis_vectors.T @ ones) + L1_PENALTY))
+        else:
+            # SUPERVISED
+            learned_activations *= ((basis_vectors.T @ (spectrogram / (basis_vectors @ learned_activations))) / ((basis_vectors.T @ ones) + L1_PENALTY))
 
         # Learn basis vectors
         # W +1 = W * (((V / (W dot H)) dot Ht) / (1 dot Ht) )
-        if (activations is None) or (activations.shape != learned_activations.shape):
+        # if (activations is None) or (activations.shape != learned_activations.shape):
+        if (activations is None) or semisuplearn != 'None':
+            # UNSUPERVISED OR SEMI-SUPERVISED
             learned_basis_vectors *= (((spectrogram / (learned_basis_vectors @ learned_activations)) @ learned_activations.T) / (ones @ learned_activations.T))
         else:
+            # SUPERVISED
             learned_basis_vectors *= (((spectrogram / (learned_basis_vectors @ activations)) @ activations.T) / (ones @ activations.T))
     
+    if debug:
+        print('Did anything change in learning in bv?', not np.array_equal(learned_bv_copy, learned_basis_vectors))
+
     # FIX: Concatenate done before learning
     # # Concatenate fixed bv's w/ learned bv's, what about smaller learned act?
     # if basis_vectors is not None and (basis_vectors.shape != learned_basis_vectors.shape):
@@ -431,6 +613,17 @@ def nmf_learn(spectrogram, activations=None, basis_vectors=None, l_act=None, l_b
     #         learned_activations = np.concatenate((learned_activations, activations), axis=0)
     #     else:                                           # Supplied noise act
     #         learned_activations = np.concatenate((activations, learned_activations), axis=0)
+
+    if semisuplearn == 'Piano':
+        # Swap out noise section of W w/ Wnoise (keep integrity of fixed part)
+        piano_learned_basis_vectors = learned_basis_vectors[:,NUM_NOISE_BV:]
+        learned_basis_vectors = np.concatenate((noise_basis_vectors, piano_learned_basis_vectors), axis=1)
+
+    elif semisuplearn == 'Noise':
+        # Swap out piano section of W w/ Wpiano (keep integrity of fixed part)
+        noise_learned_basis_vectors = learned_basis_vectors[:,:NUM_NOISE_BV]
+        learned_basis_vectors = np.concatenate((noise_learned_basis_vectors, piano_basis_vectors), axis=1)
+
 
     if debug:
         print('In Learn - Shape of Learned Activations H:', learned_activations.shape)
@@ -564,18 +757,30 @@ def plot_matrix(matrix, name, ylabel, ratio=0.08):
 def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=False, write_file=False, debug=False):
     print('--Initiating Reconstruct Mode--')
 
+    # if segment:
+    #     # TEMP SO WE CAN FIND MAX NOISE SEGMENT - noise from 1.8 ro 2.1 seconds
+    #     noise_sig_len = 2
+    #     # Second 2 hits solid noise - based on Audacity waveform (22nd wdw if sr=44100, wdw_size=4096)
+    #     noise_sgmt_num = math.ceil((STD_SR_HZ * 2.2) / wdw_size)    # 2.1 seconds (23rd window to (not including) 25th window)
+    #     # print('Noise segment num:', noise_sgmt_num)
+    #     noise_sig = sig[(noise_sgmt_num - 1) * wdw_size: (noise_sgmt_num + noise_sig_len - 1) * wdw_size] 
+    #     # noise_sig = sig[23 * wdw_size: 25 * wdw_size] 
+    #     # 23 25
+    #     out_filepath = 'practice_' + out_filepath
+    #     print('\n--Making Signal Spectrogram--\n')
+    #     spectrogram, phases = make_spectrogram(noise_sig, wdw_size, ova=ova, debug=debug)
     if segment:
-        # TEMP SO WE CAN FIND MAX NOISE SEGMENT - noise from 1.8 ro 2.1 seconds
-        noise_sig_len = 2
-        # Second 2 hits solid noise - based on Audacity waveform (22nd wdw if sr=44100, wdw_size=4096)
-        noise_sgmt_num = math.ceil((STD_SR_HZ * 2.2) / wdw_size)    # 2.1 seconds (23rd window to (not including) 25th window)
-        # print('Noise segment num:', noise_sgmt_num)
-        noise_sig = sig[(noise_sgmt_num - 1) * wdw_size: (noise_sgmt_num + noise_sig_len - 1) * wdw_size] 
-        # noise_sig = sig[23 * wdw_size: 25 * wdw_size] 
-        # 23 25
-        out_filepath = 'practice_' + out_filepath
+        # TEMP SO WE CAN FIND NO VOICE SEGMENT
+        # no_voice_sig = sig[(77 * wdw_size):]# + (wdw_size // 2):] 
+        
+        # out_filepath = 'novoice_' + out_filepath
         print('\n--Making Signal Spectrogram--\n')
-        spectrogram, phases = make_spectrogram(noise_sig, wdw_size, ova=ova, debug=debug)
+        spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova, debug=debug)
+
+        # TODO
+        # spectrogram = spectrogram[:, 154:]
+        # phases = [x[154:] for x in phases]
+
     else:
         print('\n--Making Signal Spectrogram--\n')
         spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova, debug=debug)
@@ -591,7 +796,7 @@ def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=Fa
     return synthetic_sig
 
 
-def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, noisebv=False, avgbv=False, semisuplearn='None', semisupmadeinit=False, write_file=False, debug=False, nohanbv=False, prec_noise=False, eqbv=False):
+def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, noisebv=False, avgbv=False, semisuplearn='None', semisupmadeinit=False, write_file=False, debug=False, nohanbv=False, prec_noise=False, eqbv=False, incorrect_semisup=False):
     print('--Initiating Restore Mode--')
     print('\n--Making Piano Basis Vectors--\n')
 
@@ -602,7 +807,9 @@ def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, 
     else:
         basis_vectors = get_basis_vectors(BEST_WDW_NUM, wdw_size, ova=ova, mary=marybv, noise=noisebv, avg=avgbv, debug=debug, precise_noise=prec_noise, eq=eqbv)
 
-    # Always retrieve full basis vectors, even if semi-supervised NMF b/c will just cut off later
+    if 'brahms' in out_filepath:
+        # Take out voice from brahms sig for now, should take it from nmf_learn from spectrogram later
+        sig = sig[WDW_NUM_AFTER_VOICE * wdw_size:]
 
     print('\n--Making Signal Spectrogram--\n')
     spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova, debug=debug)
@@ -619,27 +826,35 @@ def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, 
 
     # For supervised or semi-supervised NMF - basis vector param
     # activations, _ = nmf_learn(spectrogram, basis_vectors=basis_vectors, num_components=num_components, debug=debug)
-    if semisuplearn != 'None':
-        # Split basis vectors up
-        noise_basis_vectors = basis_vectors[:,:NUM_NOISE_BV]
-        piano_basis_vectors = basis_vectors[:,NUM_NOISE_BV:]
-        if semisuplearn == 'Piano':
-            fixed_bv = noise_basis_vectors
-            learn_bv = piano_basis_vectors
-        else:
-            fixed_bv = piano_basis_vectors
-            learn_bv = noise_basis_vectors
+    # if semisuplearn != 'None':
+    #     # Split basis vectors up
+    #     noise_basis_vectors = basis_vectors[:,:NUM_NOISE_BV]
+    #     piano_basis_vectors = basis_vectors[:,NUM_NOISE_BV:]
+    #     if semisuplearn == 'Piano':
+    #         fixed_bv = noise_basis_vectors
+    #         learn_bv = piano_basis_vectors
+    #     else:
+    #         fixed_bv = piano_basis_vectors
+    #         learn_bv = noise_basis_vectors
         
-        if semisupmadeinit: # Use both pieces
-            learned_activations, learned_basis_vectors = nmf_learn(spectrogram, basis_vectors=fixed_bv, l_bv=learn_bv, num_components=num_components, debug=debug)
-        else:               # Only use fixed piece
-            learned_activations, learned_basis_vectors = nmf_learn(spectrogram, basis_vectors=fixed_bv, num_components=num_components, debug=debug)
+    #     if semisupmadeinit: # Use both pieces
+    #         learned_activations, learned_basis_vectors = nmf_learn(spectrogram, basis_vectors=fixed_bv, l_bv=learn_bv, num_components=num_components, debug=debug)
+    #     else:               # Only use fixed piece
+    #         learned_activations, learned_basis_vectors = nmf_learn(spectrogram, basis_vectors=fixed_bv, num_components=num_components, debug=debug)
     
-        basis_vectors = learned_basis_vectors
-    else:
-        learned_activations, _ = nmf_learn(spectrogram, basis_vectors=basis_vectors, num_components=num_components, debug=debug)
+    #     basis_vectors = learned_basis_vectors
+    # else:
+    # learned_activations, _ = nmf_learn(spectrogram, basis_vectors=basis_vectors, num_components=num_components, debug=debug)
 
-    activations = learned_activations
+    # activations, basis_vectors = nmf_learn(spectrogram, basis_vectors=basis_vectors, semisuplearn=semisuplearn, madeinit=semisupmadeinit, num_components=num_components, debug=debug)
+
+    if semisuplearn == 'Piano':     # Semi-Supervised Learn (learn Wpiano too)
+        activations, basis_vectors = nmf_learn(spectrogram, num_components, basis_vectors=basis_vectors, learn_index=NUM_NOISE_BV, madeinit=semisupmadeinit, debug=debug, incorrect=incorrect_semisup)
+    elif semisuplearn == 'Noise':   # Semi-Supervised Learn (learn Wnoise too)
+        activations, basis_vectors = nmf_learn(spectrogram, num_components, basis_vectors=basis_vectors, learn_index=(-1 * NUM_NOISE_BV), madeinit=semisupmadeinit, debug=debug, incorrect=incorrect_semisup)
+    else:                           # Supervised Learn
+        activations, _ = nmf_learn(spectrogram, num_components, basis_vectors=basis_vectors, debug=debug)
+
     if noisebv:
         activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug)
     if debug:
@@ -691,6 +906,9 @@ def main():
     #       If 'Piano', noisebv_flag MUST BE TRUE
     semi_sup_learn = 'Piano'
     semi_sup_made_init = True   # Only considered when semi_sup_learn != 'None'
+    # Not advised - semi_sup_init=False & semi_sup_learn='Piano'
+
+    l1pen_flag = True if (L1_PENALTY != 0) else False
 
     # TODO: Use argparse library
     # Configure params
@@ -720,8 +938,12 @@ def main():
         out_filepath += '_ova'
 
     if mode == 'RECONST': # RECONSTRUCT BLOCK
+        # FOR TESTING
+        no_voice = False
+        if no_voice:
+            out_filepath += '_novoice'
         out_filepath += '.wav'
-        reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=ova_flag, segment=False, 
+        reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=ova_flag, segment=no_voice, 
                           write_file=True, debug=debug_flag)
     else:   # MAIN RESTORE BLOCK
         if semi_sup_learn == 'Piano':
@@ -736,6 +958,8 @@ def main():
             out_filepath += ('_' + str(NUM_NOISE_BV) + 'noisebv')
         if avgbv_flag:
             out_filepath += '_avgbv'
+        if l1pen_flag:
+            out_filepath += ('_l1pen' + str(L1_PENALTY))
         out_filepath += '.wav'
         restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=ova_flag, marybv=marybv_flag, noisebv=noisebv_flag, 
                       avgbv=avgbv_flag, semisuplearn=semi_sup_learn, semisupmadeinit=semi_sup_made_init, write_file=True, debug=debug_flag)

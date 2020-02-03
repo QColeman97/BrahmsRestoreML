@@ -293,7 +293,7 @@ class RestoreAudioTests(unittest.TestCase):
 
     def test_unsupervised_nmf(self):
         if write_flag:
-            out_filepath = test_path + 'synthetic_Mary_unsupnmf_ova.wav'
+            out_filepath = test_path + 'restored_Mary_unsupnmf_ova.wav'
         sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
         spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
@@ -348,7 +348,119 @@ class RestoreAudioTests(unittest.TestCase):
 
         self.assertEqual(sig_diff, 0)
 
-    # Brahms for these tests
+
+
+
+    # Brahms for these tests (bad audio)
+    def test_restore_brahms_bare(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, 
+                                      write_file=write_flag, debug=debug_flag)
+
+        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
+        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
+                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+        self.assertEqual(sig_diff, 0)
+
+    def test_restore_brahms_ova(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_ova.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, 
+                                      write_file=write_flag, debug=debug_flag)
+
+        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
+        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
+                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+        self.assertEqual(sig_diff, 0)
+
+    def test_restore_brahms_avgbv(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_avgbv.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, avgbv=True, 
+                                      write_file=write_flag, debug=debug_flag)
+
+        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
+        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
+                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+        self.assertEqual(sig_diff, 0)
+
+    def test_restore_brahms_noisebv(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_noisebv.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, noisebv=True, 
+                                      write_file=write_flag, debug=debug_flag)
+
+        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
+        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
+                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+        self.assertEqual(sig_diff, 0)
+
+    # Two factors
+    def test_restore_brahms_ova_avgbv(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_ova_avgbv.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, 
+                                      ova=True, avgbv=True, write_file=write_flag, debug=debug_flag)
+
+        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
+        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
+                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+        self.assertEqual(sig_diff, 0)
+
+    def test_restore_brahms_ova_noisebv(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_ova_noisebv.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, 
+                                      ova=True, noisebv=True, write_file=write_flag, debug=debug_flag)
+
+        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
+        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
+                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+        self.assertEqual(sig_diff, 0)
+
+    def test_restore_brahms_avgbv_noisebv(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_avgbv_noisebv.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, 
+                                      avgbv=True, noisebv=True, write_file=write_flag, debug=debug_flag)
+
+        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
+        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
+                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+        self.assertEqual(sig_diff, 0)
+
+    # Three factors
+    def test_restore_brahms_ova_noisebv_avgbv(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_ova_noisebv_avgbv.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, 
+                                      ova=True, noisebv=True, avgbv=True, write_file=write_flag, debug=debug_flag)
+        
+        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
+        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
+                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+        self.assertEqual(sig_diff, 0)
+
+
+
+
     # Output file noticably worse - crackles and a constant high frequency
     def test_restore_no_hanningbv_brahms(self):
         if write_flag:
@@ -362,20 +474,6 @@ class RestoreAudioTests(unittest.TestCase):
                                  synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
 
         self.assertEqual(sig_diff, 0)
-
-    def test_restore_fullbv_brahms(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_brahms_ova_noisebv_avgbv.wav'
-        sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, marybv=False, noisebv=True, 
-                                      avgbv=True, write_file=write_flag, debug=debug_flag)
-        
-        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
-
-        self.assertEqual(sig_diff, 0)
-    
 
     def test_restore_precise_noise_brahms(self):
         if write_flag:
@@ -394,8 +492,8 @@ class RestoreAudioTests(unittest.TestCase):
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ova_noisebv_avgbv_eqpianobv.wav'
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, marybv=False, noisebv=True, 
-                                      avgbv=True, write_file=write_flag, debug=True, eqbv=True)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, 
+                                      ova=True, noisebv=True, avgbv=True, eqbv=True, write_file=write_flag, debug=True)
 
         sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
         sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
