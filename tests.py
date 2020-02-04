@@ -348,9 +348,6 @@ class RestoreAudioTests(unittest.TestCase):
 
         self.assertEqual(sig_diff, 0)
 
-
-
-
     # Brahms for these tests (bad audio)
     def test_restore_brahms_bare(self):
         if write_flag:
@@ -458,7 +455,19 @@ class RestoreAudioTests(unittest.TestCase):
 
         self.assertEqual(sig_diff, 0)
 
+    def test_restore_brahms_unsupnmf(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_unsupnmf.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
+        activations, basis_vectors = nmf_learn(spectrogram, 88, debug=debug_flag)
+        synthetic_spectrogram = basis_vectors @ activations
+
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
 
 
     # Output file noticably worse - crackles and a constant high frequency
@@ -493,13 +502,70 @@ class RestoreAudioTests(unittest.TestCase):
             out_filepath = test_path + 'restored_brahms_ova_noisebv_avgbv_eqpianobv.wav'
         sr, sig = wavfile.read(brahms_filepath)
         synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, 
-                                      ova=True, noisebv=True, avgbv=True, eqbv=True, write_file=write_flag, debug=True)
+                                      ova=True, noisebv=True, avgbv=True, eqbv=True, write_file=write_flag, debug=debug_flag)
 
         sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
         sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
                                  synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
 
         self.assertEqual(sig_diff, 0)
+
+    def test_restore_brahms_ssln_piano_madeinit(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_ssln_piano_madeinit.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag)
+
+    def test_restore_brahms_ssln_piano_randinit(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_ssln_piano_randinit.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Piano', semisupmadeinit=False, write_file=write_flag, debug=debug_flag)
+
+    def test_restore_brahms_ssln_noise_madeinit(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_ssln_noise_madeinit.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag)
+
+    def test_restore_brahms_ssln_noise_randinit(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_ssln_noise_randinit.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Noise', semisupmadeinit=False, write_file=write_flag, debug=debug_flag)
+
+    def test_restore_brahms_ssln_piano_madeinit_incorrect(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_ssln_piano_madeinit_incorrect.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, incorrect_semisup=True)
+
+    def test_restore_brahms_ssln_piano_randinit_incorrect(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_ssln_piano_randinit_incorrect.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Piano', semisupmadeinit=False, write_file=write_flag, debug=debug_flag, incorrect_semisup=True)
+
+    def test_restore_brahms_ssln_noise_madeinit_incorrect(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_ssln_noise_madeinit_incorrect.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, incorrect_semisup=True)
+
+    def test_restore_brahms_ssln_noise_randinit_incorrect(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_ssln_noise_randinit_incorrect.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Noise', semisupmadeinit=False, write_file=write_flag, debug=debug_flag, incorrect_semisup=True)
+
 
     # GET_BASIS_VECTORS
     # def test_make_basis_vectors(self):

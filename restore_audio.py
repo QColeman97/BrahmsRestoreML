@@ -355,7 +355,9 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
     # W +1 = W * (((V / (W dot H)) dot Ht) / (1 dot Ht) )
 
     # If basis_vectors provided
-    if basis_vectors:
+    if basis_vectors is not None:
+        if debug:
+            print('In Sup or Semi-Sup Learn - Shape of Given Basis Vectors W:', basis_vectors.shape)
         if learn_index == 0:
             # Sup Learning
             # Do NMF w/ whole W, only H learn step, get H
@@ -366,19 +368,34 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
             if learn_index > 0:     # Fixed part is left side
                 # So I don't make a memory mistake
                 basis_vectors_fixed = basis_vectors[:, :learn_index].copy()
-                basis_vectors_learn = basis_vectors[:, learn_index:].copy()
+                if madeinit:
+                    basis_vectors_learn = basis_vectors[:, learn_index:].copy()
+                else:
+                    basis_vectors_learn = np.random.rand(basis_vectors[:, learn_index:].shape[0], 
+                                                         basis_vectors[:, learn_index:].shape[1])
                 activations_from_fixed = activations[:learn_index, :].copy()
                 activations_from_learn = activations[learn_index:, :].copy()
             
             else:                   # Fixed part is right side
                 # So I don't make a memory mistake
                 basis_vectors_fixed = basis_vectors[:, learn_index:].copy()
-                basis_vectors_learn = basis_vectors[:, :learn_index].copy()
+                if madeinit:
+                    basis_vectors_learn = basis_vectors[:, :learn_index].copy()
+                else:
+                    basis_vectors_learn = np.random.rand(basis_vectors[:, :learn_index].shape[0], 
+                                                         basis_vectors[:, :learn_index].shape[1])
                 activations_from_fixed = activations[learn_index:, :].copy()
                 activations_from_learn = activations[:learn_index, :].copy()
 
-            if not madeinit:
-                basis_vectors_learn = np.random.rand(basis_vectors_learn.shape[0], basis_vectors_learn.shape[1])
+            # if not madeinit:
+            #     basis_vectors_learn = np.random.rand(basis_vectors_learn.shape[0], basis_vectors_learn.shape[1])
+
+            if debug:
+                print('Semi-Sup Learning', 'Piano' if (learn_index > 0) else 'Noise')
+                print('In Semi-Sup Learn - Shape of Wfix:', basis_vectors_fixed.shape)
+                print('In Semi-Sup Learn - Shape of Wlearn:', basis_vectors_learn.shape)
+                print('In Semi-Sup Learn - Shape of Hfromfix:', activations_from_fixed.shape)
+                print('In Semi-Sup Learn - Shape of Hfromlearn:', activations_from_learn.shape)
 
             # For results of bug
             if incorrect:
@@ -398,13 +415,26 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
             else:
                 # Do NMF w/ Wfix (W given subset), only H learn step, get H
                 for _ in range(MAX_LEARN_ITER):
-                    activations_from_fixed *= ((basis_vectors_fixed.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors_fixed.T @ ones) + L1_PENALTY))
+                    # activations_from_fixed *= ((basis_vectors_fixed.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors_fixed.T @ ones) + L1_PENALTY))
+                    activations_from_fixed *= ((basis_vectors_fixed.T @ (input_matrix / (basis_vectors_fixed @ activations_from_fixed))) / ((basis_vectors_fixed.T @ ones) + L1_PENALTY))
             
                 # Do NMF w/ Wlearn (W given subset OR random mtx), both W and H learn steps, get W and H
                 for _ in range(MAX_LEARN_ITER):
-                    activations_from_learn *= ((basis_vectors_learn.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors_learn.T @ ones) + L1_PENALTY))
-                    basis_vectors_learn *= (((input_matrix / (basis_vectors @ activations)) @ activations_from_learn.T) / (ones @ activations_from_learn.T))
-                
+                    # activations_from_learn *= ((basis_vectors_learn.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors_learn.T @ ones) + L1_PENALTY))
+                    activations_from_learn *= ((basis_vectors_learn.T @ (input_matrix / (basis_vectors_learn @ activations_from_learn))) / ((basis_vectors_learn.T @ ones) + L1_PENALTY))
+                    # basis_vectors_learn *= (((input_matrix / (basis_vectors @ activations)) @ activations_from_learn.T) / (ones @ activations_from_learn.T))
+                    basis_vectors_learn *= (((input_matrix / (basis_vectors_learn @ activations_from_learn)) @ activations_from_learn.T) / (ones @ activations_from_learn.T))
+
+                if debug:
+                    print('In Semi-Sup Learn - after learn - Shape of Wfix:', basis_vectors_fixed.shape)
+                    print('In Semi-Sup Learn - after learn - Shape of Wlearn:', basis_vectors_learn.shape)
+                    print('In Semi-Sup Learn - after learn - Shape of Hfromfix:', activations_from_fixed.shape)
+                    print('In Semi-Sup Learn - after learn - Shape of Hfromlearn:', activations_from_learn.shape)
+                    plot_matrix(basis_vectors_fixed, name="Fixed BV After Learn", ylabel='Components', ratio=BASIS_VECTOR_FULL_RATIO)
+                    plot_matrix(basis_vectors_learn, name="Learned BV After Learn", ylabel='Components', ratio=BASIS_VECTOR_FULL_RATIO)
+                    plot_matrix(activations_from_fixed, name="Fixed Activations After Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
+                    plot_matrix(activations_from_learn, name="Learned Activations After Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
+
                 # W = Wfix and Wlearn concatenated together, same w/ H
                 if learn_index > 0:
                     activations = np.concatenate((activations_from_fixed, activations_from_learn), axis=0)
@@ -417,20 +447,24 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
         # Unsup learning
         # Do NMF, both W and H learn steps, get W and H
         basis_vectors = np.random.rand(input_matrix.shape[0], num_components)
+        if debug:
+            print('In Unsup Learn - Shape of Learn Basis Vectors W:', basis_vectors.shape)
+            print('In Unsup Learn - Shape of Learn Activations H:', activations.shape)
+
         for _ in range(MAX_LEARN_ITER):
             activations *= ((basis_vectors.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors.T @ ones) + L1_PENALTY))
             basis_vectors *= (((input_matrix / (basis_vectors @ activations)) @ activations.T) / (ones @ activations.T))
 
     if debug:
-        print('In Learn - Shape of Learned Activations H:', learned_activations.shape)
-        # print('First rows of activations (components):\n', learned_activations[0,:], '\n', learned_activations[1,:], '\n', learned_activations[2,:], '\n')
-        # print('First columns of activations (windows):\n', learned_activations[:,0], '\n', learned_activations[:,1], '\n', learned_activations[:,2], '\n')
-        plot_matrix(learned_activations, name="Learned Activations", ylabel='Components', ratio=ACTIVATION_RATIO)
+        print('In Learn - Shape of Learned Activations H:', activations.shape)
+        # print('First rows of activations (components):\n', activations[0,:], '\n', activations[1,:], '\n', activations[2,:], '\n')
+        # print('First columns of activations (windows):\n', activations[:,0], '\n', activations[:,1], '\n', activations[:,2], '\n')
+        plot_matrix(activations, name="Learned Activations", ylabel='Components', ratio=ACTIVATION_RATIO)
 
-        print('In Learn - Shape of Learned Basis Vectors W:', learned_basis_vectors.shape)
-        # print('First rows of basis vectors (freq bins):\n', learned_activations[0,:], '\n', learned_activations[1,:], '\n', learned_activations[2,:], '\n')
-        # print('First columns of basis vectors (components):\n', learned_activations[:,0], '\n', learned_activations[:,1], '\n', learned_activations[:,2], '\n')
-        plot_matrix(learned_basis_vectors, name="Learned Basis Vectors", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
+        print('In Learn - Shape of Learned Basis Vectors W:', basis_vectors.shape)
+        # print('First rows of basis vectors (freq bins):\n', basis_vectors[0,:], '\n', basis_vectors[1,:], '\n', basis_vectors[2,:], '\n')
+        # print('First columns of basis vectors (components):\n', basis_vectors[:,0], '\n', basis_vectors[:,1], '\n', basis_vectors[:,2], '\n')
+        plot_matrix(basis_vectors, name="Learned Basis Vectors", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
 
     return activations, basis_vectors
 
