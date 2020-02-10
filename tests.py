@@ -6,7 +6,7 @@
 # Things to test:
 # - sig reconstruction
 # - basis vectors correct
-# - 
+# -
 
 import unittest
 from restore_audio import *
@@ -16,171 +16,179 @@ debug_flag = False
 
 STD_SR_HZ = 44100
 MARY_SR_HZ = 16000
-PIANO_WDW_SIZE = 4096 # 32768 # 16384 # 8192 # 4096 # 2048
+PIANO_WDW_SIZE = 4096  # 32768 # 16384 # 8192 # 4096 # 2048
 DEBUG_WDW_SIZE = 4
 RES = STD_SR_HZ / PIANO_WDW_SIZE
 BEST_WDW_NUM = 5
+# 50 # 20 # 3 # 10 # 5 # 10000 is when last good # 100000 is when it gets bad
+NUM_NOISE_BV = 5
+# BUT 1000 sounds bad in tests.py
 # Activation Matrix (H) Learning Part
 MAX_LEARN_ITER = 100
 BASIS_VECTOR_FULL_RATIO = 0.01
 BASIS_VECTOR_MARY_RATIO = 0.001
+ACTIVATION_RATIO = 0.08
 SPGM_BRAHMS_RATIO = 0.08
 SPGM_MARY_RATIO = 0.008
+
+WDW_NUM_AFTER_VOICE = 77
+
+# L1_PENALTY = 1000000000000000000 # Quintillion
+L1_PENALTY = 0  # 10 ** 19 # 10^9 = 1Bill, 12 = trill, 15 = quad, 18 = quin, 19 = max for me
 
 # Spectrogram (V) Part
 brahms_filepath = 'brahms.wav'
 mary_filepath = 'Mary.wav'
 test_path = 'output_test/'
 
+
 class RestoreAudioTests(unittest.TestCase):
 
-    # As signal get's longer, the average ratio between synthetic and original gets smaller
-    def test_ova_reconst_by_sig_diff(self):
-        if write_flag:
-            out_filepath = test_path + 'reconst_Mary_ova.wav'
-        sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
-        # rand_sig = np.random.rand(44100)    # Original test from Dennis - length requires DEBUG_WDW_SIZE
-        synthetic_sig = reconstruct_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, write_file=write_flag)
-        # synthetic_sig *= (4/3) # Amplitude ratio made by ova
+    # UNCOMMENT FOR GOOD TESTS
 
-        # u_bound = len(sig)
-        comp_synthetic_sig = synthetic_sig[: len(sig)]
+    # # As signal get's longer, the average ratio between synthetic and original gets smaller
+    # def test_ova_reconst_by_sig_diff(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'reconst_Mary_ova.wav'
+    #     sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
+    #     # rand_sig = np.random.rand(44100)    # Original test from Dennis - length requires DEBUG_WDW_SIZE
+    #     synthetic_sig = reconstruct_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, write_file=write_flag)
+    #     # synthetic_sig *= (4/3) # Amplitude ratio made by ova
 
-        # Difference between total signal values (excluding the end window halves)
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - comp_synthetic_sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)]))
+    #     # u_bound = len(sig)
+    #     comp_synthetic_sig = synthetic_sig[: len(sig)]
 
-        ratios = sig[(PIANO_WDW_SIZE // 2):-(PIANO_WDW_SIZE // 2)] / comp_synthetic_sig[(PIANO_WDW_SIZE // 2):-(PIANO_WDW_SIZE // 2)]
+    #     # Difference between total signal values (excluding the end window halves)
+    #     sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - comp_synthetic_sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)]))
 
-        print('Ratio:', sum(ratios) / len(ratios))
+    #     ratios = sig[(PIANO_WDW_SIZE // 2):-(PIANO_WDW_SIZE // 2)] / comp_synthetic_sig[(PIANO_WDW_SIZE // 2):-(PIANO_WDW_SIZE // 2)]
 
-        # plt.plot(sig[PIANO_WDW_SIZE*2:(PIANO_WDW_SIZE*2) + 100])
-        # plt.plot(comp_synthetic_sig[PIANO_WDW_SIZE*2:(PIANO_WDW_SIZE*2) + 100])
-        
-        # Uncomment for the plot
-        # plt.plot(sig[(len(sig) - 100):])
-        # plt.plot(comp_synthetic_sig[(len(sig) - 100):])
-        # plt.show()
-        # print('Diff:', sig_diff)
-        
-        # self.assertEqual(len(sig), len(synthetic_sig[: u_bound]))
-        self.assertAlmostEqual(sig_diff, 0)
+    #     print('Ratio:', sum(ratios) / len(ratios))
 
-    def test_reconst_by_sig_diff(self):
-        if write_flag:
-            out_filepath = test_path + 'reconst_Mary.wav'
-        sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
-        # rand_sig = np.random.rand(44100)    # Original test from Dennis - length requires DEBUG_WDW_SIZE
-        synthetic_sig = reconstruct_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, write_file=write_flag)
+    #     # plt.plot(sig[PIANO_WDW_SIZE*2:(PIANO_WDW_SIZE*2) + 100])
+    #     # plt.plot(comp_synthetic_sig[PIANO_WDW_SIZE*2:(PIANO_WDW_SIZE*2) + 100])
 
-        # Difference between total signal values (excluding the end window halves)
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2):-(PIANO_WDW_SIZE // 2)] - synthetic_sig[(PIANO_WDW_SIZE // 2):-(PIANO_WDW_SIZE // 2)]))
+    #     # Uncomment for the plot
+    #     # plt.plot(sig[(len(sig) - 100):])
+    #     # plt.plot(comp_synthetic_sig[(len(sig) - 100):])
+    #     # plt.show()
+    #     # print('Diff:', sig_diff)
 
-        # plt.plot(rand_sig[DEBUG_WDW_SIZE*2:(DEBUG_WDW_SIZE*2) + 100])
-        # plt.plot(synthetic_rand_sig[DEBUG_WDW_SIZE*2:(DEBUG_WDW_SIZE*2) + 100])
-        # plt.show()
-        # print('Diff:', sig_diff)
-        
-        self.assertAlmostEqual(sig_diff, 0)
+    #     # self.assertEqual(len(sig), len(synthetic_sig[: u_bound]))
+    #     self.assertAlmostEqual(sig_diff, 0)
 
+    # def test_reconst_by_sig_diff(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'reconst_Mary.wav'
+    #     sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
+    #     # rand_sig = np.random.rand(44100)    # Original test from Dennis - length requires DEBUG_WDW_SIZE
+    #     synthetic_sig = reconstruct_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, write_file=write_flag)
 
-    def test_ova_reconst_by_sig_diff_2(self):
-        rand_sig = np.random.rand(44100)    # Original test from Dennis - length requires DEBUG_WDW_SIZE
-        synthetic_rand_sig = reconstruct_audio(rand_sig, DEBUG_WDW_SIZE, '', 0, ova=True)
-        synthetic_rand_sig *= (4/3) # Amplitude ratio made by ova
+    #     # Difference between total signal values (excluding the end window halves)
+    #     sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2):-(PIANO_WDW_SIZE // 2)] - synthetic_sig[(PIANO_WDW_SIZE // 2):-(PIANO_WDW_SIZE // 2)]))
 
-        # Difference between total signal values (excluding the end window halves)
-        sig_diff = np.sum(np.abs(rand_sig[(DEBUG_WDW_SIZE // 2):-(DEBUG_WDW_SIZE // 2)] - synthetic_rand_sig[(DEBUG_WDW_SIZE // 2):-(DEBUG_WDW_SIZE // 2)]))
+    #     # plt.plot(rand_sig[DEBUG_WDW_SIZE*2:(DEBUG_WDW_SIZE*2) + 100])
+    #     # plt.plot(synthetic_rand_sig[DEBUG_WDW_SIZE*2:(DEBUG_WDW_SIZE*2) + 100])
+    #     # plt.show()
+    #     # print('Diff:', sig_diff)
 
-        # plt.plot(rand_sig[DEBUG_WDW_SIZE*2:(DEBUG_WDW_SIZE*2) + 100])
-        # plt.plot(synthetic_rand_sig[DEBUG_WDW_SIZE*2:(DEBUG_WDW_SIZE*2) + 100])
-        # plt.show()
-        # print('Diff:', sig_diff)
-        
-        self.assertAlmostEqual(sig_diff, 0)
+    #     self.assertAlmostEqual(sig_diff, 0)
 
+    # def test_ova_reconst_by_sig_diff_2(self):
+    #     rand_sig = np.random.rand(44100)    # Original test from Dennis - length requires DEBUG_WDW_SIZE
+    #     synthetic_rand_sig = reconstruct_audio(rand_sig, DEBUG_WDW_SIZE, '', 0, ova=True)
+    #     synthetic_rand_sig *= (4/3) # Amplitude ratio made by ova
 
-    def test_ova_reconst_by_sig_ratio(self):
-        sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
-        # rand_sig = np.random.rand(44100)    # Original test from Dennis - length requires DEBUG_WDW_SIZE
+    #     # Difference between total signal values (excluding the end window halves)
+    #     sig_diff = np.sum(np.abs(rand_sig[(DEBUG_WDW_SIZE // 2):-(DEBUG_WDW_SIZE // 2)] - synthetic_rand_sig[(DEBUG_WDW_SIZE // 2):-(DEBUG_WDW_SIZE // 2)]))
 
-        synthetic_sig = reconstruct_audio(sig, PIANO_WDW_SIZE, '', sr, ova=True)
+    #     # plt.plot(rand_sig[DEBUG_WDW_SIZE*2:(DEBUG_WDW_SIZE*2) + 100])
+    #     # plt.plot(synthetic_rand_sig[DEBUG_WDW_SIZE*2:(DEBUG_WDW_SIZE*2) + 100])
+    #     # plt.show()
+    #     # print('Diff:', sig_diff)
 
-        # Difference between total signal values (excluding the end window halves)
-        ratios = sig[(PIANO_WDW_SIZE // 2):-(PIANO_WDW_SIZE // 2)] / synthetic_sig[(PIANO_WDW_SIZE // 2):-(PIANO_WDW_SIZE // 2)]
-        
-        self.assertAlmostEqual(ratios[0], 4/3)
+    #     self.assertAlmostEqual(sig_diff, 0)
 
+    # def test_ova_reconst_by_sig_ratio(self):
+    #     sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
+    #     # rand_sig = np.random.rand(44100)    # Original test from Dennis - length requires DEBUG_WDW_SIZE
 
-    def test_ova_reconst_beginning(self):
-        sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
+    #     synthetic_sig = reconstruct_audio(sig, PIANO_WDW_SIZE, '', sr, ova=True)
 
-        synthetic_sig = reconstruct_audio(sig, PIANO_WDW_SIZE, '', sr, ova=True)
+    #     # Difference between total signal values (excluding the end window halves)
+    #     ratios = sig[(PIANO_WDW_SIZE // 2):-(PIANO_WDW_SIZE // 2)] / synthetic_sig[(PIANO_WDW_SIZE // 2):-(PIANO_WDW_SIZE // 2)]
 
-        match = (sig[: PIANO_WDW_SIZE] * np.hanning(PIANO_WDW_SIZE))[: (PIANO_WDW_SIZE // 2)]
+    #     self.assertAlmostEqual(ratios[0], 4/3)
 
-        np.testing.assert_array_equal(synthetic_sig[: (PIANO_WDW_SIZE // 2)], match)
+    # def test_ova_reconst_beginning(self):
+    #     sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
 
+    #     synthetic_sig = reconstruct_audio(sig, PIANO_WDW_SIZE, '', sr, ova=True)
 
-    def test_reconst_beginning(self):
-        # sig = [5]*12
-        sig = np.ones(12)
-        wdw_size = 6
-        spectrogram, phases = make_spectrogram(sig, wdw_size)
-        synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size)
+    #     match = (sig[: PIANO_WDW_SIZE] * np.hanning(PIANO_WDW_SIZE))[: (PIANO_WDW_SIZE // 2)]
 
-        # print('Synthetic non-OVA sig:\n', synthetic_sig, '\n', synthetic_sig[:wdw_size // 2])
+    #     np.testing.assert_array_equal(synthetic_sig[: (PIANO_WDW_SIZE // 2)], match)
 
-        # match = (np.array([5]*wdw_size) * np.hanning(wdw_size))[:wdw_size // 2]
-        match = np.ones(wdw_size)[:wdw_size // 2]
+    # def test_reconst_beginning(self):
+    #     # sig = [5]*12
+    #     sig = np.ones(12)
+    #     wdw_size = 6
+    #     spectrogram, phases = make_spectrogram(sig, wdw_size)
+    #     synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size)
 
-        np.testing.assert_array_equal(synthetic_sig[:wdw_size // 2], match)
+    #     # print('Synthetic non-OVA sig:\n', synthetic_sig, '\n', synthetic_sig[:wdw_size // 2])
 
-    def test_overlap_add_beginning(self):
-        # sig = [5]*12
-        sig = np.ones(12)
-        wdw_size = 6
-        spectrogram, phases = make_spectrogram(sig, wdw_size, ova=True, debug=debug_flag)
-        synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, ova=True, debug=debug_flag)
+    #     # match = (np.array([5]*wdw_size) * np.hanning(wdw_size))[:wdw_size // 2]
+    #     match = np.ones(wdw_size)[:wdw_size // 2]
 
-        print('Synthetic OVA sig beginning:\n', synthetic_sig, '\n', synthetic_sig[:wdw_size // 2])
-        # [0.        0.3454915 0.9045085]
+    #     np.testing.assert_array_equal(synthetic_sig[:wdw_size // 2], match)
 
-        # match = (np.array([5]*wdw_size) * np.hanning(wdw_size))[:wdw_size // 2]
-        match = np.hanning(wdw_size)[:wdw_size // 2]
+    # def test_overlap_add_beginning(self):
+    #     # sig = [5]*12
+    #     sig = np.ones(12)
+    #     wdw_size = 6
+    #     spectrogram, phases = make_spectrogram(sig, wdw_size, ova=True, debug=debug_flag)
+    #     synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, ova=True, debug=debug_flag)
 
-        np.testing.assert_array_almost_equal(synthetic_sig[:wdw_size // 2], match)
+    #     print('Synthetic OVA sig beginning:\n', synthetic_sig, '\n', synthetic_sig[:wdw_size // 2])
+    #     # [0.        0.3454915 0.9045085]
 
-    # def test_overlap_add_middle(self):
+    #     # match = (np.array([5]*wdw_size) * np.hanning(wdw_size))[:wdw_size // 2]
+    #     match = np.hanning(wdw_size)[:wdw_size // 2]
+
+    #     np.testing.assert_array_almost_equal(synthetic_sig[:wdw_size // 2], match)
+
+    # # def test_overlap_add_middle(self):
+    # #     # sig = [5]*12
+    # #     sig = np.ones(12)
+    # #     wdw_size = 6
+    # #     spectrogram, phases = make_spectrogram(sig, wdw_size, ova=True)
+    # #     synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, ova=True)
+
+    # #     print('Synthetic OVA sig middle:\n', synthetic_sig, '\n', synthetic_sig[wdw_size // 2: -(wdw_size // 2)])
+
+    # #     # match = (np.array([5]*wdw_size) * np.hanning(wdw_size))[wdw_size // 2: -(wdw_size // 2)]
+    # #     match = np.hanning(wdw_size)[wdw_size // 2: -(wdw_size // 2)]
+    # #     print('Match:\n', match)
+    # #     print()
+
+    # #     np.testing.assert_array_almost_equal(synthetic_sig[wdw_size // 2: -(wdw_size // 2)], match)
+
+    # def test_overlap_add_end(self):
     #     # sig = [5]*12
     #     sig = np.ones(12)
     #     wdw_size = 6
     #     spectrogram, phases = make_spectrogram(sig, wdw_size, ova=True)
     #     synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, ova=True)
 
-    #     print('Synthetic OVA sig middle:\n', synthetic_sig, '\n', synthetic_sig[wdw_size // 2: -(wdw_size // 2)])
+    #     # print('Synthetic OVA sig end:\n', synthetic_sig, '\n', synthetic_sig[-(wdw_size // 2):])
 
-    #     # match = (np.array([5]*wdw_size) * np.hanning(wdw_size))[wdw_size // 2: -(wdw_size // 2)]
-    #     match = np.hanning(wdw_size)[wdw_size // 2: -(wdw_size // 2)]
-    #     print('Match:\n', match)
-    #     print()
+    #     # match = (np.array([5]*wdw_size) * np.hanning(wdw_size))[wdw_size // 2:]
+    #     match = np.hanning(wdw_size)[-(wdw_size // 2):]
+    #     # print('Match:\n', match)
+    #     # print()
 
-    #     np.testing.assert_array_almost_equal(synthetic_sig[wdw_size // 2: -(wdw_size // 2)], match)
-
-    def test_overlap_add_end(self):
-        # sig = [5]*12
-        sig = np.ones(12)
-        wdw_size = 6
-        spectrogram, phases = make_spectrogram(sig, wdw_size, ova=True)
-        synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, ova=True)
-
-        # print('Synthetic OVA sig end:\n', synthetic_sig, '\n', synthetic_sig[-(wdw_size // 2):])
-
-        # match = (np.array([5]*wdw_size) * np.hanning(wdw_size))[wdw_size // 2:]
-        match = np.hanning(wdw_size)[-(wdw_size // 2):]
-        # print('Match:\n', match)
-        # print()
-
-        np.testing.assert_array_almost_equal(synthetic_sig[-(wdw_size // 2):], match)
+    #     np.testing.assert_array_almost_equal(synthetic_sig[-(wdw_size // 2):], match)
 
     # # Useless test
     # def test_mary_activations_mary_bv(self):
@@ -188,7 +196,7 @@ class RestoreAudioTests(unittest.TestCase):
     #     mary_basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=True)
 
     #     synthetic_spgm = mary_basis_vectors @ mary_activations
-                
+
     #     self.assertEqual(synthetic_spgm.shape, (mary_basis_vectors.shape[0], mary_activations.shape[1]))
 
     # # Can't do b/c don't make activations for full bv yet
@@ -239,13 +247,11 @@ class RestoreAudioTests(unittest.TestCase):
     #     wavfile.write(out_filepath, STD_SR_HZ, synthetic_sig.astype('uint8'))
     #     # wavfile.write("synthetic_Mary.wav", STD_SR_HZ, synthetic_sig)
 
-
     # def test_my_mary_activations(self):
     #     basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=False)
     #     spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE, ova=ova_flag)
-      
+
     #     activations = make_activations(spectrogram, basis_vectors)
-    
 
     #     synthetic_spgm = basis_vectors @ activations
 
@@ -260,317 +266,590 @@ class RestoreAudioTests(unittest.TestCase):
     #     # wavfile.write(out_filepath, STD_SR_HZ, synthetic_sig.astype('uint8'))
     #     # # wavfile.write("synthetic_Mary.wav", STD_SR_HZ, synthetic_sig)
 
-    # MAKE_BASIS_VECTOR
-    def test_make_best_basis_vector(self):
-        wdw_size, sgmt_num = 3, 2
-        signal = np.array([1,3,4,5,0,1,4,6,2,1,1,2,0,3])
-        basis_vector = make_basis_vector(signal, sgmt_num, wdw_size)
+    # UNCOMMENT FOR GOOD TESTS
 
-        sgmt = np.array([5,0,1])
-        match = np.abs(np.fft.fft(sgmt))[: (wdw_size // 2) + 1]
+    # # MAKE_BASIS_VECTOR
+    # def test_make_best_basis_vector(self):
+    #     wdw_size, sgmt_num = 3, 2
+    #     signal = np.array([1,3,4,5,0,1,4,6,2,1,1,2,0,3])
+    #     basis_vector = make_basis_vector(signal, sgmt_num, wdw_size)
 
-        np.testing.assert_array_equal(basis_vector, match)
+    #     sgmt = np.array([5,0,1])
+    #     match = np.abs(np.fft.fft(sgmt))[: (wdw_size // 2) + 1]
 
-    def test_make_best_basis_vector_short(self):
-        wdw_size, sgmt_num = 3, 2
-        signal = np.array([1,3,4,5,0])
-        basis_vector = make_basis_vector(signal, sgmt_num, wdw_size)
+    #     np.testing.assert_array_equal(basis_vector, match)
 
-        sgmt = np.array([5,0,0])
-        match = np.abs(np.fft.fft(sgmt))[: (wdw_size // 2) + 1]
+    # def test_make_best_basis_vector_short(self):
+    #     wdw_size, sgmt_num = 3, 2
+    #     signal = np.array([1,3,4,5,0])
+    #     basis_vector = make_basis_vector(signal, sgmt_num, wdw_size)
 
-        np.testing.assert_array_equal(basis_vector, match)
+    #     sgmt = np.array([5,0,0])
+    #     match = np.abs(np.fft.fft(sgmt))[: (wdw_size // 2) + 1]
 
-    def test_make_avg_basis_vector(self):
-        wdw_size, sgmt_num = 3, 2
-        signal = np.array([1,3,4,5,0,1,4,6,2,1,1,2,0,3])
-        basis_vector = make_basis_vector(signal, sgmt_num, wdw_size, avg=True)
+    #     np.testing.assert_array_equal(basis_vector, match)
 
-        sgmt = np.array([2.75,2.5,2.25])
-        match = np.abs(np.fft.fft(sgmt))[: (wdw_size // 2) + 1]
+    # def test_make_avg_basis_vector(self):
+    #     wdw_size, sgmt_num = 3, 2
+    #     signal = np.array([1,3,4,5,0,1,4,6,2,1,1,2,0,3])
+    #     basis_vector = make_basis_vector(signal, sgmt_num, wdw_size, avg=True)
 
-        np.testing.assert_array_equal(basis_vector, match)
+    #     sgmt = np.array([2.75,2.5,2.25])
+    #     match = np.abs(np.fft.fft(sgmt))[: (wdw_size // 2) + 1]
 
-    def test_unsupervised_nmf(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_Mary_unsupnmf_ova.wav'
-        sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
-        spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+    #     np.testing.assert_array_equal(basis_vector, match)
 
-        activations, basis_vectors = nmf_learn(spectrogram, num_components=88, debug=debug_flag)
-        synthetic_spectrogram = basis_vectors @ activations
+    # def test_unsupervised_nmf(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_Mary_unsupnmf_ova.wav'
+    #     sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
+    #     spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+    #     activations, basis_vectors = nmf_learn(spectrogram, num_components=88, debug=debug_flag)
+    #     synthetic_spectrogram = basis_vectors @ activations
 
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+    #     synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-        if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+    #     sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #                              synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
 
-        self.assertEqual(sig_diff, 0)
+    #     if write_flag:
+    #         wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # def test_restore_marybv(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_Mary_marybv_ova.wav'
+    #     sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, marybv=True, noisebv=True,
+    #                                   avgbv=True, write_file=write_flag, debug=debug_flag)
+
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # def test_restore_fullbv(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_Mary_fullbv_ova.wav'
+    #     sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, marybv=False, noisebv=True,
+    #                                   avgbv=True, write_file=write_flag, debug=debug_flag)
+
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # # Output file not noticably worse b/c no noise in Mary.wav
+    # def test_restore_no_hanningbv(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_Mary_nohanbv_ova.wav'
+    #     sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, marybv=False, noisebv=True,
+    #                                   avgbv=True, write_file=write_flag, debug=debug_flag, nohanbv=True)
+
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # # Brahms for these tests (bad audio)
+    # def test_restore_brahms_bare(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_brahms.wav'
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr,
+    #                                   write_file=write_flag, debug=debug_flag)
+
+    #     # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # def test_restore_brahms_ova(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_brahms_ova.wav'
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True,
+    #                                   write_file=write_flag, debug=debug_flag)
+
+    #     # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # def test_restore_brahms_avgbv(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_brahms_avgbv.wav'
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, avgbv=True,
+    #                                   write_file=write_flag, debug=debug_flag)
+
+    #     # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # def test_restore_brahms_noisebv(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_brahms_noisebv.wav'
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, noisebv=True,
+    #                                   write_file=write_flag, debug=debug_flag)
+
+    #     # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # # Two factors
+    # def test_restore_brahms_ova_avgbv(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_brahms_ova_avgbv.wav'
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr,
+    #                                   ova=True, avgbv=True, write_file=write_flag, debug=debug_flag)
+
+    #     # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # def test_restore_brahms_ova_noisebv(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_brahms_ova_noisebv.wav'
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr,
+    #                                   ova=True, noisebv=True, write_file=write_flag, debug=debug_flag)
+
+    #     # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # def test_restore_brahms_avgbv_noisebv(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_brahms_avgbv_noisebv.wav'
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr,
+    #                                   avgbv=True, noisebv=True, write_file=write_flag, debug=debug_flag)
+
+    #     # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # # Three factors
+    # def test_restore_brahms_ova_noisebv_avgbv(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_brahms_ova_noisebv_avgbv.wav'
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr,
+    #                                   ova=True, noisebv=True, avgbv=True, write_file=write_flag, debug=debug_flag)
+
+    #     # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # def test_restore_brahms_unsupnmf(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_brahms_unsupnmf.wav'
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+    #     activations, basis_vectors = nmf_learn(spectrogram, 88, debug=debug_flag)
+    #     synthetic_spectrogram = basis_vectors @ activations
+
+    #     synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+    #     if write_flag:
+    #         wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+    # # Output file noticably worse - crackles and a constant high frequency
+    # def test_restore_no_hanningbv_brahms(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_brahms_nohanbv_ova_noisebv_avgbv.wav'
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, marybv=False, noisebv=True,
+    #                                   avgbv=True, write_file=write_flag, debug=debug_flag, nohanbv=True)
+
+    #     # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # def test_restore_precise_noise_brahms(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_brahms_ova_precnoisebv_avgbv.wav'
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, marybv=False, noisebv=True,
+    #                                   avgbv=True, write_file=write_flag, debug=debug_flag, prec_noise=True)
+
+    #     # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
+
+    # def test_restore_eqbv_brahms(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_brahms_ova_noisebv_avgbv_eqpianobv.wav'
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr,
+    #                                   ova=True, noisebv=True, avgbv=True, eqbv=True, write_file=write_flag, debug=debug_flag)
+
+    #     # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
+    #     # sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] -
+    #     #                          synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+
+    #     # self.assertEqual(sig_diff, 0)
 
 
-    def test_restore_marybv(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_Mary_marybv_ova.wav'
-        sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, marybv=True, noisebv=True, 
-                                      avgbv=True, write_file=write_flag, debug=debug_flag)
-        
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+    def test_parition_mtx_madeinit_lfix(self):
+        w = np.arange(12).reshape((4,3))
+        h = np.arange(18).reshape((3,6))
+        # If learn index > 0, fixed part is left side
+        w_f, w_l, h_f, h_l = partition_matrices(2, w, h, madeinit=True)
 
-        self.assertEqual(sig_diff, 0)
+        # If index = 2, w_f is left side of w
+        np.testing.assert_array_equal(w, np.concatenate((w_f, w_l), axis=1))
+        np.testing.assert_array_equal(h, np.concatenate((h_f, h_l), axis=0))
 
-    def test_restore_fullbv(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_Mary_fullbv_ova.wav'
-        sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, marybv=False, noisebv=True, 
-                                      avgbv=True, write_file=write_flag, debug=debug_flag)
-                
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+    def test_parition_mtx_randinit_lfix(self):
+        w = np.arange(12).reshape((4,3))
+        h = np.arange(18).reshape((3,6))
+        # If learn index > 0, fixed part is left side
+        w_f, w_l, h_f, h_l = partition_matrices(2, w, h)
 
-        self.assertEqual(sig_diff, 0)
+        np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
+                                 w, np.concatenate((w_f, w_l), axis=1))
+        np.testing.assert_array_equal(h, np.concatenate((h_f, h_l), axis=0))
 
-    # Output file not noticably worse b/c no noise in Mary.wav
-    def test_restore_no_hanningbv(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_Mary_nohanbv_ova.wav'
-        sig, sr = librosa.load(mary_filepath, sr=STD_SR_HZ)  # Upsample Mary to 44.1kHz
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, marybv=False, noisebv=True, 
-                                      avgbv=True, write_file=write_flag, debug=debug_flag, nohanbv=True)
-                
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+    def test_parition_mtx_madeinit_rfix(self):
+        w = np.arange(12).reshape((4,3))
+        h = np.arange(18).reshape((3,6))
+        # If learn index < 0, fixed part is right side
+        w_f, w_l, h_f, h_l = partition_matrices(-2, w, h, madeinit=True)
 
-        self.assertEqual(sig_diff, 0)
+        # If index = -2, w_f is right side of w
+        np.testing.assert_array_equal(w, np.concatenate((w_l, w_f), axis=1))
+        np.testing.assert_array_equal(h, np.concatenate((h_l, h_f), axis=0))
 
-    # Brahms for these tests (bad audio)
-    def test_restore_brahms_bare(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_brahms.wav'
-        sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, 
-                                      write_file=write_flag, debug=debug_flag)
+    def test_parition_mtx_randinit_rfix(self):
+        w = np.arange(12).reshape((4,3))
+        h = np.arange(18).reshape((3,6))
+        # If learn index < 0, fixed part is right side
+        w_f, w_l, h_f, h_l = partition_matrices(-2, w, h)
 
-        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
+        np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
+                                 w, np.concatenate((w_l, w_f), axis=1))
+        np.testing.assert_array_equal(h, np.concatenate((h_l, h_f), axis=0))
 
-        self.assertEqual(sig_diff, 0)
-
-    def test_restore_brahms_ova(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_brahms_ova.wav'
-        sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, 
-                                      write_file=write_flag, debug=debug_flag)
-
-        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
-
-        self.assertEqual(sig_diff, 0)
-
-    def test_restore_brahms_avgbv(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_brahms_avgbv.wav'
-        sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, avgbv=True, 
-                                      write_file=write_flag, debug=debug_flag)
-
-        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
-
-        self.assertEqual(sig_diff, 0)
-
-    def test_restore_brahms_noisebv(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_brahms_noisebv.wav'
-        sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, noisebv=True, 
-                                      write_file=write_flag, debug=debug_flag)
-
-        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
-
-        self.assertEqual(sig_diff, 0)
-
-    # Two factors
-    def test_restore_brahms_ova_avgbv(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_brahms_ova_avgbv.wav'
-        sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, 
-                                      ova=True, avgbv=True, write_file=write_flag, debug=debug_flag)
-
-        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
-
-        self.assertEqual(sig_diff, 0)
-
-    def test_restore_brahms_ova_noisebv(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_brahms_ova_noisebv.wav'
-        sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, 
-                                      ova=True, noisebv=True, write_file=write_flag, debug=debug_flag)
-
-        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
-
-        self.assertEqual(sig_diff, 0)
-
-    def test_restore_brahms_avgbv_noisebv(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_brahms_avgbv_noisebv.wav'
-        sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, 
-                                      avgbv=True, noisebv=True, write_file=write_flag, debug=debug_flag)
-
-        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
-
-        self.assertEqual(sig_diff, 0)
-
-    # Three factors
-    def test_restore_brahms_ova_noisebv_avgbv(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_brahms_ova_noisebv_avgbv.wav'
-        sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, 
-                                      ova=True, noisebv=True, avgbv=True, write_file=write_flag, debug=debug_flag)
-        
-        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
-
-        self.assertEqual(sig_diff, 0)
-
-    def test_restore_brahms_unsupnmf(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_brahms_unsupnmf.wav'
-        sr, sig = wavfile.read(brahms_filepath)
-        spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
-
-        activations, basis_vectors = nmf_learn(spectrogram, 88, debug=debug_flag)
-        synthetic_spectrogram = basis_vectors @ activations
-
-        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
-
-        if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
-
-
-    # Output file noticably worse - crackles and a constant high frequency
-    def test_restore_no_hanningbv_brahms(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_brahms_nohanbv_ova_noisebv_avgbv.wav'
-        sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, marybv=False, noisebv=True, 
-                                      avgbv=True, write_file=write_flag, debug=debug_flag, nohanbv=True)
-
-        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
-
-        self.assertEqual(sig_diff, 0)
-
-    def test_restore_precise_noise_brahms(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_brahms_ova_precnoisebv_avgbv.wav'
-        sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, marybv=False, noisebv=True, 
-                                      avgbv=True, write_file=write_flag, debug=debug_flag, prec_noise=True)
-
-        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
-
-        self.assertEqual(sig_diff, 0)
-
-    def test_restore_eqbv_brahms(self):
-        if write_flag:
-            out_filepath = test_path + 'restored_brahms_ova_noisebv_avgbv_eqpianobv.wav'
-        sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, 
-                                      ova=True, noisebv=True, avgbv=True, eqbv=True, write_file=write_flag, debug=debug_flag)
-
-        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])     
-        sig_diff = np.sum(np.abs(sig[(PIANO_WDW_SIZE // 2): -(PIANO_WDW_SIZE // 2)] - 
-                                 synthetic_sig[(PIANO_WDW_SIZE // 2): (len(sig) - (PIANO_WDW_SIZE // 2))]))
-
-        self.assertEqual(sig_diff, 0)
 
     def test_restore_brahms_ssln_piano_madeinit(self):
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_piano_madeinit.wav'
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-                                      semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag)
+        # synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True,
+        #                               semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag)
+
+        given_basis_vectors = get_basis_vectors(
+            BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+
+        sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        spectrogram, phases = make_spectrogram(
+            sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
+                                               learn_index=NUM_NOISE_BV, madeinit=True, debug=debug_flag, incorrect=False)
+
+        noise_vectors = basis_vectors[:, :NUM_NOISE_BV].copy()
+        activations, basis_vectors = remove_noise_vectors(
+            activations, basis_vectors, debug=debug_flag)
+
+        synthetic_spectrogram = basis_vectors @ activations
+
+        synthetic_sig = make_synthetic_signal(
+            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+        np.testing.assert_array_equal(
+            given_basis_vectors[:, :NUM_NOISE_BV], noise_vectors)
+        # self.assertEqual(given_basis_vectors[:, :NUM_NOISE_BV].shape, noise_vectors.shape)
 
     def test_restore_brahms_ssln_piano_randinit(self):
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_piano_randinit.wav'
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-                                      semisuplearn='Piano', semisupmadeinit=False, write_file=write_flag, debug=debug_flag)
+        # synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True,
+        #                               semisuplearn='Piano', semisupmadeinit=False, write_file=write_flag, debug=debug_flag)
+
+        given_basis_vectors = get_basis_vectors(
+            BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+
+        sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        spectrogram, phases = make_spectrogram(
+            sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
+                                               learn_index=NUM_NOISE_BV, madeinit=False, debug=debug_flag, incorrect=False)
+
+        noise_vectors = basis_vectors[:, :NUM_NOISE_BV].copy()
+        activations, basis_vectors = remove_noise_vectors(
+            activations, basis_vectors, debug=debug_flag)
+
+        synthetic_spectrogram = basis_vectors @ activations
+
+        synthetic_sig = make_synthetic_signal(
+            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+        np.testing.assert_array_equal(
+            given_basis_vectors[:, :NUM_NOISE_BV], noise_vectors)
+        # self.assertEqual(given_basis_vectors[:, :NUM_NOISE_BV].shape, noise_vectors.shape)
 
     def test_restore_brahms_ssln_noise_madeinit(self):
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_noise_madeinit.wav'
+
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-                                      semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag)
+        # synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True,
+        #                               semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag)
+
+        given_basis_vectors = get_basis_vectors(
+            BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+
+        sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        spectrogram, phases = make_spectrogram(
+            sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
+                                               learn_index=(-1 * NUM_NOISE_BV), madeinit=True, debug=debug_flag, incorrect=False)
+
+        activations, basis_vectors = remove_noise_vectors(
+            activations, basis_vectors, debug=debug_flag)
+
+        # print('Basis Vectors Shape after de-noise:', basis_vectors.shape)
+
+        synthetic_spectrogram = basis_vectors @ activations
+
+        synthetic_sig = make_synthetic_signal(
+            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+        # print('Given Basis Vectors Shape:', given_basis_vectors.shape, 'Basis Vectors Shape:', basis_vectors.shape)
+
+        np.testing.assert_array_equal(
+            given_basis_vectors[:, NUM_NOISE_BV:], basis_vectors[:, :])
+        # self.assertEqual(given_basis_vectors[:, NUM_NOISE_BV:].shape, basis_vectors[:, :].shape)
 
     def test_restore_brahms_ssln_noise_randinit(self):
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_noise_randinit.wav'
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-                                      semisuplearn='Noise', semisupmadeinit=False, write_file=write_flag, debug=debug_flag)
+        # synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True,
+        #                               semisuplearn='Noise', semisupmadeinit=False, write_file=write_flag, debug=debug_flag)
+
+        given_basis_vectors = get_basis_vectors(
+            BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+
+        sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        spectrogram, phases = make_spectrogram(
+            sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
+                                               learn_index=(-1 * NUM_NOISE_BV), madeinit=False, debug=debug_flag, incorrect=False)
+
+        activations, basis_vectors = remove_noise_vectors(
+            activations, basis_vectors, debug=debug_flag)
+
+        # print('Basis Vectors Shape after de-noise:', basis_vectors.shape)
+
+        synthetic_spectrogram = basis_vectors @ activations
+
+        synthetic_sig = make_synthetic_signal(
+            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+        # print('Given Basis Vectors Shape:', given_basis_vectors.shape, 'Basis Vectors Shape:', basis_vectors.shape)
+
+        np.testing.assert_array_equal(
+            given_basis_vectors[:, NUM_NOISE_BV:], basis_vectors[:, :])
+        # self.assertEqual(given_basis_vectors[:, NUM_NOISE_BV:].shape, basis_vectors[:, :].shape)
 
     def test_restore_brahms_ssln_piano_madeinit_incorrect(self):
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_piano_madeinit_incorrect.wav'
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-                                      semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, incorrect_semisup=True)
+        # synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True,
+        #                               semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, incorrect_semisup=True)
+
+        given_basis_vectors = get_basis_vectors(
+            BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+
+        sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        spectrogram, phases = make_spectrogram(
+            sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
+                                               learn_index=NUM_NOISE_BV, madeinit=True, debug=debug_flag, incorrect=True)
+
+        noise_vectors = basis_vectors[:, :NUM_NOISE_BV].copy()
+        activations, basis_vectors = remove_noise_vectors(
+            activations, basis_vectors, debug=debug_flag)
+
+        synthetic_spectrogram = basis_vectors @ activations
+
+        synthetic_sig = make_synthetic_signal(
+            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+        np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
+                                 given_basis_vectors[:, :NUM_NOISE_BV], noise_vectors)
 
     def test_restore_brahms_ssln_piano_randinit_incorrect(self):
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_piano_randinit_incorrect.wav'
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-                                      semisuplearn='Piano', semisupmadeinit=False, write_file=write_flag, debug=debug_flag, incorrect_semisup=True)
+        # synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True,
+        #                               semisuplearn='Piano', semisupmadeinit=False, write_file=write_flag, debug=debug_flag, incorrect_semisup=True)
+
+        given_basis_vectors = get_basis_vectors(
+            BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+
+        sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        spectrogram, phases = make_spectrogram(
+            sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
+                                               learn_index=NUM_NOISE_BV, madeinit=False, debug=debug_flag, incorrect=True)
+
+        noise_vectors = basis_vectors[:, :NUM_NOISE_BV].copy()
+        activations, basis_vectors = remove_noise_vectors(
+            activations, basis_vectors, debug=debug_flag)
+
+        synthetic_spectrogram = basis_vectors @ activations
+
+        synthetic_sig = make_synthetic_signal(
+            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+        np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
+                                 given_basis_vectors[:, :NUM_NOISE_BV], noise_vectors)
 
     def test_restore_brahms_ssln_noise_madeinit_incorrect(self):
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_noise_madeinit_incorrect.wav'
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-                                      semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, incorrect_semisup=True)
+        # synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True,
+        #                               semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, incorrect_semisup=True)
+
+        given_basis_vectors = get_basis_vectors(
+            BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+
+        sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        spectrogram, phases = make_spectrogram(
+            sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
+                                               learn_index=(-1 * NUM_NOISE_BV), madeinit=True, debug=debug_flag, incorrect=True)
+
+        activations, basis_vectors = remove_noise_vectors(
+            activations, basis_vectors, debug=debug_flag)
+
+        synthetic_spectrogram = basis_vectors @ activations
+
+        synthetic_sig = make_synthetic_signal(
+            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+        np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
+                                 given_basis_vectors[:, NUM_NOISE_BV:], basis_vectors[:, :])
 
     def test_restore_brahms_ssln_noise_randinit_incorrect(self):
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_noise_randinit_incorrect.wav'
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-                                      semisuplearn='Noise', semisupmadeinit=False, write_file=write_flag, debug=debug_flag, incorrect_semisup=True)
+        # synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True,
+        #                               semisuplearn='Noise', semisupmadeinit=False, write_file=write_flag, debug=debug_flag, incorrect_semisup=True)
+
+        given_basis_vectors = get_basis_vectors(
+            BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+
+        sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        spectrogram, phases = make_spectrogram(
+            sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
+                                               learn_index=(-1 * NUM_NOISE_BV), madeinit=False, debug=debug_flag, incorrect=True)
+
+        activations, basis_vectors = remove_noise_vectors(
+            activations, basis_vectors, debug=debug_flag)
+
+        synthetic_spectrogram = basis_vectors @ activations
+
+        synthetic_sig = make_synthetic_signal(
+            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+        np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
+                                 given_basis_vectors[:, NUM_NOISE_BV:], basis_vectors[:, :])
+
+    # def test_restore_brahms_l1_penalize(self):
+    #     if write_flag:
+    #         out_filepath = test_path + 'restored_brahms_l1pen100.wav'
+    #     sr, sig = wavfile.read(brahms_filepath)
+
+    #     given_basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+
+    #     sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+    #     spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+    #     activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=(-1 * NUM_NOISE_BV), madeinit=False, debug=debug_flag, incorrect=True)
+
+    #     activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug_flag)
+
+    #     synthetic_spectrogram = basis_vectors @ activations
+
+    #     synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+    #     if write_flag:
+    #         wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+    #     np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, given_basis_vectors[:, NUM_NOISE_BV:], basis_vectors[:, NUM_NOISE_BV:])
 
 
     # GET_BASIS_VECTORS
     # def test_make_basis_vectors(self):
-    #     basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=True, noise=True, avg=True, eq=True, debug=True)
-        
+    #     basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=True, noise=True, avg=True, eq=True, debug=debug_flag)
     #     _, c4_sig = wavfile.read('Piano.ff.C4.wav')
     #     _, db4_sig = wavfile.read('Piano.ff.Db4.wav')
     #     _, d4_sig = wavfile.read('Piano.ff.D4.wav')
@@ -579,16 +858,13 @@ class RestoreAudioTests(unittest.TestCase):
     #     sigs = [c4_sig, db4_sig, d4_sig, eb4_sig, e4_sig]
     #     sigs = [np.array([((x[0] + x[1]) / 2) for x in sig]) for sig in sigs]
     #     # amp_thresh = max(sig) * 0.01  # ?????
-
     #     match = np.array([make_basis_vector(sig, BEST_WDW_NUM, PIANO_WDW_SIZE, avg=True) for sig in sigs])
-
     # def test_make_basis_vectors_2(self):
-        # get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=True, noise=True, avg=True, eq=False, debug=True)
-
+        # get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=True, noise=True, avg=True, eq=False, debug=debug_flag)
     # # Mary.wav?
     # def test_make_spectrogram(self):
     #     pass
-
+    
 if __name__ == '__main__':
     unittest.main()
 
