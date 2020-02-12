@@ -33,8 +33,8 @@ SPGM_MARY_RATIO = 0.008
 
 WDW_NUM_AFTER_VOICE = 77
 
-# L1_PENALTY = 1000000000000000000 # Quintillion
-L1_PENALTY = 0  # 10 ** 19 # 10^9 = 1Bill, 12 = trill, 15 = quad, 18 = quin, 19 = max for me
+# L1_PENALTY_TEST = 1000000000000000000 # Quintillion
+L1_PENALTY_TEST = 100  # 10 ** 19 # 10^9 = 1Bill, 12 = trill, 15 = quad, 18 = quin, 19 = max for me
 
 # Spectrogram (V) Part
 brahms_filepath = 'brahms.wav'
@@ -462,19 +462,19 @@ class RestoreAudioTests(unittest.TestCase):
 
     #     # self.assertEqual(sig_diff, 0)
 
-    # def test_restore_brahms_unsupnmf(self):
-    #     if write_flag:
-    #         out_filepath = test_path + 'restored_brahms_unsupnmf.wav'
-    #     sr, sig = wavfile.read(brahms_filepath)
-    #     spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+    def test_restore_brahms_unsupnmf(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_unsupnmf.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-    #     activations, basis_vectors = nmf_learn(spectrogram, 88, debug=debug_flag)
-    #     synthetic_spectrogram = basis_vectors @ activations
+        activations, basis_vectors = nmf_learn(spectrogram, 88, debug=debug_flag)
+        synthetic_spectrogram = basis_vectors @ activations
 
-    #     synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-    #     if write_flag:
-    #         wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
 
     # # Output file noticably worse - crackles and a constant high frequency
     # def test_restore_no_hanningbv_brahms(self):
@@ -606,11 +606,10 @@ class RestoreAudioTests(unittest.TestCase):
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
         activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
-                                               learn_index=NUM_NOISE_BV, madeinit=False, debug=debug_flag, incorrect=False)
+                                               learn_index=NUM_NOISE_BV, madeinit=False, debug=True, incorrect=False)
 
         noise_vectors = basis_vectors[:, :NUM_NOISE_BV].copy()
-        activations, basis_vectors = remove_noise_vectors(
-            activations, basis_vectors, debug=debug_flag)
+        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=True)
 
         synthetic_spectrogram = basis_vectors @ activations
 
@@ -676,10 +675,10 @@ class RestoreAudioTests(unittest.TestCase):
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
         activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
-                                               learn_index=(-1 * NUM_NOISE_BV), madeinit=False, debug=debug_flag, incorrect=False)
+                                               learn_index=(-1 * NUM_NOISE_BV), madeinit=False, debug=True, incorrect=False)
 
         activations, basis_vectors = remove_noise_vectors(
-            activations, basis_vectors, debug=debug_flag)
+            activations, basis_vectors, debug=True)
 
         # print('Basis Vectors Shape after de-noise:', basis_vectors.shape)
 
@@ -823,28 +822,157 @@ class RestoreAudioTests(unittest.TestCase):
         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
                                  given_basis_vectors[:, NUM_NOISE_BV:], basis_vectors[:, :])
 
-    # def test_restore_brahms_l1_penalize(self):
-    #     if write_flag:
-    #         out_filepath = test_path + 'restored_brahms_l1pen100.wav'
-    #     sr, sig = wavfile.read(brahms_filepath)
 
-    #     given_basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+    # Mess w/ params of this one test
+    def test_restore_brahms_iter25(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_iter25.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        
+        given_basis_vectors = get_basis_vectors(
+            BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
 
-    #     sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
-    #     spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-    #     activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=(-1 * NUM_NOISE_BV), madeinit=False, debug=debug_flag, incorrect=True)
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
+                                               learn_index=NUM_NOISE_BV, madeinit=True, debug=debug_flag, incorrect=False, learn_iter=25)
 
-    #     activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug_flag)
+        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug_flag)
 
-    #     synthetic_spectrogram = basis_vectors @ activations
+        synthetic_spectrogram = basis_vectors @ activations
 
-    #     synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(
+            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-    #     if write_flag:
-    #         wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
 
-    #     np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, given_basis_vectors[:, NUM_NOISE_BV:], basis_vectors[:, NUM_NOISE_BV:])
+        mean_abs_error = np.mean(np.abs(spectrogram - synthetic_spectrogram))
+        print('MAE @ 25 iter:', mean_abs_error)
+
+
+    # Mess w/ params of this one test - LOOK at noise bv plot
+    def test_restore_brahms_noisebv_num(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_noisebv10.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Piano', semisupmadeinit=True, write_file=True, debug=True, 
+                                      num_noisebv=10)
+
+    # Use L1-PENALTY constant to change these test cases (l1-pen value wise)
+    # Want to test all combos of Brahms activation penalties (piano, noise and both)
+    # Best product so far (semi-sup learn made piano) allows these 3 combos:
+    #   - activations for (learned made) piano
+    #   - activations for (fixed) noise
+    #   - activations for both (learned) piano and (fixed) noise
+    def test_restore_brahms_l1pen_pianoh(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_l1pen' + str(L1_PENALTY_TEST) + '_piano_h.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+
+        given_basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+        sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        # Pos. learn index = learn piano
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=NUM_NOISE_BV, 
+                                               madeinit=True, debug=True, l1_penalty=L1_PENALTY_TEST, pen='Piano')
+        print('\nL1-Penalty to No L1-Penalty Transition\n')
+        # Compare to no l1-Penalty
+        non_pen_activations, non_pen_basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=NUM_NOISE_BV, 
+                                                               madeinit=True, debug=True)
+
+        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug_flag)
+        non_pen_activations, non_pen_basis_vectors = remove_noise_vectors(non_pen_activations, non_pen_basis_vectors, debug=debug_flag)
+
+        synthetic_spectrogram = basis_vectors @ activations
+        non_pen_synthetic_spectrogram = non_pen_basis_vectors @ non_pen_activations
+
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        non_pen_synthetic_sig = make_synthetic_signal(non_pen_synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+        pen_h_sum = np.sum(activations)
+        nonpen_h_sum = np.sum(non_pen_activations)
+        print('Penalized H Sum:', pen_h_sum, 'Non-Penalized H Sum:', nonpen_h_sum)
+        print('Penalized W Sum:', np.sum(basis_vectors), 'Non-Penalized W Sum:', np.sum(non_pen_basis_vectors))
+        print('Penalized V\' Sum:', np.sum(synthetic_spectrogram), 'Non-Penalized V\' Sum:', np.sum(non_pen_synthetic_spectrogram))
+        print('Penalized Sig\' Sum:', np.sum(synthetic_sig), 'Non-Penalized Sig\' Sum:', np.sum(non_pen_synthetic_sig))
+        self.assertGreater(nonpen_h_sum, pen_h_sum)
+
+    def test_restore_brahms_l1pen_noiseh(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_l1pen' + str(L1_PENALTY_TEST) + '_noise_h.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+
+        given_basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+        sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        # Pos. learn index = learn piano
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=NUM_NOISE_BV, 
+                                               madeinit=True, debug=True, l1_penalty=L1_PENALTY_TEST, pen='Noise')
+        print('\nL1-Penalty to No L1-Penalty Transition\n')
+        # Compare to no l1-Penalty
+        non_pen_activations, non_pen_basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=NUM_NOISE_BV, 
+                                                               madeinit=True, debug=True)
+
+        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug_flag)
+        non_pen_activations, non_pen_basis_vectors = remove_noise_vectors(non_pen_activations, non_pen_basis_vectors, debug=debug_flag)
+
+        synthetic_spectrogram = basis_vectors @ activations
+        non_pen_synthetic_spectrogram = non_pen_basis_vectors @ non_pen_activations
+
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        non_pen_synthetic_sig = make_synthetic_signal(non_pen_synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+        pen_h_sum = np.sum(activations)
+        nonpen_h_sum = np.sum(non_pen_activations)
+        print('Penalized H Sum:', pen_h_sum, 'Non-Penalized H Sum:', nonpen_h_sum)
+        print('Penalized W Sum:', np.sum(basis_vectors), 'Non-Penalized W Sum:', np.sum(non_pen_basis_vectors))
+        print('Penalized V\' Sum:', np.sum(synthetic_spectrogram), 'Non-Penalized V\' Sum:', np.sum(non_pen_synthetic_spectrogram))
+        print('Penalized Sig\' Sum:', np.sum(synthetic_sig), 'Non-Penalized Sig\' Sum:', np.sum(non_pen_synthetic_sig))
+        self.assertGreater(nonpen_h_sum, pen_h_sum)
+
+    def test_restore_brahms_l1pen_allh(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_l1pen' + str(L1_PENALTY_TEST) + '_all_h.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+
+        given_basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+        sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        # Pos. learn index = learn piano
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=NUM_NOISE_BV, 
+                                               madeinit=True, debug=True, l1_penalty=L1_PENALTY_TEST, pen='Both')
+        # Compare to no l1-Penalty
+        non_pen_activations, non_pen_basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=NUM_NOISE_BV, 
+                                           madeinit=True, debug=debug_flag)
+        
+        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug_flag)
+        non_pen_activations, non_pen_basis_vectors = remove_noise_vectors(non_pen_activations, non_pen_basis_vectors, debug=debug_flag)
+
+        synthetic_spectrogram = basis_vectors @ activations
+        non_pen_synthetic_spectrogram = non_pen_basis_vectors @ non_pen_activations
+
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        non_pen_synthetic_sig = make_synthetic_signal(non_pen_synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+        pen_h_sum = np.sum(activations)
+        nonpen_h_sum = np.sum(non_pen_activations)
+        print('Penalized H Sum:', pen_h_sum, 'Non-Penalized H Sum:', nonpen_h_sum)
+        print('Penalized W Sum:', np.sum(basis_vectors), 'Non-Penalized W Sum:', np.sum(non_pen_basis_vectors))
+        print('Penalized V\' Sum:', np.sum(synthetic_spectrogram), 'Non-Penalized V\' Sum:', np.sum(non_pen_synthetic_spectrogram))
+        print('Penalized Sig\' Sum:', np.sum(synthetic_sig), 'Non-Penalized Sig\' Sum:', np.sum(non_pen_synthetic_sig))
+        self.assertGreater(nonpen_h_sum, pen_h_sum)
 
 
     # GET_BASIS_VECTORS

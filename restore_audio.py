@@ -23,6 +23,7 @@ import sys, os, math, librosa
 from scipy.io import wavfile
 import numpy as np
 import matplotlib.pyplot as plt
+from copy import deepcopy
 
 # Constants
 # TODO - Read this in from the file instead! Then delete
@@ -103,7 +104,7 @@ def make_basis_vector(waveform, sgmt_num, wdw_size, ova=False, avg=False):
 
 
 # Time/#segments is irrelevant to # of basis vectors made (so maximize)
-def make_noise_basis_vectors(wdw_size, ova=False, eq=False, debug=False, precise_noise=False, bv_thresh=800000):
+def make_noise_basis_vectors(wdw_size, ova=False, eq=False, debug=False, precise_noise=False, bv_thresh=800000, num=NUM_NOISE_BV):
     # sr, brahms_sig = wavfile.read('../brahms.wav')
     _, brahms_sig = wavfile.read('/Users/quinnmc/Desktop/AudioRestore/brahms.wav')
     # Convert to mono signal (avg left & right channels) 
@@ -127,7 +128,7 @@ def make_noise_basis_vectors(wdw_size, ova=False, eq=False, debug=False, precise
     print('\n----Making Noise Spectrogram--\n')
     spectrogram, _ = make_spectrogram(noise_sig, wdw_size, ova=ova, debug=debug)
     print('\n----Learning Noise Basis Vectors--\n')
-    _, noise_basis_vectors = nmf_learn(spectrogram, num_components=NUM_NOISE_BV, debug=debug)
+    _, noise_basis_vectors = nmf_learn(spectrogram, num_components=num, debug=debug)
     if debug:
         print('Shape of Noise Spectogram V:', spectrogram.shape)
         print('Shape of Learned Noise Basis Vectors W:', noise_basis_vectors.shape)
@@ -195,7 +196,7 @@ def make_basis_vectors(wdw_num, wdw_size, filepath, ova=False, avg=False, mary_f
 
 # W LOGIC
 # Basis vectors in essence are the "best" dft of a sound w/ constant pitch (distinct freq signature)
-def get_basis_vectors(wdw_num, wdw_size, ova=False, mary=False, noise=False, avg=False, debug=False, precise_noise=False, eq=False):
+def get_basis_vectors(wdw_num, wdw_size, ova=False, mary=False, noise=False, avg=False, debug=False, precise_noise=False, eq=False, num_noise=NUM_NOISE_BV):
     # Save/load basis vectors (w/o noise) to/from CSV files
     filepath = 'csv_saves_bv/basis_vectors'
     if mary:
@@ -223,7 +224,7 @@ def get_basis_vectors(wdw_num, wdw_size, ova=False, mary=False, noise=False, avg
     # Make and add noise bv's if necessary
     if noise:
         noise_basis_vectors = make_noise_basis_vectors(wdw_size, ova=ova, eq=eq, debug=debug, 
-                                                    precise_noise=precise_noise, bv_thresh=800000)
+                                                    precise_noise=precise_noise, bv_thresh=800000, num=num_noise)
         basis_vectors = (noise_basis_vectors + basis_vectors)
         if debug:
             print('Noise Basis Vectors Length:', len(noise_basis_vectors))
@@ -353,8 +354,8 @@ def partition_matrices(learn_index, basis_vectors, activations, madeinit=False):
         else:
             basis_vectors_learn = np.random.rand(basis_vectors[:, learn_index:].shape[0], 
                                                     basis_vectors[:, learn_index:].shape[1])
-        activations_from_fixed = activations[:learn_index, :].copy()
-        activations_from_learn = activations[learn_index:, :].copy()
+        activations_for_fixed = activations[:learn_index, :].copy()
+        activations_for_learn = activations[learn_index:, :].copy()
     
     else:                   # Fixed part is right side (Wfix = piano)
         # Modify learn index as a result of my failure to combine a flag w/ logic
@@ -365,20 +366,21 @@ def partition_matrices(learn_index, basis_vectors, activations, madeinit=False):
             basis_vectors_learn = basis_vectors[:, :learn_index].copy()
         else:
             basis_vectors_learn = np.random.rand(basis_vectors[:, :learn_index].shape[0], 
-                                                    basis_vectors[:, :learn_index].shape[1])
-        activations_from_fixed = activations[learn_index:, :].copy()
-        activations_from_learn = activations[:learn_index, :].copy()
+                                                 basis_vectors[:, :learn_index].shape[1])
+        activations_for_fixed = activations[learn_index:, :].copy()
+        activations_for_learn = activations[:learn_index, :].copy()
 
         learn_index *= -1
     
-    return basis_vectors_fixed, basis_vectors_learn, activations_from_fixed, activations_from_learn
+    return basis_vectors_fixed, basis_vectors_learn, activations_for_fixed, activations_for_learn
 
 # NMF Learning step formulas:
     # H +1 = H * ((Wt dot (V / (W dot H))) / (Wt dot 1) )
     # W +1 = W * (((V / (W dot H)) dot Ht) / (1 dot Ht) )
 
 # General case NMF algorithm
-def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, madeinit=False, debug=False, incorrect=False):
+def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, madeinit=False, debug=False, incorrect=False, 
+              learn_iter=MAX_LEARN_ITER, l1_penalty=L1_PENALTY, pen='Both'):
     activations = np.random.rand(num_components, input_matrix.shape[1])
     ones = np.ones(input_matrix.shape) # so dimensions match W transpose dot w/ V
 
@@ -387,63 +389,97 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
             print('In Sup or Semi-Sup Learn - Shape of Given Basis Vectors W:', basis_vectors.shape)
         if learn_index == 0:
             # Sup Learning - Do NMF w/ whole W, only H learn step, get H
-            for _ in range(MAX_LEARN_ITER):
-                activations *= ((basis_vectors.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors.T @ ones) + L1_PENALTY))
+            for _ in range(learn_iter):
+                activations *= ((basis_vectors.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors.T @ ones) + l1_penalty))
         else:
             # Semi-Sup Learning - Do NMF w/ part of W, part of W and H learn steps, get W and H
             (basis_vectors_fixed, basis_vectors_learn, 
-            activations_from_fixed, activations_from_learn) = partition_matrices(learn_index, basis_vectors, 
+            activations_for_fixed, activations_for_learn) = partition_matrices(learn_index, basis_vectors, 
                                                                                  activations, madeinit=madeinit)
             if debug:
                 print('Semi-Sup Learning', 'Piano' if (learn_index > 0) else 'Noise')
                 print('In Semi-Sup Learn - Shape of Wfix:', basis_vectors_fixed.shape)
                 print('In Semi-Sup Learn - Shape of Wlearn:', basis_vectors_learn.shape)
-                print('In Semi-Sup Learn - Shape of Hfromfix:', activations_from_fixed.shape)
-                print('In Semi-Sup Learn - Shape of Hfromlearn:', activations_from_learn.shape)
+                print('In Semi-Sup Learn - Shape of Hfromfix:', activations_for_fixed.shape)
+                print('In Semi-Sup Learn - Shape of Hfromlearn:', activations_for_learn.shape)
                 plot_matrix(basis_vectors_fixed, name="Fixed BV Before Learn", ylabel='Components', ratio=BASIS_VECTOR_FULL_RATIO)
                 plot_matrix(basis_vectors_learn, name="Learned BV Before Learn", ylabel='Components', ratio=BASIS_VECTOR_FULL_RATIO)
-                plot_matrix(activations_from_fixed, name="Activations of Fixed Before Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
-                plot_matrix(activations_from_learn, name="Activations of Learned Before Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
+                plot_matrix(activations_for_fixed, name="Activations of Fixed Before Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
+                plot_matrix(activations_for_learn, name="Activations of Learned Before Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
 
+            # Note: No L1-Penalty support for incorrect version
             if incorrect:   # For results of bug
                 # Don't fix the fixed part - W = Wfix and Wlearn concatenated together, same w/ H
                 if learn_index > 0:
-                    activations = np.concatenate((activations_from_fixed, activations_from_learn), axis=0)
+                    activations = np.concatenate((activations_for_fixed, activations_for_learn), axis=0)
                     basis_vectors = np.concatenate((basis_vectors_fixed, basis_vectors_learn), axis=1)
                 else:
-                    activations = np.concatenate((activations_from_learn, activations_from_fixed), axis=0)
+                    activations = np.concatenate((activations_for_learn, activations_for_fixed), axis=0)
                     basis_vectors = np.concatenate((basis_vectors_learn, basis_vectors_fixed), axis=1)
 
-                for _ in range(MAX_LEARN_ITER):
-                    activations *= ((basis_vectors.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors.T @ ones) + L1_PENALTY))
+                for _ in range(learn_iter):
+                    activations *= ((basis_vectors.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors.T @ ones) + l1_penalty))
                     basis_vectors *= (((input_matrix / (basis_vectors @ activations)) @ activations.T) / (ones @ activations.T))
 
             else:
-                # Do NMF w/ Wfix (W given subset), only H learn step, get H
-                for _ in range(MAX_LEARN_ITER):
-                    activations_from_fixed *= ((basis_vectors_fixed.T @ (input_matrix / (basis_vectors_fixed @ activations_from_fixed))) / ((basis_vectors_fixed.T @ ones) + L1_PENALTY))
-            
-                # Do NMF w/ Wlearn (W given subset OR random mtx), both W and H learn steps, get W and H
-                for _ in range(MAX_LEARN_ITER):
-                    activations_from_learn *= ((basis_vectors_learn.T @ (input_matrix / (basis_vectors_learn @ activations_from_learn))) / ((basis_vectors_learn.T @ ones) + L1_PENALTY))
-                    basis_vectors_learn *= (((input_matrix / (basis_vectors_learn @ activations_from_learn)) @ activations_from_learn.T) / (ones @ activations_from_learn.T))
+                if l1_penalty != 0 and (((pen == 'Both' or pen == 'Piano') and learn_index < 0) or 
+                                        ((pen == 'Both' or pen == 'Noise') and learn_index > 0)):
+                    if debug:
+                        print('Applying L1-Penalty of', str(l1_penalty), 'to', 'Noise' if (learn_index > 0) else 'Piano', '(Fixed) Activations')
+                    # Do NMF w/ Wfix (W given subset), only H learn step, get H
+                    for _ in range(learn_iter):
+                        activations_for_fixed *= ((basis_vectors_fixed.T @ (input_matrix / (basis_vectors_fixed @ activations_for_fixed))) / ((basis_vectors_fixed.T @ ones) + l1_penalty))
+                else:
+                    # Do NMF w/ Wfix (W given subset), only H learn step, get H
+                    for _ in range(learn_iter):
+                        activations_for_fixed *= ((basis_vectors_fixed.T @ (input_matrix / (basis_vectors_fixed @ activations_for_fixed))) / (basis_vectors_fixed.T @ ones))
+                
+                # Make copy of Hlearn to be used by ONLY Wlearn - this prevents W from "making up" for penalized H, vice-verse else bug happens
+                activations_for_learn_use = deepcopy(activations_for_learn)
+                basis_vectors_learn_use = deepcopy(basis_vectors_learn)
+
+                if l1_penalty != 0 and (((pen == 'Both' or pen == 'Noise') and learn_index < 0) or 
+                                        ((pen == 'Both' or pen == 'Piano') and learn_index > 0)):
+                    if debug:
+                        print('Applying L1-Penalty of', str(l1_penalty), 'to', 'Piano' if (learn_index > 0) else 'Noise', '(Learned) Activations')
+
+                    # Do NMF w/ Wlearn (W given subset OR random mtx), both W and H learn steps, get W and H
+                    for _ in range(learn_iter):
+                        # activations_for_learn *= ((basis_vectors_learn.T @ (input_matrix / (basis_vectors_learn @ activations_for_learn))) / ((basis_vectors_learn.T @ ones) + l1_penalty))
+                        # basis_vectors_learn *= (((input_matrix / (basis_vectors_learn @ activations_for_learn)) @ activations_for_learn.T) / (ones @ activations_for_learn.T))
+                        
+                        activations_for_learn *= ((basis_vectors_learn_use.T @ (input_matrix / (basis_vectors_learn_use @ activations_for_learn))) / ((basis_vectors_learn_use.T @ ones) + l1_penalty))
+                        basis_vectors_learn *= (((input_matrix / (basis_vectors_learn @ activations_for_learn_use)) @ activations_for_learn_use.T) / (ones @ activations_for_learn_use.T))
+
+                else:
+                    # Do NMF w/ Wlearn (W given subset OR random mtx), both W and H learn steps, get W and H
+                    for _ in range(learn_iter):
+                        # activations_for_learn *= ((basis_vectors_learn.T @ (input_matrix / (basis_vectors_learn @ activations_for_learn))) / (basis_vectors_learn.T @ ones))
+                        # basis_vectors_learn *= (((input_matrix / (basis_vectors_learn @ activations_for_learn)) @ activations_for_learn.T) / (ones @ activations_for_learn.T))
+
+                        activations_for_learn *= ((basis_vectors_learn_use.T @ (input_matrix / (basis_vectors_learn_use @ activations_for_learn))) / (basis_vectors_learn_use.T @ ones))
+                        basis_vectors_learn *= (((input_matrix / (basis_vectors_learn @ activations_for_learn_use)) @ activations_for_learn_use.T) / (ones @ activations_for_learn_use.T))
 
                 if debug:
+                    print('(Penalty Present) Hlearn Sum:' if (l1_penalty != 0) else 'Hlearn Sum:', np.sum(activations_for_learn))
+                    print('(Penalty Present) Wlearn Sum:' if (l1_penalty != 0) else 'Wlearn Sum:', np.sum(basis_vectors_learn), '-- for thoroughness')
+                    print('(Penalty Present) Hfix Sum:' if (l1_penalty != 0) else 'Hfix Sum:', np.sum(activations_for_fixed))
+                    print('(Penalty Present) Wfix Sum:' if (l1_penalty != 0) else 'Wfix Sum:', np.sum(basis_vectors_fixed), '-- for thoroughness')
                     print('In Semi-Sup Learn - after learn - Shape of Wfix:', basis_vectors_fixed.shape)
                     print('In Semi-Sup Learn - after learn - Shape of Wlearn:', basis_vectors_learn.shape)
-                    print('In Semi-Sup Learn - after learn - Shape of Hfromfix:', activations_from_fixed.shape)
-                    print('In Semi-Sup Learn - after learn - Shape of Hfromlearn:', activations_from_learn.shape)
+                    print('In Semi-Sup Learn - after learn - Shape of Hfromfix:', activations_for_fixed.shape)
+                    print('In Semi-Sup Learn - after learn - Shape of Hfromlearn:', activations_for_learn.shape)
                     plot_matrix(basis_vectors_fixed, name="Fixed BV After Learn", ylabel='Components', ratio=BASIS_VECTOR_FULL_RATIO)
                     plot_matrix(basis_vectors_learn, name="Learned BV After Learn", ylabel='Components', ratio=BASIS_VECTOR_FULL_RATIO)
-                    plot_matrix(activations_from_fixed, name="Activations of Fixed After Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
-                    plot_matrix(activations_from_learn, name="Activations of Learned After Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
+                    plot_matrix(activations_for_fixed, name="Activations of Fixed After Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
+                    plot_matrix(activations_for_learn, name="Activations of Learned After Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
 
                 # Finally, W = Wfix and Wlearn concatenated together, same w/ H
                 if learn_index > 0:
-                    activations = np.concatenate((activations_from_fixed, activations_from_learn), axis=0)
+                    activations = np.concatenate((activations_for_fixed, activations_for_learn), axis=0)
                     basis_vectors = np.concatenate((basis_vectors_fixed, basis_vectors_learn), axis=1)
                 else:
-                    activations = np.concatenate((activations_from_learn, activations_from_fixed), axis=0)
+                    activations = np.concatenate((activations_for_learn, activations_for_fixed), axis=0)
                     basis_vectors = np.concatenate((basis_vectors_learn, basis_vectors_fixed), axis=1)
     
     else:
@@ -453,11 +489,19 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
             print('In Unsup Learn - Shape of Learn Basis Vectors W:', basis_vectors.shape)
             print('In Unsup Learn - Shape of Learn Activations H:', activations.shape)
 
-        for _ in range(MAX_LEARN_ITER):
-            activations *= ((basis_vectors.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors.T @ ones) + L1_PENALTY))
-            basis_vectors *= (((input_matrix / (basis_vectors @ activations)) @ activations.T) / (ones @ activations.T))
+        # For L1-Penalty, supply a copy of H for W to learn from so W doesn't "make up" for penalized H, vice-verse else bug happens
+        activations_use = deepcopy(activations)
+        basis_vectors_use = deepcopy(basis_vectors)
+
+        for _ in range(learn_iter):
+            # activations *= ((basis_vectors.T @ (input_matrix / (basis_vectors @ activations))) / ((basis_vectors.T @ ones) + l1_penalty))
+            # basis_vectors *= (((input_matrix / (basis_vectors @ activations)) @ activations.T) / (ones @ activations.T))
+
+            activations *= ((basis_vectors_use.T @ (input_matrix / (basis_vectors_use @ activations))) / ((basis_vectors_use.T @ ones) + l1_penalty))
+            basis_vectors *= (((input_matrix / (basis_vectors @ activations_use)) @ activations_use.T) / (ones @ activations_use.T))
 
     if debug:
+        print('(Penalty Present) H Sum:' if (l1_penalty != 0) else 'H Sum:', np.sum(activations))
         print('In Learn - Shape of Learned Activations H:', activations.shape)
         plot_matrix(activations, name="Learned Activations", ylabel='Components', ratio=ACTIVATION_RATIO)
         print('In Learn - Shape of Learned Basis Vectors W:', basis_vectors.shape)
@@ -466,9 +510,9 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
     return activations, basis_vectors
 
 
-def remove_noise_vectors(activations, basis_vectors, debug=False):
-    basis_vectors = basis_vectors.T[NUM_NOISE_BV:].T
-    activations = activations[NUM_NOISE_BV:]
+def remove_noise_vectors(activations, basis_vectors, debug=False, num_noisebv=NUM_NOISE_BV):
+    basis_vectors = basis_vectors.T[num_noisebv:].T
+    activations = activations[num_noisebv:]
     if debug:
         plot_matrix(basis_vectors, name="De-noised Basis Vectors", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
         plot_matrix(activations, name="De-noised Activations", ylabel='Components', ratio=ACTIVATION_RATIO)
@@ -624,16 +668,18 @@ def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=Fa
     return synthetic_sig
 
 
-def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, noisebv=False, avgbv=False, semisuplearn='None', semisupmadeinit=False, write_file=False, debug=False, nohanbv=False, prec_noise=False, eqbv=False, incorrect_semisup=False):
+def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, noisebv=False, avgbv=False, semisuplearn='None', 
+                  semisupmadeinit=False, write_file=False, debug=False, nohanbv=False, prec_noise=False, eqbv=False, incorrect_semisup=False,
+                  learn_iter=MAX_LEARN_ITER, num_noisebv=NUM_NOISE_BV, l1_penalty=L1_PENALTY):
     print('--Initiating Restore Mode--')
     print('\n--Making Piano Basis Vectors--\n')
 
     # Temporary branch for testing:
     if nohanbv:
         # basis_vectors = get_basis_vectors(BEST_WDW_NUM, wdw_size, ova=False, mary=marybv, noise=noisebv, avg=avgbv, semisuplearn=semisuplearn, semisupmadeinit=semisupmadeinit, debug=debug, precise_noise=prec_noise)
-        basis_vectors = get_basis_vectors(BEST_WDW_NUM, wdw_size, ova=False, mary=marybv, noise=noisebv, avg=avgbv, debug=debug, precise_noise=prec_noise)
+        basis_vectors = get_basis_vectors(BEST_WDW_NUM, wdw_size, ova=False, mary=marybv, noise=noisebv, avg=avgbv, debug=debug, precise_noise=prec_noise, num_noise=num_noisebv)
     else:
-        basis_vectors = get_basis_vectors(BEST_WDW_NUM, wdw_size, ova=ova, mary=marybv, noise=noisebv, avg=avgbv, debug=debug, precise_noise=prec_noise, eq=eqbv)
+        basis_vectors = get_basis_vectors(BEST_WDW_NUM, wdw_size, ova=ova, mary=marybv, noise=noisebv, avg=avgbv, debug=debug, precise_noise=prec_noise, eq=eqbv, num_noise=num_noisebv)
 
     if 'brahms' in out_filepath:
         # Take out voice from brahms sig for now, should take it from nmf_learn from spectrogram later
@@ -650,17 +696,22 @@ def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, 
     # num_components = basis_vectors.shape[1]   # BAD
     num_components = len(SORTED_NOTES[MARY_START_INDEX: MARY_STOP_INDEX]) if marybv else len(SORTED_NOTES)
     if noisebv:
-        num_components += NUM_NOISE_BV
+        num_components += num_noisebv
 
     if semisuplearn == 'Piano':     # Semi-Supervised Learn (learn Wpiano too)
-        activations, basis_vectors = nmf_learn(spectrogram, num_components, basis_vectors=basis_vectors, learn_index=NUM_NOISE_BV, madeinit=semisupmadeinit, debug=debug, incorrect=incorrect_semisup)
+        activations, basis_vectors = nmf_learn(spectrogram, num_components, basis_vectors=basis_vectors, learn_index=num_noisebv, 
+                                               madeinit=semisupmadeinit, debug=debug, incorrect=incorrect_semisup, learn_iter=learn_iter,
+                                               l1_penalty=l1_penalty)
     elif semisuplearn == 'Noise':   # Semi-Supervised Learn (learn Wnoise too)
-        activations, basis_vectors = nmf_learn(spectrogram, num_components, basis_vectors=basis_vectors, learn_index=(-1 * NUM_NOISE_BV), madeinit=semisupmadeinit, debug=debug, incorrect=incorrect_semisup)
+        activations, basis_vectors = nmf_learn(spectrogram, num_components, basis_vectors=basis_vectors, learn_index=(-1 * num_noisebv), 
+                                               madeinit=semisupmadeinit, debug=debug, incorrect=incorrect_semisup, learn_iter=learn_iter,
+                                               l1_penalty=l1_penalty)
     else:                           # Supervised Learn
-        activations, _ = nmf_learn(spectrogram, num_components, basis_vectors=basis_vectors, debug=debug)
+        activations, _ = nmf_learn(spectrogram, num_components, basis_vectors=basis_vectors, debug=debug, learn_iter=learn_iter, 
+                                   l1_penalty=l1_penalty)
 
     if noisebv:
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug)
+        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug, num_noisebv=num_noisebv)
     if debug:
         if noisebv:
             print('Shape of De-noised Piano Basis Vectors W:', basis_vectors.shape)
@@ -747,6 +798,9 @@ def main():
         reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=ova_flag, segment=no_voice, 
                           write_file=True, debug=debug_flag)
     else:   # MAIN RESTORE BLOCK
+        
+        # out_filepath += '_messedup'
+        
         if semi_sup_learn == 'Piano':
             out_filepath += '_sslrnpiano'
             if semi_sup_made_init:
