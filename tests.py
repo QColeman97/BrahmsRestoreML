@@ -11,32 +11,11 @@
 import unittest
 from restore_audio import *
 
+# Testing global vars
 write_flag = True
 debug_flag = False
+num_noise_bv = 5
 
-STD_SR_HZ = 44100
-MARY_SR_HZ = 16000
-PIANO_WDW_SIZE = 4096  # 32768 # 16384 # 8192 # 4096 # 2048
-DEBUG_WDW_SIZE = 4
-RES = STD_SR_HZ / PIANO_WDW_SIZE
-BEST_WDW_NUM = 5
-# 50 # 20 # 3 # 10 # 5 # 10000 is when last good # 100000 is when it gets bad
-NUM_NOISE_BV = 5
-# BUT 1000 sounds bad in tests.py
-# Activation Matrix (H) Learning Part
-MAX_LEARN_ITER = 100
-BASIS_VECTOR_FULL_RATIO = 0.01
-BASIS_VECTOR_MARY_RATIO = 0.001
-ACTIVATION_RATIO = 0.08
-SPGM_BRAHMS_RATIO = 0.08
-SPGM_MARY_RATIO = 0.008
-
-WDW_NUM_AFTER_VOICE = 77
-
-# L1_PENALTY_TEST = 1000000000000000000 # Quintillion
-L1_PENALTY_TEST = 100  # 10 ** 19 # 10^9 = 1Bill, 12 = trill, 15 = quad, 18 = quin, 19 = max for me
-
-# Spectrogram (V) Part
 brahms_filepath = 'brahms.wav'
 mary_filepath = 'Mary.wav'
 test_path = 'output_test/'
@@ -572,10 +551,10 @@ class RestoreAudioTests(unittest.TestCase):
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
-                                               learn_index=NUM_NOISE_BV, madeinit=True, debug=debug_flag, incorrect=False)
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors,
+                                               learn_index=num_noise_bv, madeinit=True, debug=debug_flag, incorrect=False)
 
-        noise_vectors = basis_vectors[:, :NUM_NOISE_BV].copy()
+        noise_vectors = basis_vectors[:, :num_noise_bv].copy()
         activations, basis_vectors = remove_noise_vectors(
             activations, basis_vectors, debug=debug_flag)
 
@@ -588,8 +567,40 @@ class RestoreAudioTests(unittest.TestCase):
             wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
 
         np.testing.assert_array_equal(
-            given_basis_vectors[:, :NUM_NOISE_BV], noise_vectors)
-        # self.assertEqual(given_basis_vectors[:, :NUM_NOISE_BV].shape, noise_vectors.shape)
+            given_basis_vectors[:, :num_noise_bv], noise_vectors)
+        # self.assertEqual(given_basis_vectors[:, :num_noise_bv].shape, noise_vectors.shape)
+
+    # No difference in sound
+    def test_restore_brahms_ssln_piano_madeinit_removemorenoise(self):
+        if write_flag:
+            out_filepath = test_path + 'restored_brahms_ssln_piano_madeinit_morenoiseremoved.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+
+        given_basis_vectors = get_basis_vectors(
+            BEST_WDW_NUM, PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag)
+
+        sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        spectrogram, phases = make_spectrogram(
+            sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors,
+                                               learn_index=num_noise_bv, madeinit=True, debug=True, incorrect=False)
+
+        noise_vectors = basis_vectors[:, :num_noise_bv].copy()
+        activations, basis_vectors = remove_noise_vectors(
+            activations, basis_vectors, debug=True, num_noisebv=num_noise_bv + 3) # HERE we take more noise out (learned in piano part)
+
+        synthetic_spectrogram = basis_vectors @ activations
+
+        synthetic_sig = make_synthetic_signal(
+            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
+
+        np.testing.assert_array_equal(
+            given_basis_vectors[:, :num_noise_bv], noise_vectors)
+
 
     def test_restore_brahms_ssln_piano_randinit(self):
         if write_flag:
@@ -605,10 +616,10 @@ class RestoreAudioTests(unittest.TestCase):
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
-                                               learn_index=NUM_NOISE_BV, madeinit=False, debug=True, incorrect=False)
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors,
+                                               learn_index=num_noise_bv, madeinit=False, debug=True, incorrect=False)
 
-        noise_vectors = basis_vectors[:, :NUM_NOISE_BV].copy()
+        noise_vectors = basis_vectors[:, :num_noise_bv].copy()
         activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=True)
 
         synthetic_spectrogram = basis_vectors @ activations
@@ -620,8 +631,8 @@ class RestoreAudioTests(unittest.TestCase):
             wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
 
         np.testing.assert_array_equal(
-            given_basis_vectors[:, :NUM_NOISE_BV], noise_vectors)
-        # self.assertEqual(given_basis_vectors[:, :NUM_NOISE_BV].shape, noise_vectors.shape)
+            given_basis_vectors[:, :num_noise_bv], noise_vectors)
+        # self.assertEqual(given_basis_vectors[:, :num_noise_bv].shape, noise_vectors.shape)
 
     def test_restore_brahms_ssln_noise_madeinit(self):
         if write_flag:
@@ -638,8 +649,8 @@ class RestoreAudioTests(unittest.TestCase):
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
-                                               learn_index=(-1 * NUM_NOISE_BV), madeinit=True, debug=debug_flag, incorrect=False)
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors,
+                                               learn_index=(-1 * num_noise_bv), madeinit=True, debug=debug_flag, incorrect=False)
 
         activations, basis_vectors = remove_noise_vectors(
             activations, basis_vectors, debug=debug_flag)
@@ -657,8 +668,8 @@ class RestoreAudioTests(unittest.TestCase):
         # print('Given Basis Vectors Shape:', given_basis_vectors.shape, 'Basis Vectors Shape:', basis_vectors.shape)
 
         np.testing.assert_array_equal(
-            given_basis_vectors[:, NUM_NOISE_BV:], basis_vectors[:, :])
-        # self.assertEqual(given_basis_vectors[:, NUM_NOISE_BV:].shape, basis_vectors[:, :].shape)
+            given_basis_vectors[:, num_noise_bv:], basis_vectors[:, :])
+        # self.assertEqual(given_basis_vectors[:, num_noise_bv:].shape, basis_vectors[:, :].shape)
 
     def test_restore_brahms_ssln_noise_randinit(self):
         if write_flag:
@@ -674,8 +685,8 @@ class RestoreAudioTests(unittest.TestCase):
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
-                                               learn_index=(-1 * NUM_NOISE_BV), madeinit=False, debug=True, incorrect=False)
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors,
+                                               learn_index=(-1 * num_noise_bv), madeinit=False, debug=True, incorrect=False)
 
         activations, basis_vectors = remove_noise_vectors(
             activations, basis_vectors, debug=True)
@@ -693,8 +704,8 @@ class RestoreAudioTests(unittest.TestCase):
         # print('Given Basis Vectors Shape:', given_basis_vectors.shape, 'Basis Vectors Shape:', basis_vectors.shape)
 
         np.testing.assert_array_equal(
-            given_basis_vectors[:, NUM_NOISE_BV:], basis_vectors[:, :])
-        # self.assertEqual(given_basis_vectors[:, NUM_NOISE_BV:].shape, basis_vectors[:, :].shape)
+            given_basis_vectors[:, num_noise_bv:], basis_vectors[:, :])
+        # self.assertEqual(given_basis_vectors[:, num_noise_bv:].shape, basis_vectors[:, :].shape)
 
     def test_restore_brahms_ssln_piano_madeinit_incorrect(self):
         if write_flag:
@@ -710,10 +721,10 @@ class RestoreAudioTests(unittest.TestCase):
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
-                                               learn_index=NUM_NOISE_BV, madeinit=True, debug=debug_flag, incorrect=True)
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors,
+                                               learn_index=num_noise_bv, madeinit=True, debug=debug_flag, incorrect=True)
 
-        noise_vectors = basis_vectors[:, :NUM_NOISE_BV].copy()
+        noise_vectors = basis_vectors[:, :num_noise_bv].copy()
         activations, basis_vectors = remove_noise_vectors(
             activations, basis_vectors, debug=debug_flag)
 
@@ -726,7 +737,7 @@ class RestoreAudioTests(unittest.TestCase):
             wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
 
         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
-                                 given_basis_vectors[:, :NUM_NOISE_BV], noise_vectors)
+                                 given_basis_vectors[:, :num_noise_bv], noise_vectors)
 
     def test_restore_brahms_ssln_piano_randinit_incorrect(self):
         if write_flag:
@@ -742,10 +753,10 @@ class RestoreAudioTests(unittest.TestCase):
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
-                                               learn_index=NUM_NOISE_BV, madeinit=False, debug=debug_flag, incorrect=True)
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors,
+                                               learn_index=num_noise_bv, madeinit=False, debug=debug_flag, incorrect=True)
 
-        noise_vectors = basis_vectors[:, :NUM_NOISE_BV].copy()
+        noise_vectors = basis_vectors[:, :num_noise_bv].copy()
         activations, basis_vectors = remove_noise_vectors(
             activations, basis_vectors, debug=debug_flag)
 
@@ -758,7 +769,7 @@ class RestoreAudioTests(unittest.TestCase):
             wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
 
         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
-                                 given_basis_vectors[:, :NUM_NOISE_BV], noise_vectors)
+                                 given_basis_vectors[:, :num_noise_bv], noise_vectors)
 
     def test_restore_brahms_ssln_noise_madeinit_incorrect(self):
         if write_flag:
@@ -774,8 +785,8 @@ class RestoreAudioTests(unittest.TestCase):
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
-                                               learn_index=(-1 * NUM_NOISE_BV), madeinit=True, debug=debug_flag, incorrect=True)
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors,
+                                               learn_index=(-1 * num_noise_bv), madeinit=True, debug=debug_flag, incorrect=True)
 
         activations, basis_vectors = remove_noise_vectors(
             activations, basis_vectors, debug=debug_flag)
@@ -789,7 +800,7 @@ class RestoreAudioTests(unittest.TestCase):
             wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
 
         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
-                                 given_basis_vectors[:, NUM_NOISE_BV:], basis_vectors[:, :])
+                                 given_basis_vectors[:, num_noise_bv:], basis_vectors[:, :])
 
     def test_restore_brahms_ssln_noise_randinit_incorrect(self):
         if write_flag:
@@ -805,8 +816,8 @@ class RestoreAudioTests(unittest.TestCase):
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
-                                               learn_index=(-1 * NUM_NOISE_BV), madeinit=False, debug=debug_flag, incorrect=True)
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors,
+                                               learn_index=(-1 * num_noise_bv), madeinit=False, debug=debug_flag, incorrect=True)
 
         activations, basis_vectors = remove_noise_vectors(
             activations, basis_vectors, debug=debug_flag)
@@ -820,11 +831,11 @@ class RestoreAudioTests(unittest.TestCase):
             wavfile.write(out_filepath, sr, synthetic_sig.astype(sig.dtype))
 
         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
-                                 given_basis_vectors[:, NUM_NOISE_BV:], basis_vectors[:, :])
+                                 given_basis_vectors[:, num_noise_bv:], basis_vectors[:, :])
 
 
     # Mess w/ params of this one test
-    def test_restore_brahms_iter25(self):
+    def test_restore_brahms_iter(self):
         if write_flag:
             out_filepath = test_path + 'restored_brahms_iter25.wav'
         sr, sig = wavfile.read(brahms_filepath)
@@ -835,8 +846,8 @@ class RestoreAudioTests(unittest.TestCase):
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
         spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors,
-                                               learn_index=NUM_NOISE_BV, madeinit=True, debug=debug_flag, incorrect=False, learn_iter=25)
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors,
+                                               learn_index=num_noise_bv, madeinit=True, debug=debug_flag, incorrect=False, learn_iter=25)
 
         activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug_flag)
 
@@ -851,22 +862,38 @@ class RestoreAudioTests(unittest.TestCase):
         mean_abs_error = np.mean(np.abs(spectrogram - synthetic_spectrogram))
         print('MAE @ 25 iter:', mean_abs_error)
 
+    
+    def test_diff_noisebv_num_look(self):
+        num_noise = 10000
+        make_noise_basis_vectors(PIANO_WDW_SIZE, ova=True, debug=True, num=num_noise)
+        make_noise_basis_vectors(PIANO_WDW_SIZE, ova=True, debug=True, num=num_noise)
+        make_noise_basis_vectors(PIANO_WDW_SIZE, ova=True, debug=True, num=num_noise)
+        make_noise_basis_vectors(PIANO_WDW_SIZE, ova=True, debug=True, num=num_noise)
+        make_noise_basis_vectors(PIANO_WDW_SIZE, ova=True, debug=True, num=num_noise)
+
 
     # Mess w/ params of this one test - LOOK at noise bv plot
     def test_restore_brahms_noisebv_num(self):
         if write_flag:
-            out_filepath = test_path + 'restored_brahms_noisebv10.wav'
+            out_filepath = test_path + 'restored_brahms_noisebv10000.wav'
         sr, sig = wavfile.read(brahms_filepath)
         synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-                                      semisuplearn='Piano', semisupmadeinit=True, write_file=True, debug=True, 
-                                      num_noisebv=10)
+                                      semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=True, 
+                                      num_noisebv=10000, l1_penalty=0)
 
+
+    # L1-PENALTY TESTS
+    
     # Use L1-PENALTY constant to change these test cases (l1-pen value wise)
-    # Want to test all combos of Brahms activation penalties (piano, noise and both)
+    # Want to test all combos of Brahms activation penalties (piano and noise) - edit to only do l1-pen on H for fixed W
     # Best product so far (semi-sup learn made piano) allows these 3 combos:
-    #   - activations for (learned made) piano
+    #   - activations for (learned made) piano                          - REMOVED
     #   - activations for (fixed) noise
-    #   - activations for both (learned) piano and (fixed) noise
+    #   - activations for (fixed) piano
+    #   - activations for (fixed) piano and noise
+    #   - activations for both (learned) piano and (fixed) noise        - REMOVED
+    
+    # Fixed Piano W - Penalized Piano Activations
     def test_restore_brahms_l1pen_pianoh(self):
         if write_flag:
             out_filepath = test_path + 'restored_brahms_l1pen' + str(L1_PENALTY_TEST) + '_piano_h.wav'
@@ -876,11 +903,11 @@ class RestoreAudioTests(unittest.TestCase):
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
         spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
         # Pos. learn index = learn piano
-        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=NUM_NOISE_BV, 
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors, learn_index=num_noise_bv, 
                                                madeinit=True, debug=True, l1_penalty=L1_PENALTY_TEST, pen='Piano')
         print('\nL1-Penalty to No L1-Penalty Transition\n')
         # Compare to no l1-Penalty
-        non_pen_activations, non_pen_basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=NUM_NOISE_BV, 
+        non_pen_activations, non_pen_basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors, learn_index=num_noise_bv, 
                                                                madeinit=True, debug=True)
 
         activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug_flag)
@@ -912,11 +939,11 @@ class RestoreAudioTests(unittest.TestCase):
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
         spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
         # Pos. learn index = learn piano
-        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=NUM_NOISE_BV, 
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors, learn_index=num_noise_bv, 
                                                madeinit=True, debug=True, l1_penalty=L1_PENALTY_TEST, pen='Noise')
         print('\nL1-Penalty to No L1-Penalty Transition\n')
         # Compare to no l1-Penalty
-        non_pen_activations, non_pen_basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=NUM_NOISE_BV, 
+        non_pen_activations, non_pen_basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors, learn_index=num_noise_bv, 
                                                                madeinit=True, debug=True)
 
         activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug_flag)
@@ -948,10 +975,10 @@ class RestoreAudioTests(unittest.TestCase):
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
         spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
         # Pos. learn index = learn piano
-        activations, basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=NUM_NOISE_BV, 
+        activations, basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors, learn_index=num_noise_bv, 
                                                madeinit=True, debug=True, l1_penalty=L1_PENALTY_TEST, pen='Both')
         # Compare to no l1-Penalty
-        non_pen_activations, non_pen_basis_vectors = nmf_learn(spectrogram, (88 + NUM_NOISE_BV), basis_vectors=given_basis_vectors, learn_index=NUM_NOISE_BV, 
+        non_pen_activations, non_pen_basis_vectors = nmf_learn(spectrogram, (88 + num_noise_bv), basis_vectors=given_basis_vectors, learn_index=num_noise_bv, 
                                            madeinit=True, debug=debug_flag)
         
         activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, debug=debug_flag)
