@@ -8,13 +8,12 @@
 # - basis vectors correct
 # -
 
-# IN NEED OF EDITS TO WORK
-
 import unittest
 import sys
 sys.path.append('/Users/quinnmc/Desktop/AudioRestore/restore_audio')
 from restore_audio import *
 import soundfile
+from scipy import stats
 
 # Testing global vars
 write_flag = True
@@ -30,6 +29,69 @@ piano_echo_filepath = '/Users/quinnmc/Desktop/AudioRestore/piano-echo.wav'
 test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_other/'
 
 class RestOfTests(unittest.TestCase):
+
+    def test_no_data_loss(self):
+        wdw_size = 4
+        # arr = np.random.rand(500, 2) * 255
+        arr = np.random.rand(12) * 255
+        arr = arr.astype('uint8')
+        orig_arr = arr
+        # If not a mono signal
+        # orig_arr = np.array([((x[0] + x[1]) / 2) for x in arr.astype('float64')]).astype('uint8')
+
+        # Conversion back and forth
+        # arr = convert_sig_8bit_to_16bit(arr)
+        # arr = convert_sig_16bit_to_8bit(arr)
+        # -- substitute
+        spectrogram, phases = make_spectrogram(arr, wdw_size, ova=True, debug=debug_flag)
+        arr = make_synthetic_signal(spectrogram, phases, wdw_size, orig_arr.dtype, ova=True, debug=debug_flag)
+
+        # Displace both signals to center around 0, then do our ratio change
+        orig_arr = orig_arr.astype('int16')
+        arr = arr.astype('int16')
+        orig_arr = orig_arr - 128
+        arr = arr - 128
+
+        # ratio = list(stats.mode(arr[(wdw_size // 2): -(wdw_size // 2)] /
+        #                         orig_arr[(wdw_size // 2): -(wdw_size // 2)])[0])[0]
+        ratios = orig_arr[(wdw_size // 2): -(wdw_size // 2)] / arr[(wdw_size // 2): -(wdw_size // 2)]
+        print('Ratios:\n', ratios)
+        ratio = sum(ratios) / len(ratios)
+        print('RATIO:', ratio)  # Correct ratio is 4/3 ~ 1.333
+
+        print('Plotting before')
+        plt.plot(orig_arr)
+        plt.plot(arr)
+        plt.show()
+
+        orig_arr = orig_arr.astype('float64')
+        arr = arr.astype('float64')
+        # Get rid of OVA artifacts for comparison
+        # arr = arr[(wdw_size // 2): -(wdw_size // 2)]
+        # arr = arr.astype('float64')
+        arr *= (4/3) # ratio # Amplitude ratio made by this ova
+        # arr = arr.astype('uint8')
+
+        print('Orig as float:\n', orig_arr)
+        print('New as float:\n', arr)
+
+        orig_arr = np.around(orig_arr).astype('int16')
+        arr = np.around(arr).astype('int16')
+
+        print('Orig as int:\n', orig_arr)
+        print('New as int:\n', arr)
+
+        print('Plotting after')
+        plt.plot(orig_arr)
+        plt.plot(arr)
+        plt.show()
+
+        if debug_flag:
+            print('Amp ratio:', ratio)
+            print('Orig arr:\n', orig_arr)
+            print('Arr:\n', arr)
+
+        np.testing.assert_array_equal(arr[(wdw_size // 2): -(wdw_size // 2)], orig_arr[(wdw_size // 2): -(wdw_size // 2)])
 
     # Function to compare my conv (lossy) to soundfile & librosa, test their performance
     def test_lossless_conv(self):
