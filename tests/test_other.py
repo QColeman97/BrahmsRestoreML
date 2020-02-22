@@ -14,6 +14,7 @@ import unittest
 import sys
 sys.path.append('/Users/quinnmc/Desktop/AudioRestore/restore_audio')
 from restore_audio import *
+import soundfile
 
 # Testing global vars
 write_flag = True
@@ -24,12 +25,160 @@ learn_iter_test = 25
 
 brahms_filepath = '/Users/quinnmc/Desktop/AudioRestore/brahms.wav'
 mary_filepath = '/Users/quinnmc/Desktop/AudioRestore/Mary.wav'
-test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_writefix_newbv/'
+# mary32_filepath = '/Users/quinnmc/Desktop/AudioRestore/Mary_44100Hz.wav'
+piano_echo_filepath = '/Users/quinnmc/Desktop/AudioRestore/piano-echo.wav'
+test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_other/'
 
 class RestOfTests(unittest.TestCase):
 
-    # UNCOMMENT FOR GOOD TESTS
+    # Function to compare my conv (lossy) to soundfile & librosa, test their performance
+    def test_lossless_conv(self):
+        signal = np.array([[120, 10], [251, 220], [0, 255]]).astype('uint8')
 
+        _, sf_16bit = wavfile.read('/Users/quinnmc/Desktop/AudioRestore/test_16bitPCM.wav')
+
+        my_16bit = signal.astype('int16')
+        # Signed to unsigned
+        my_16bit = my_16bit - 128
+        # Bring to range [-1, 1]
+        my_16bit = my_16bit / 128       # This line loses precision
+        # Bring to range [-32768, 32767]
+        my_16bit = my_16bit * 32768
+        my_16bit = my_16bit.astype('int16')
+
+        print('My 16bit (lossy):\n', my_16bit)
+        print('Sound file 16bit:\n', sf_16bit)
+
+    def test_write_lossless_part1(self):
+        signal = np.array([[120, 10], [251, 220], [0, 255]]).astype('uint8')
+        wavfile.write('/Users/quinnmc/Desktop/AudioRestore/test_8bitPCM.wav', 44100, signal)
+
+    def test_write_lossless_part2(self):
+        test_8bit_sig, sr = soundfile.read('/Users/quinnmc/Desktop/AudioRestore/test_8bitPCM.wav')
+        soundfile.write('/Users/quinnmc/Desktop/AudioRestore/test_16bitPCM.wav', test_8bit_sig, 44100, subtype='PCM_16')
+
+    def test_convert_wav_8_to_16(self):
+        sig, sr = soundfile.read(brahms_filepath)
+        soundfile.write('/Users/quinnmc/Desktop/AudioRestore/brahms_16bitPCM.wav', sig, sr, subtype='PCM_16')
+
+    # Bad - librosa doesn't let you write to a certain Wav bitdepth?
+    # def test_convert_wav_8_to_16_librosa(self):
+    #     sig, sr = librosa.load(brahms_filepath, sr=None)
+    #     librosa.output.write_wav('/Users/quinnmc/Desktop/AudioRestore/brahms_16bitPCM_libROSA.wav', sig, sr)
+
+    # To test   - orig & new datatype of Brahms sig, Mary sig, piano sig
+    #           - orig * diff sampling rate of "
+    # def test_reconst_new_sig_type_8bitPCM(self):
+    #     sr, sig = wavfile.read(brahms_filepath)
+
+    #     spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+    #     synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+    
+    #     if write_flag:
+    #         out_filepath = test_path + 'reconst_8bitPCM_newtype.wav'
+    #         wavfile.write(out_filepath, sr, synthetic_sig)
+
+    def test_reconst_orig_sig_type_8bitPCM(self):
+        sr, sig = wavfile.read(brahms_filepath)
+        print('8-bit PCM Sig Type:', sig.dtype, 'Sig Min-Max Range (~ 0 - 255): (', np.min(sig), ',', np.max(sig), ')') 
+
+        if write_flag:
+            out_filepath = test_path + 'reconst_8bitPCM_origtype.wav'
+            orig_sig_type = sig.dtype
+
+        spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        print('Synthetic Sig Type (New):', synthetic_sig.dtype, 'Synthetic Sig Min-Max Range: (', np.min(synthetic_sig), ',', np.max(synthetic_sig), ')') 
+
+        # Correct way to convert back to 8-bit PCM (unsigned -> signed)
+        if orig_sig_type == 'uint8':
+            # Bring to range [-1, 1]
+            synthetic_sig = synthetic_sig / 32768
+            # Bring to range [0, 255]
+            synthetic_sig = synthetic_sig * 128
+            # Signed to unsigned
+            synthetic_sig = synthetic_sig + 128
+            synthetic_sig = synthetic_sig.astype('uint8')
+        
+        print('Synthetic Sig Type (Like Orig):', synthetic_sig.dtype, 'Synthetic Sig Min-Max Range: (', np.min(synthetic_sig), ',', np.max(synthetic_sig), ')') 
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+
+    # def test_reconst_new_sig_type_16bitPCM(self):
+    #     sr, sig = wavfile.read(mary_filepath)
+
+    #     spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+    #     synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+    
+    #     if write_flag:
+    #         out_filepath = test_path + 'reconst_16bitPCM_newtypeHORRIBLYLOUD.wav'
+    #         wavfile.write(out_filepath, sr, synthetic_sig)
+
+    def test_reconst_orig_sig_type_16bitPCM(self):
+        sr, sig = wavfile.read(mary_filepath)
+        print('16-bit PCM Sig Type:', sig.dtype, 'Sig Min-Max Range (~ -32768 - 32767): (', np.min(sig), ',', np.max(sig), ')') 
+
+        if write_flag:
+            out_filepath = test_path + 'reconst_16bitPCM_origtype.wav'
+            orig_sig_type = sig.dtype
+
+        spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        print('Synthetic Sig Type (New):', synthetic_sig.dtype, 'Synthetic Sig Min-Max Range: (', np.min(synthetic_sig), ',', np.max(synthetic_sig), ')') 
+
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+    
+    # def test_reconst_new_sig_type_32bitPCM(self):
+    #     sr, sig = wavfile.read(mary32_filepath)
+    #     print('32-bit PCM Sig Type:', sig.dtype, 'Sig Min-Max Range (~ -2147483648 - 2147483647): (', np.min(sig), ',', np.max(sig), ')') 
+
+    #     spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+    #     synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+    
+    #     if write_flag:
+    #         out_filepath = test_path + 'reconst_32bitPCM_newtype.wav'
+    #         wavfile.write(out_filepath, sr, synthetic_sig)
+
+    # def test_reconst_orig_sig_type_32bitPCM(self):
+    #     sr, sig = wavfile.read(mary32_filepath)
+    #     if write_flag:
+    #         out_filepath = test_path + 'reconst_32bitPCM_origtype.wav'
+    #         orig_sig_type = sig.dtype
+
+    #     spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+    #     synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+    
+    #     if write_flag:
+    #         wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+
+    def test_reconst_new_sig_type_32bit_fp(self):
+        sr, sig = wavfile.read(piano_echo_filepath)
+        print('32-bit floating-point Sig Type:', sig.dtype, 'Sig Min-Max Range (~ -1.0 - 1.0): (', np.min(sig), ',', np.max(sig), ')') 
+
+        spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        print('Synthetic Sig Type (New):', synthetic_sig.dtype, 'Synthetic Sig Min-Max Range: (', np.min(synthetic_sig), ',', np.max(synthetic_sig), ')') 
+
+        if write_flag:
+            out_filepath = test_path + 'reconst_32bitFP_newtype.wav'
+            wavfile.write(out_filepath, sr, synthetic_sig)
+
+    def test_reconst_orig_sig_type_32bit_fp(self):
+        sr, sig = wavfile.read(piano_echo_filepath)
+        if write_flag:
+            out_filepath = test_path + 'reconst_32bitFP_origtype.wav'
+            orig_sig_type = sig.dtype
+
+        spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+    
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+
+    # UNCOMMENT ALL BELOW FOR GOOD TESTS
+    
     # # As signal get's longer, the average ratio between synthetic and original gets smaller
     # def test_ova_reconst_by_sig_diff(self):
     #     if write_flag:
@@ -174,83 +323,83 @@ class RestOfTests(unittest.TestCase):
 
     #     np.testing.assert_array_almost_equal(synthetic_sig[-(wdw_size // 2):], match)
 
-    # # Useless test
-    # def test_mary_activations_mary_bv(self):
-    #     mary_activations = make_mary_bv_test_activations()
-    #     mary_basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=True)
-
-    #     synthetic_spgm = mary_basis_vectors @ mary_activations
-
-    #     self.assertEqual(synthetic_spgm.shape, (mary_basis_vectors.shape[0], mary_activations.shape[1]))
-
-    # # Can't do b/c don't make activations for full bv yet
-    # # def test_mary_activations_full_bv(self):
+    # # # Useless test
+    # # def test_mary_activations_mary_bv(self):
     # #     mary_activations = make_mary_bv_test_activations()
-    # #     norm_basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=False)
+    # #     mary_basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=True)
 
-    # #     synthetic_spgm = norm_basis_vectors @ mary_activations
+    # #     synthetic_spgm = mary_basis_vectors @ mary_activations
 
-    # #     synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=ova_flag)
+    # #     self.assertEqual(synthetic_spgm.shape, (mary_basis_vectors.shape[0], mary_activations.shape[1]))
 
+    # # # Can't do b/c don't make activations for full bv yet
+    # # # def test_mary_activations_full_bv(self):
+    # # #     mary_activations = make_mary_bv_test_activations()
+    # # #     norm_basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=False)
+
+    # # #     synthetic_spgm = norm_basis_vectors @ mary_activations
+
+    # # #     synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=ova_flag)
+
+    # # #     spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE, ova=ova_flag)
+    # # #     synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE, ova=ova_flag)
+
+    # # def test_another_2(self):
+    # #     basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=False)
     # #     spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE, ova=ova_flag)
-    # #     synthetic_sig = make_synthetic_signal(spectrogram, phases, PIANO_WDW_SIZE, ova=ova_flag)
+    # #     # plot_matrix(basis_vectors, name="Basis Vectors", ratio=BASIS_VECTOR_FULL_RATIO)
+    # #     # plot_matrix(spectrogram, name="Original Spectrogram", ratio=SPGM_BRAHMS_RATIO)
 
-    # def test_another_2(self):
-    #     basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=False)
-    #     spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE, ova=ova_flag)
-    #     # plot_matrix(basis_vectors, name="Basis Vectors", ratio=BASIS_VECTOR_FULL_RATIO)
-    #     # plot_matrix(spectrogram, name="Original Spectrogram", ratio=SPGM_BRAHMS_RATIO)
+    # #     # print('Shape of Spectrogram V:', spectrogram.shape)
+    # #     # print('Shape of Basis Vectors W:', basis_vectors.shape)
+    # #     # print('Learning Activations...')
+    # #     # activations = make_activations(spectrogram, basis_vectors)
+    # #     # print('Shape of Activations H:', activations.shape)
 
-    #     # print('Shape of Spectrogram V:', spectrogram.shape)
-    #     # print('Shape of Basis Vectors W:', basis_vectors.shape)
-    #     # print('Learning Activations...')
-    #     # activations = make_activations(spectrogram, basis_vectors)
-    #     # print('Shape of Activations H:', activations.shape)
+    # #     activations = make_mary_bv_test_activations()
+    # #     print('Shape of Hand-made Activations H:', activations.shape)
 
-    #     activations = make_mary_bv_test_activations()
-    #     print('Shape of Hand-made Activations H:', activations.shape)
+    # #     with open('activations_my_mary.csv', 'w') as a_f:
+    # #     # with open('activations_learned_brahms_trunc.csv', 'w') as a_f:
+    # #     # with open('activations_learned_mary_trunc.csv', 'w') as a_f:
+    # #         for component in activations:
+    # #             a_f.write(','.join([('%.4f' % x) for x in component]) + '\n')
 
-    #     with open('activations_my_mary.csv', 'w') as a_f:
-    #     # with open('activations_learned_brahms_trunc.csv', 'w') as a_f:
-    #     # with open('activations_learned_mary_trunc.csv', 'w') as a_f:
-    #         for component in activations:
-    #             a_f.write(','.join([('%.4f' % x) for x in component]) + '\n')
+    # #     synthetic_spgm = basis_vectors @ activations
+    # #     # plot_matrix(synthetic_spgm, name="Synthetic Spectrogram", ratio=SPGM_BRAHMS_RATIO)
 
-    #     synthetic_spgm = basis_vectors @ activations
-    #     # plot_matrix(synthetic_spgm, name="Synthetic Spectrogram", ratio=SPGM_BRAHMS_RATIO)
+    # #     # print('---SYNTHETIC SPGM TRANSITION----')
+    # #     synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, PIANO_WDW_SIZE, ova=ova_flag)
+    # #     # print('Synthesized signal (bad type for brahms):\n', synthetic_sig[:20])
+    # #     # print('Synthesized signal:\n', synthetic_sig.astype('uint8')[:20])
 
-    #     # print('---SYNTHETIC SPGM TRANSITION----')
-    #     synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, PIANO_WDW_SIZE, ova=ova_flag)
-    #     # print('Synthesized signal (bad type for brahms):\n', synthetic_sig[:20])
-    #     # print('Synthesized signal:\n', synthetic_sig.astype('uint8')[:20])
+    # #     synthetic_sig /= (4/3)
 
-    #     synthetic_sig /= (4/3)
+    # #     out_filepath += synthetic_ova_brahms_filepath if ova_flag else synthetic_brahms_filepath
+    # #     # Make synthetic WAV file - for some reason, I must cast brahms signal elems to types of original signal (uint8) or else MUCH LOUDER
+    # #     wavfile.write(out_filepath, STD_SR_HZ, synthetic_sig.astype('uint8'))
+    # #     # wavfile.write("synthetic_Mary.wav", STD_SR_HZ, synthetic_sig)
 
-    #     out_filepath += synthetic_ova_brahms_filepath if ova_flag else synthetic_brahms_filepath
-    #     # Make synthetic WAV file - for some reason, I must cast brahms signal elems to types of original signal (uint8) or else MUCH LOUDER
-    #     wavfile.write(out_filepath, STD_SR_HZ, synthetic_sig.astype('uint8'))
-    #     # wavfile.write("synthetic_Mary.wav", STD_SR_HZ, synthetic_sig)
+    # # def test_my_mary_activations(self):
+    # #     basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=False)
+    # #     spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE, ova=ova_flag)
 
-    # def test_my_mary_activations(self):
-    #     basis_vectors = get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=False)
-    #     spectrogram, phases = make_spectrogram(brahms_sig, PIANO_WDW_SIZE, ova=ova_flag)
+    # #     activations = make_activations(spectrogram, basis_vectors)
 
-    #     activations = make_activations(spectrogram, basis_vectors)
+    # #     synthetic_spgm = basis_vectors @ activations
 
-    #     synthetic_spgm = basis_vectors @ activations
+    # #     synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, PIANO_WDW_SIZE, ova=ova_flag)
+    # #     # print('Synthesized signal (bad type for brahms):\n', synthetic_sig[:20])
+    # #     # print('Synthesized signal:\n', synthetic_sig.astype('uint8')[:20])
 
-    #     synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, PIANO_WDW_SIZE, ova=ova_flag)
-    #     # print('Synthesized signal (bad type for brahms):\n', synthetic_sig[:20])
-    #     # print('Synthesized signal:\n', synthetic_sig.astype('uint8')[:20])
+    # #     synthetic_sig /= (4/3)
 
-    #     synthetic_sig /= (4/3)
+    # #     # out_filepath += synthetic_ova_brahms_filepath if ova_flag else synthetic_brahms_filepath
+    # #     # # Make synthetic WAV file - for some reason, I must cast brahms signal elems to types of original signal (uint8) or else MUCH LOUDER
+    # #     # wavfile.write(out_filepath, STD_SR_HZ, synthetic_sig.astype('uint8'))
+    # #     # # wavfile.write("synthetic_Mary.wav", STD_SR_HZ, synthetic_sig)
 
-    #     # out_filepath += synthetic_ova_brahms_filepath if ova_flag else synthetic_brahms_filepath
-    #     # # Make synthetic WAV file - for some reason, I must cast brahms signal elems to types of original signal (uint8) or else MUCH LOUDER
-    #     # wavfile.write(out_filepath, STD_SR_HZ, synthetic_sig.astype('uint8'))
-    #     # # wavfile.write("synthetic_Mary.wav", STD_SR_HZ, synthetic_sig)
-
-    # UNCOMMENT FOR GOOD TESTS
+    # # UNCOMMENT FOR GOOD TESTS
 
     # # MAKE_BASIS_VECTOR
     # def test_make_best_basis_vector(self):
@@ -341,23 +490,23 @@ class RestOfTests(unittest.TestCase):
 
 
 
-    # GET_BASIS_VECTORS
-    # def test_make_basis_vectors(self):
-    #     basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, mary=True, noise=True, avg=True, eq=True, debug=debug_flag, num_noisebv=num_noise_bv_test)
-    #     _, c4_sig = wavfile.read('Piano.ff.C4.wav')
-    #     _, db4_sig = wavfile.read('Piano.ff.Db4.wav')
-    #     _, d4_sig = wavfile.read('Piano.ff.D4.wav')
-    #     _, eb4_sig = wavfile.read('Piano.ff.Eb4.wav')
-    #     _, e4_sig = wavfile.read('Piano.ff.E4.wav')
-    #     sigs = [c4_sig, db4_sig, d4_sig, eb4_sig, e4_sig]
-    #     sigs = [np.array([((x[0] + x[1]) / 2) for x in sig]) for sig in sigs]
-    #     # amp_thresh = max(sig) * 0.01  # ?????
-    #     match = np.array([make_basis_vector(sig, BEST_WDW_NUM, PIANO_WDW_SIZE, avg=True) for sig in sigs])
-    # def test_make_basis_vectors_2(self):
-        # get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=True, noise=True, avg=True, eq=False, debug=debug_flag)
-    # # Mary.wav?
-    # def test_make_spectrogram(self):
-    #     pass
+    # # GET_BASIS_VECTORS
+    # # def test_make_basis_vectors(self):
+    # #     basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, mary=True, noise=True, avg=True, eq=True, debug=debug_flag, num_noisebv=num_noise_bv_test)
+    # #     _, c4_sig = wavfile.read('Piano.ff.C4.wav')
+    # #     _, db4_sig = wavfile.read('Piano.ff.Db4.wav')
+    # #     _, d4_sig = wavfile.read('Piano.ff.D4.wav')
+    # #     _, eb4_sig = wavfile.read('Piano.ff.Eb4.wav')
+    # #     _, e4_sig = wavfile.read('Piano.ff.E4.wav')
+    # #     sigs = [c4_sig, db4_sig, d4_sig, eb4_sig, e4_sig]
+    # #     sigs = [np.array([((x[0] + x[1]) / 2) for x in sig]) for sig in sigs]
+    # #     # amp_thresh = max(sig) * 0.01  # ?????
+    # #     match = np.array([make_basis_vector(sig, BEST_WDW_NUM, PIANO_WDW_SIZE, avg=True) for sig in sigs])
+    # # def test_make_basis_vectors_2(self):
+    #     # get_basis_vectors(BEST_WDW_NUM, PIANO_WDW_SIZE, mary=True, noise=True, avg=True, eq=False, debug=debug_flag)
+    # # # Mary.wav?
+    # # def test_make_spectrogram(self):
+    # #     pass
     
 if __name__ == '__main__':
     unittest.main()

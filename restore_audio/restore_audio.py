@@ -309,6 +309,17 @@ def fourier_transform(sgmt, wdw_size, ova=False, debug_flag=False):
 
 # V LOGIC
 def make_spectrogram(signal, wdw_size, ova=False, debug=False):
+    # If 8-bit PCM, convert to 16-bit PCM (signed to unsigned)
+    if signal.dtype == 'uint8':
+        signal = signal.astype('int16')
+        # Signed to unsigned
+        signal = signal - 128
+        # Bring to range [-1, 1]
+        signal = signal / 128       # This line loses precision, necessary
+        # Bring to range [-32768, 32767]
+        signal = signal * 32768
+        signal = signal.astype('int16')
+
     num_spls = len(signal)
     # Keep signal value types float64 so nothing lost? (needed for stereo case, so keep consistent?)
     if isinstance(signal[0], np.ndarray):   # Stereo signal = 2 channels
@@ -712,6 +723,16 @@ def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=Fa
     print('\n--Making Synthetic Signal--\n')
     synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, ova=ova, debug=debug)
     
+    # Correct way to convert back to 8-bit PCM (unsigned -> signed)
+    if orig_sig_type == 'uint8':
+        # Bring to range [-1, 1]
+        signal = signal / 32768
+        # Bring to range [0, 255]
+        signal = signal * 128
+        # Signed to unsigned
+        signal = signal + 128
+        signal = signal.astype('uint8')
+
     if write_file:
         # Make synthetic WAV file - defaults to original sampling rate, TODO: Does that change things?
         # Important: signal elems to types of original signal (uint8 for brahms) or else MUCH LOUDER
@@ -726,7 +747,7 @@ def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, 
     print('--Initiating Restore Mode--')
     if write_file:
         orig_sig_type = sig.dtype
-    
+
     print('\n--Making Piano Basis Vectors--\n')
 
     # Temporary branch for testing:
@@ -782,19 +803,29 @@ def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, 
     synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=ova, debug=debug)
     
     # FIX (JUST FOR BRAHMS SIGNAL)!!!, TODO: Generalize this to all input signals
-    orig_sig_min = 100
-    orig_sig_max = 153
+    # orig_sig_min = 100
+    # orig_sig_max = 153
 
-    # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-    synthetic_sig = synthetic_sig / 2
-    # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-    synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+    # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+    # synthetic_sig = synthetic_sig / 2
+    # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+    # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
     # print('OUTPUT SIGNAL DATA TYPES:', orig_sig_type, synthetic_sig.astype(orig_sig_type).dtype)
     # print('FOR uint8:')
     # print('IS OUTPUT FILE POSITIVE INTS?', 'Yes' if (np.sum(np.abs(synthetic_sig)) == np.sum(synthetic_sig)) 
     #     else 'No -- that\'s bad')
     # print('WHAT ARE OUTPUT SIGNALS MIN & MAX VALS? MIN (should be >= 0):', np.min(synthetic_sig), 'MAX (should be <= 255):', np.max(synthetic_sig))
+
+    # Correct way to convert back to 8-bit PCM (unsigned -> signed)
+    if orig_sig_type == 'uint8':
+        # Bring to range [-1, 1]
+        signal = signal / 32768
+        # Bring to range [0, 255]
+        signal = signal * 128
+        # Signed to unsigned
+        signal = signal + 128
+        signal = signal.astype('uint8')
 
     if write_file:
         # Make synthetic WAV file - Important: signal elems to types of original signal (uint8 for brahms) or else MUCH LOUDER
