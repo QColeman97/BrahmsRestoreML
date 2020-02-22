@@ -33,7 +33,7 @@ class RestOfTests(unittest.TestCase):
     def test_no_data_loss(self):
         wdw_size = 4
         # arr = np.random.rand(500, 2) * 255
-        arr = np.random.rand(12) * 255
+        arr = np.random.rand(200) * 255
         arr = arr.astype('uint8')
         orig_arr = arr
         # If not a mono signal
