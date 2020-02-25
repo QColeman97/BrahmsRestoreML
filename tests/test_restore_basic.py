@@ -9,8 +9,10 @@ debug_flag = False
 num_noise_bv_test = 5
 
 brahms_filepath = '/Users/quinnmc/Desktop/AudioRestore/brahms.wav'
+# brahms_filepath = '/Users/quinnmc/Desktop/AudioRestore/brahms_16bitPCM.wav'
 mary_filepath = '/Users/quinnmc/Desktop/AudioRestore/Mary.wav'
 test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_writefix_newbv/'
+# test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_writefix_newbv_from16bitBrahms/'
 
 class BasicRestoreTests(unittest.TestCase):
     # Brahms for these tests (bad audio)

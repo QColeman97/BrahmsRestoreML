@@ -135,27 +135,31 @@ def make_basis_vector_old(waveform, wdw_size, ova=False, avg=False):
 
 
 # Time/#segments is irrelevant to # of basis vectors made (so maximize)
-def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, precise_noise=False, bv_thresh=800000):
+def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, precise_noise=False, bv_thresh=800000,
+                             start=0, stop=25):
     # sr, brahms_sig = wavfile.read('../brahms.wav')
     _, brahms_sig = wavfile.read('/Users/quinnmc/Desktop/AudioRestore/brahms.wav')
     # Convert to mono signal (avg left & right channels) 
-    brahms_sig = np.array([((x[0] + x[1]) / 2) for x in brahms_sig.astype('float64')])
+    # brahms_sig = np.array([((x[0] + x[1]) / 2) for x in brahms_sig.astype('float64')])
 
-    noise_sig_len = 2 if ova else 1 # The 1 is an educated guess, 2 is empircally derived
-    # Second 2 hits solid noise - based on Audacity waveform (22nd wdw if sr=44100, wdw_size=4096)
-    noise_sgmt_num = math.ceil((STD_SR_HZ * 2.2) / wdw_size)    # 2.2 seconds (24rd window to (not including) 26th window)
-    if precise_noise:
-        noise_sig = brahms_sig[(noise_sgmt_num - 1) * wdw_size: (noise_sgmt_num + noise_sig_len - 1) * wdw_size] 
-    else:
-    # All noise from beginning of clip
-        noise_sig = brahms_sig[: (noise_sgmt_num + noise_sig_len - 1) * wdw_size] 
+    # Precise noise is pointless -> b/c we want to mximize what we draw noise from
+    # noise_sig_len = 2 if ova else 1 # The 1 is an educated guess, 2 is empircally derived
+    # # Second 2 hits solid noise - based on Audacity waveform (22nd wdw if sr=44100, wdw_size=4096)
+    # noise_sgmt_num = math.ceil((STD_SR_HZ * 2.2) / wdw_size)    # 2.2 seconds (24rd window to (not including) 26th window)
+    # if precise_noise:
+    #     noise_sig = brahms_sig[(noise_sgmt_num - 1) * wdw_size: (noise_sgmt_num + noise_sig_len - 1) * wdw_size] 
+    # else:
+    # # All noise from beginning of clip
+    #     noise_sig = brahms_sig[: (noise_sgmt_num + noise_sig_len - 1) * wdw_size] 
+
+    noise_sig = brahms_sig[(start * wdw_size): (stop * wdw_size)].copy()
 
     print('\n----Making Noise Spectrogram--\n')
     spectrogram, _ = make_spectrogram(noise_sig, wdw_size, ova=ova, debug=debug)
     print('\n----Learning Noise Basis Vectors--\n')
     _, noise_basis_vectors = nmf_learn(spectrogram, num, debug=debug)
     if debug:
-        print('Shape of Noise Spectogram V:', spectrogram.shape)
+        print('Shape of Noise Spectogram V:', spectrogram.shape, np.sum(spectrogram))
         print('Shape of Learned Noise Basis Vectors W:', noise_basis_vectors.shape)
 
     if False:  # Make louder # if eq:
@@ -234,7 +238,8 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
 
 # W LOGIC
 # Basis vectors in essence are the "best" dft of a sound w/ constant pitch (distinct freq signature)
-def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, debug=False, precise_noise=False, eq=False, num_noise=0):
+def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, debug=False, precise_noise=False, eq=False, 
+                      num_noise=0, noise_start=0, noise_stop=25):
     # Save/load basis vectors (w/o noise) to/from CSV files
     filepath = '/Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors'
     if mary:
@@ -262,7 +267,8 @@ def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, d
     # Make and add noise bv's if necessary
     if noise:
         noise_basis_vectors = make_noise_basis_vectors(num_noise, wdw_size, ova=ova, eq=eq, debug=debug, 
-                                                    precise_noise=precise_noise, bv_thresh=800000)
+                                                    precise_noise=precise_noise, bv_thresh=800000,
+                                                    start=noise_start, stop=noise_stop)
         basis_vectors = (noise_basis_vectors + basis_vectors)
         if debug:
             print('Noise Basis Vectors Length:', len(noise_basis_vectors))
@@ -276,7 +282,7 @@ def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, d
     return basis_vectors
 
 # Returns magnitude & phases of a DFT, given a signal segment
-def fourier_transform(sgmt, wdw_size, ova=False, debug_flag=False):
+def signal_to_pos_fft(sgmt, wdw_size, ova=False, debug_flag=False):
     if len(sgmt) != wdw_size:
         deficit = wdw_size - len(sgmt)
         sgmt = np.pad(sgmt, (0,deficit))  # pads on right side (good b/c end of signal), (deficit, 0) pads on left side # , mode='constant')
@@ -311,17 +317,9 @@ def fourier_transform(sgmt, wdw_size, ova=False, debug_flag=False):
 def make_spectrogram(signal, wdw_size, ova=False, debug=False):
     # If 8-bit PCM, convert to 16-bit PCM (signed to unsigned)
     if signal.dtype == 'uint8':
-        signal = signal.astype('int16')
-        # Signed to unsigned
-        signal = signal - 128
-        # Bring to range [-1, 1]
-        signal = signal / 128       # This line loses precision, necessary
-        # Bring to range [-32768, 32767]
-        signal = signal * 32768
-        signal = signal.astype('int16')
+        signal = convert_sig_8bit_to_16bit(signal)
 
     num_spls = len(signal)
-    # Keep signal value types float64 so nothing lost? (needed for stereo case, so keep consistent?)
     if isinstance(signal[0], np.ndarray):   # Stereo signal = 2 channels
         sig = np.array([((x[0] + x[1]) / 2) for x in signal.astype('float64')])
     else:                                   # Mono signal = 1 channel    
@@ -345,7 +343,7 @@ def make_spectrogram(signal, wdw_size, ova=False, debug=False):
         sgmt = sig[i * hop_size: (i * hop_size) + wdw_size].copy()
         
         debug_flag = ((i == 0) or (i == 1)) if debug else False
-        pos_mag_fft, pos_phases_fft = fourier_transform(sgmt, wdw_size, ova=ova, debug_flag=debug_flag)
+        pos_mag_fft, pos_phases_fft = signal_to_pos_fft(sgmt, wdw_size, ova=ova, debug_flag=debug_flag)
         
         spectrogram.append(pos_mag_fft)
         pos_phases.append(pos_phases_fft)
@@ -427,9 +425,12 @@ def partition_matrices(learn_index, basis_vectors, activations, madeinit=False):
 
 # General case NMF algorithm
 def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, madeinit=False, debug=False, incorrect=False, 
-              learn_iter=MAX_LEARN_ITER, l1_penalty=0, pen='Both', mutual_use_update=True):
+              learn_iter=MAX_LEARN_ITER, l1_penalty=0, pen='Both', mutual_use_update=False):
     activations = np.random.rand(num_components, input_matrix.shape[1])
     ones = np.ones(input_matrix.shape) # so dimensions match W transpose dot w/ V
+
+    if debug:
+        print('In NMF Learn, input_matrix sum:', np.sum(input_matrix))
 
     if basis_vectors is not None:
         if debug:
@@ -546,13 +547,34 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
         # No L1-Penalty in Unsupervised Learning
         basis_vectors = np.random.rand(input_matrix.shape[0], num_components)
         if debug:
-            print('In Unsup Learn - Shape of Learn Basis Vectors W:', basis_vectors.shape)
-            print('In Unsup Learn - Shape of Learn Activations H:', activations.shape)
+            print('In Unsup Learn - Shape of Learn Basis Vectors W:', basis_vectors.shape, 'Sum:', np.sum(basis_vectors))
+            print('In Unsup Learn - Shape of Learn Activations H:', activations.shape, 'Sum:', np.sum(activations))
 
         if mutual_use_update:
             for _ in range(learn_iter):
+                # if debug:
+                #     print('Before H update:')
+                #     print('W Calc Sum 1:', np.sum(basis_vectors @ activations))
+                #     print('W Calc Sum 2:', np.sum(input_matrix / (basis_vectors @ activations)))
+                #     print('W Calc Sum 3:', np.sum((input_matrix / (basis_vectors @ activations)) @ activations.T))
+                #     print('W Calc Sum 4:', np.sum(ones @ activations.T))
+
                 activations *= ((basis_vectors.T @ (input_matrix / (basis_vectors @ activations))) / (basis_vectors.T @ ones))
+                
+                # if debug:
+                #     print('After H, Before W update:')
+                #     print('W Calc Sum 1:', np.sum(basis_vectors @ activations))
+                #     print('W Calc Sum 2:', np.sum(input_matrix / (basis_vectors @ activations)))
+                #     print('W Calc Sum 3:', np.sum((input_matrix / (basis_vectors @ activations)) @ activations.T))
+                #     print('W Calc Sum 4:', np.sum(ones @ activations.T))
+                
+                
                 basis_vectors *= (((input_matrix / (basis_vectors @ activations)) @ activations.T) / (ones @ activations.T))
+                if debug:
+                    pass
+                    # print('H Sum during learn:', np.sum(activations))
+                    # print('W Sum during learn:', np.sum(basis_vectors))
+                    # print('V Sum during learn:', np.sum(input_matrix))
         else:
             # For L1-Penalty, supply a copy of H for W to learn from so W doesn't "make up" for penalized H, vice-verse else bug happens
             activations_use = deepcopy(activations)
@@ -571,17 +593,22 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
     return activations, basis_vectors
 
 
-def remove_noise_vectors(activations, basis_vectors, num_noisebv, debug=False):
-    basis_vectors = basis_vectors.T[num_noisebv:].T
-    activations = activations[num_noisebv:]
+def noise_split_matrices(activations, basis_vectors, num_noisebv, debug=False):
+    # piano_basis_vectors = basis_vectors.T[num_noisebv:].T
+    piano_basis_vectors = basis_vectors[:, num_noisebv:]
+    piano_activations = activations[num_noisebv:]
+    noise_basis_vectors = basis_vectors[:, :num_noisebv]
+    noise_activations = activations[:num_noisebv]
     if debug:
-        plot_matrix(basis_vectors, name="De-noised Basis Vectors", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
-        plot_matrix(activations, name="De-noised Activations", ylabel='Components', ratio=ACTIVATION_RATIO)
-    return activations, basis_vectors
+        plot_matrix(piano_basis_vectors, name="De-noised Piano Basis Vectors", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
+        plot_matrix(piano_activations, name="De-noised Piano Activations", ylabel='Components', ratio=ACTIVATION_RATIO)
+        plot_matrix(noise_basis_vectors, name="Sep. Noise Basis Vectors", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
+        plot_matrix(noise_activations, name="Sep. Noise Piano Activations", ylabel='Components', ratio=ACTIVATION_RATIO)
+    return noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors
 
 
 # Returns real signal, given positive magnitude & phases of a DFT
-def inverse_fourier_transform(pos_mag_fft, pos_phases_fft, wdw_size, ova=False, end_sig=None, debug_flag=False):
+def pos_fft_to_signal(pos_mag_fft, pos_phases_fft, wdw_size, ova=False, end_sig=None, debug_flag=False):
     # Append the mirrors of the synthetic magnitudes and phases to themselves
     neg_mag_fft = np.flip(pos_mag_fft[1: wdw_size // 2], 0)
     mag_fft = np.append(pos_mag_fft, neg_mag_fft, axis=0)
@@ -628,8 +655,11 @@ def inverse_fourier_transform(pos_mag_fft, pos_phases_fft, wdw_size, ova=False, 
 
 
 # Construct synthetic waveform
-def make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=False, debug=False):
+def make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_type, ova=False, debug=False):
     num_sgmts = synthetic_spgm.shape[1]
+    # If both noise and piano in spgm, reuse phases in synthesis
+    if num_sgmts != len(phases):   
+        phases += phases
     synthetic_spgm = synthetic_spgm.T     # Get spectrogram back into orientation we did calculations on
     synthetic_sig = []
     for i in range(num_sgmts):
@@ -637,21 +667,28 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=False, debug=Fal
 
         # Do overlap-add operations if ova (but only if list already has >= 1 element)
         if ova and len(synthetic_sig):
-            synthetic_sgmt = inverse_fourier_transform(pos_mag_fft=synthetic_spgm[i], pos_phases_fft=phases[i], 
+            synthetic_sgmt = pos_fft_to_signal(pos_mag_fft=synthetic_spgm[i], pos_phases_fft=phases[i], 
                                                        wdw_size=wdw_size, ova=ova, debug_flag=debug_flag,
                                                        end_sig=synthetic_sig[-(wdw_size // 2):].copy())
             synthetic_sig = synthetic_sig[: -(wdw_size // 2)] + synthetic_sgmt
         else:
-            synthetic_sig += inverse_fourier_transform(pos_mag_fft=synthetic_spgm[i], pos_phases_fft=phases[i], 
+            synthetic_sig += pos_fft_to_signal(pos_mag_fft=synthetic_spgm[i], pos_phases_fft=phases[i], 
                                                        wdw_size=wdw_size, ova=ova, debug_flag=debug_flag)
 
         if debug_flag:
             print('End of synth sig:', synthetic_sig[-20:])
 
-    if debug:
-        print('Synthetic Sig - bad type for brahms (not uint8):\n', np.array(synthetic_sig)[:20])
+    synthetic_sig = np.array(synthetic_sig)
+    if orig_type == 'uint8':
+        synthetic_sig = convert_sig_16bit_to_8bit(synthetic_sig)
+        # TEMPORARY - Don't convert 8-bit PCM back, instead write to 16-bit PCM
+        # Confirms that soundfile's 16-bit PCM conv, is same conv as ours
+        # return synthetic_sig.astype('int16')
 
-    return np.array(synthetic_sig)
+    if debug:
+        print('Synthetic Sig:\n', synthetic_sig[:20])
+
+    return synthetic_sig.astype(orig_type)
 
 
 def make_mary_bv_test_activations():
@@ -687,10 +724,30 @@ def plot_matrix(matrix, name, ylabel, ratio=0.08):
     plt.show()
 
 
+def convert_sig_8bit_to_16bit(sig):
+    sig = sig.astype('int16')
+    sig = sig - 128     # Bring to range [-128, 127]
+    sig = sig / 128     # Bring to range [-1.0, 0.99] ~ [-1.0, 1.0]
+    sig = sig * 32768   # Bring to range [-32768, 32512] ~ [-32768, 32767]
+    return np.around(sig).astype('int16')   # Careful: round floats, before converting to int
+
+def convert_sig_16bit_to_8bit(sig):
+    sig = np.around(sig).astype('int16')    # Careful: round floats, before converting to int
+    sig = sig / 32768   # Bring to range [-1.0, 0.99] ~ [-1.0, 1.0]
+    sig = sig * 128     # Bring to range [-128, 127]
+    sig = sig + 128     # Bring to range [0, 255]
+    return sig.astype('uint8')
+
+
+def write_partial_sig(sig, wdw_size, start_index, end_index, out_filepath, sig_sr):
+    # To get all noise part in brahms, rule of thumb = 25 windows
+    sig = sig[(start_index * wdw_size): (end_index * wdw_size)]
+    wavfile.write(out_filepath, sig_sr, sig)
+
+
 def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=False, write_file=False, debug=False):
     print('--Initiating Reconstruct Mode--')
-    if write_file:
-        orig_sig_type = sig.dtype
+    orig_sig_type = sig.dtype
 
     # if segment:
     #     # TEMP SO WE CAN FIND MAX NOISE SEGMENT - noise from 1.8 ro 2.1 seconds
@@ -721,45 +778,48 @@ def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=Fa
         spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova, debug=debug)
     
     print('\n--Making Synthetic Signal--\n')
-    synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, ova=ova, debug=debug)
+    synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, orig_sig_type, ova=ova, debug=debug)
     
-    # Correct way to convert back to 8-bit PCM (unsigned -> signed)
-    if orig_sig_type == 'uint8':
-        # Bring to range [-1, 1]
-        signal = signal / 32768
-        # Bring to range [0, 255]
-        signal = signal * 128
-        # Signed to unsigned
-        signal = signal + 128
-        signal = signal.astype('uint8')
+    # Delt w/ in prev method # Correct way to convert back to 8-bit PCM (unsigned -> signed)
+    # if orig_sig_type == 'uint8':
+    #     # Bring to range [-1, 1]
+    #     signal = signal / 32768
+    #     # Bring to range [0, 255]
+    #     signal = signal * 128
+    #     # Signed to unsigned
+    #     signal = signal + 128
+    #     signal = signal.astype('uint8')
 
     if write_file:
         # Make synthetic WAV file - defaults to original sampling rate, TODO: Does that change things?
         # Important: signal elems to types of original signal (uint8 for brahms) or else MUCH LOUDER
-        wavfile.write(out_filepath, sig_sr, synthetic_sig.astype(orig_sig_type))
+        # wavfile.write(out_filepath, sig_sr, synthetic_sig.astype(orig_sig_type))
+        wavfile.write(out_filepath, sig_sr, synthetic_sig)
 
     return synthetic_sig
 
 
 def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, noisebv=False, avgbv=False, semisuplearn='None', 
                   semisupmadeinit=False, write_file=False, debug=False, nohanbv=False, prec_noise=False, eqbv=False, incorrect_semisup=False,
-                  learn_iter=MAX_LEARN_ITER, num_noisebv=0, l1_penalty=0):
+                  learn_iter=MAX_LEARN_ITER, num_noisebv=0, noise_start=0, noise_stop=25, l1_penalty=0):
     print('--Initiating Restore Mode--')
-    if write_file:
-        orig_sig_type = sig.dtype
+    orig_sig_type = sig.dtype
 
     print('\n--Making Piano Basis Vectors--\n')
 
     # Temporary branch for testing:
     if nohanbv:
-        basis_vectors = get_basis_vectors(wdw_size, ova=False, mary=marybv, noise=noisebv, avg=avgbv, debug=debug, precise_noise=prec_noise, num_noise=num_noisebv)
+        basis_vectors = get_basis_vectors(wdw_size, ova=False, mary=marybv, noise=noisebv, avg=avgbv, debug=debug, precise_noise=prec_noise, 
+                                          num_noise=num_noisebv, noise_start=noise_start, noise_stop=noise_stop)
     else:
-        basis_vectors = get_basis_vectors(wdw_size, ova=ova, mary=marybv, noise=noisebv, avg=avgbv, debug=debug, precise_noise=prec_noise, eq=eqbv, num_noise=num_noisebv)
+        basis_vectors = get_basis_vectors(wdw_size, ova=ova, mary=marybv, noise=noisebv, avg=avgbv, debug=debug, precise_noise=prec_noise, eq=eqbv, 
+                                          num_noise=num_noisebv, noise_start=noise_start, noise_stop=noise_stop)
 
     if 'brahms' in out_filepath:
         # Take out voice from brahms sig for now, should take it from nmf_learn from spectrogram later
         sig = sig[WDW_NUM_AFTER_VOICE * wdw_size:]
 
+    orig_sig_len = len(sig)
     print('\n--Making Signal Spectrogram--\n')
     spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova, debug=debug)
 
@@ -784,24 +844,35 @@ def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, 
         activations, _ = nmf_learn(spectrogram, num_components, basis_vectors=basis_vectors, debug=debug, learn_iter=learn_iter, 
                                    l1_penalty=l1_penalty)
 
+    # Update: Keep, but separate the noise matrices. Use all matrices to create a single spectrogram.
     if noisebv:
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noisebv, debug=debug)
-    if debug:
-        if noisebv:
-            print('Shape of De-noised Piano Basis Vectors W:', basis_vectors.shape)
-            print('Shape of De-noised Piano Activations H:', activations.shape)
-        else:
-            print('Shape of Piano Activations H:', activations.shape)
-    
-    print('\n--Making Synthetic Spectrogram--\n')
-    synthetic_spgm = basis_vectors @ activations
-    if debug:
-        print('Shape of Synthetic Signal Spectrogram V\':', synthetic_spgm.shape)
-        plot_matrix(synthetic_spgm, name='Synthetic Spectrogram', ylabel='Frequency (Hz)', ratio=SPGM_BRAHMS_RATIO)
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noisebv, debug=debug)
+        print('\n--Making Synthetic Spectrogram--\n')
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spgm = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
+        if debug:
+            print('Shape of De-noised Piano Basis Vectors W:', piano_basis_vectors.shape)
+            print('Shape of De-noised Piano Activations H:', piano_activations.shape)
+            print('Shape of De-pianoed Noise Basis Vectors W:', noise_basis_vectors.shape)
+            print('Shape of De-pianoed Noise Activations H:', noise_activations.shape)
+            print('Shape of Synthetic Signal Spectrogram V\':', synthetic_spgm.shape)
+            plot_matrix(synthetic_spgm, name='Synthetic Spectrogram', ylabel='Frequency (Hz)', ratio=SPGM_BRAHMS_RATIO)
+    else:
+        print('\n--Making Synthetic Spectrogram--\n')
+        synthetic_spgm = basis_vectors @ spectrogram
+        if debug:
+            print('Shape of Piano Activations H:', piano_activations.shape)
+            print('Shape of Synthetic Signal Spectrogram V\':', synthetic_spgm.shape)
+            plot_matrix(synthetic_spgm, name='Synthetic Spectrogram', ylabel='Frequency (Hz)', ratio=SPGM_BRAHMS_RATIO)
 
     print('\n--Making Synthetic Signal--\n')
-    synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, wdw_size, ova=ova, debug=debug)
+    synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_sig_type, ova=ova, debug=debug)
     
+    if noisebv:
+        # Update: Remove first half of signal (noise half)
+        synthetic_sig = synthetic_sig[orig_sig_len:].copy()
+
     # FIX (JUST FOR BRAHMS SIGNAL)!!!, TODO: Generalize this to all input signals
     # orig_sig_min = 100
     # orig_sig_max = 153
@@ -817,19 +888,20 @@ def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, 
     #     else 'No -- that\'s bad')
     # print('WHAT ARE OUTPUT SIGNALS MIN & MAX VALS? MIN (should be >= 0):', np.min(synthetic_sig), 'MAX (should be <= 255):', np.max(synthetic_sig))
 
-    # Correct way to convert back to 8-bit PCM (unsigned -> signed)
-    if orig_sig_type == 'uint8':
-        # Bring to range [-1, 1]
-        signal = signal / 32768
-        # Bring to range [0, 255]
-        signal = signal * 128
-        # Signed to unsigned
-        signal = signal + 128
-        signal = signal.astype('uint8')
+    # Delt with in previous method # Correct way to convert back to 8-bit PCM (unsigned -> signed)
+    # if orig_sig_type == 'uint8':
+    #     # Bring to range [-1, 1]
+    #     signal = signal / 32768
+    #     # Bring to range [0, 255]
+    #     signal = signal * 128
+    #     # Signed to unsigned
+    #     signal = signal + 128
+    #     signal = signal.astype('uint8')
 
     if write_file:
         # Make synthetic WAV file - Important: signal elems to types of original signal (uint8 for brahms) or else MUCH LOUDER
-        wavfile.write(out_filepath, sig_sr, synthetic_sig.astype(orig_sig_type))
+        # wavfile.write(out_filepath, sig_sr, synthetic_sig.astype(orig_sig_type))
+        wavfile.write(out_filepath, sig_sr, synthetic_sig)
 
     return synthetic_sig
 

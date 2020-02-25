@@ -2,22 +2,29 @@ import unittest
 import sys
 sys.path.append('/Users/quinnmc/Desktop/AudioRestore/restore_audio')
 from restore_audio import *
+import soundfile
 
 # Testing global vars
 write_flag = True
 debug_flag = False
-num_noise_bv_test = 1000
+num_noise_bv_test = 5
 l1_penalty_test = 100
-learn_iter_test = 25
+learn_iter_test = 100
 
+# brahms_filepath = '/Users/quinnmc/Desktop/AudioRestore/brahms_16bitPCM.wav'
 brahms_filepath = '/Users/quinnmc/Desktop/AudioRestore/brahms.wav'
 mary_filepath = '/Users/quinnmc/Desktop/AudioRestore/Mary.wav'
 test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_writefix_newbv/'
+# test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_writefix_newbv_from16bitBrahms/'
+# test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_writefix_newbv_convto16bitBrahms/'
+noise_test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_noise/'
 
 class RestoreTests(unittest.TestCase):
 
     def test_restore_brahms_unsupnmf(self):
         sr, sig = wavfile.read(brahms_filepath)
+        # sig, sr = soundfile.read(brahms_filepath)
+
         if write_flag:
             out_filepath = test_path + 'restored_brahms_unsupnmf.wav'
             orig_sig_type = sig.dtype   # CRUCIAL INCLUSION?
@@ -28,19 +35,22 @@ class RestoreTests(unittest.TestCase):
         activations, basis_vectors = nmf_learn(spectrogram, NUM_PIANO_NOTES, debug=debug_flag)
         synthetic_spectrogram = basis_vectors @ activations
 
-        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, 
+                                              orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+            # soundfile.write(out_filepath, synthetic_sig, sr, subtype='PCM_S8')
+
 
     # # Output file noticably worse - crackles and a constant high frequency
     # def test_restore_no_hanningbv_brahms(self):
@@ -142,17 +152,17 @@ class RestoreTests(unittest.TestCase):
 
         synthetic_spectrogram = basis_vectors @ activations
 
-        synthetic_sig = make_synthetic_signal(
-            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, 
+                                              orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
@@ -182,17 +192,17 @@ class RestoreTests(unittest.TestCase):
 
         synthetic_spectrogram = basis_vectors @ activations
 
-        synthetic_sig = make_synthetic_signal(
-            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, 
+                                              orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
@@ -221,17 +231,16 @@ class RestoreTests(unittest.TestCase):
 
         synthetic_spectrogram = basis_vectors @ activations
 
-        synthetic_sig = make_synthetic_signal(
-            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
@@ -261,17 +270,16 @@ class RestoreTests(unittest.TestCase):
 
         synthetic_spectrogram = basis_vectors @ activations
 
-        synthetic_sig = make_synthetic_signal(
-            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
@@ -303,17 +311,16 @@ class RestoreTests(unittest.TestCase):
 
         synthetic_spectrogram = basis_vectors @ activations
 
-        synthetic_sig = make_synthetic_signal(
-            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
@@ -344,17 +351,16 @@ class RestoreTests(unittest.TestCase):
 
         synthetic_spectrogram = basis_vectors @ activations
 
-        synthetic_sig = make_synthetic_signal(
-            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
@@ -382,17 +388,16 @@ class RestoreTests(unittest.TestCase):
 
         synthetic_spectrogram = basis_vectors @ activations
 
-        synthetic_sig = make_synthetic_signal(
-            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
@@ -419,17 +424,16 @@ class RestoreTests(unittest.TestCase):
 
         synthetic_spectrogram = basis_vectors @ activations
 
-        synthetic_sig = make_synthetic_signal(
-            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
@@ -456,17 +460,16 @@ class RestoreTests(unittest.TestCase):
 
         synthetic_spectrogram = basis_vectors @ activations
 
-        synthetic_sig = make_synthetic_signal(
-            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
@@ -477,6 +480,7 @@ class RestoreTests(unittest.TestCase):
 
     # Mess w/ params of this one test
     def test_restore_brahms_iter(self):
+        learn_iter = 25
         sr, sig = wavfile.read(brahms_filepath)
         if write_flag:
             out_filepath = test_path + 'restored_brahms_iter25.wav'
@@ -489,23 +493,22 @@ class RestoreTests(unittest.TestCase):
 
         activations, basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors,
                                                learn_index=num_noise_bv_test, madeinit=True, debug=debug_flag, incorrect=False, 
-                                               learn_iter=learn_iter_test)
+                                               learn_iter=learn_iter)
 
         activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
 
         synthetic_spectrogram = basis_vectors @ activations
 
-        synthetic_sig = make_synthetic_signal(
-            synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
@@ -522,16 +525,24 @@ class RestoreTests(unittest.TestCase):
         make_noise_basis_vectors(num_noise, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
         make_noise_basis_vectors(num_noise, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
-
     # Mess w/ params of this one test - LOOK at noise bv plot
-    def test_restore_brahms_noisebv_num(self):
-        num_noise = 20
+    def test_restore_brahms_noisebvnum_noise25wdws(self):
+        num_noise = 1
         if write_flag:
-            out_filepath = test_path + 'restored_brahms_noisebv' + str(num_noise) + '.wav'
+            out_filepath = noise_test_path + 'restored_brahms_noisebv' + str(num_noise) + '_25wdws.wav'
         sr, sig = wavfile.read(brahms_filepath)
         synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
                                       semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
-                                      num_noisebv=num_noise)
+                                      num_noisebv=num_noise, noise_stop=25)
+
+    def test_restore_brahms_noisebvnum_noise83wdws(self):
+        num_noise = 1
+        if write_flag:
+            out_filepath = noise_test_path + 'restored_brahms_noisebv' + str(num_noise) + '_83wdws.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
+                                      num_noisebv=num_noise, noise_stop=83)
 
 
     # L1-PENALTY TESTS
@@ -571,17 +582,17 @@ class RestoreTests(unittest.TestCase):
         synthetic_spectrogram = basis_vectors @ activations
         non_pen_synthetic_spectrogram = non_pen_basis_vectors @ non_pen_activations
 
-        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
-        non_pen_synthetic_sig = make_synthetic_signal(non_pen_synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
+        non_pen_synthetic_sig = make_synthetic_signal(non_pen_synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
@@ -619,20 +630,20 @@ class RestoreTests(unittest.TestCase):
         synthetic_spectrogram = basis_vectors @ activations
         non_pen_synthetic_spectrogram = non_pen_basis_vectors @ non_pen_activations
 
-        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
-        non_pen_synthetic_sig = make_synthetic_signal(non_pen_synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
+        non_pen_synthetic_sig = make_synthetic_signal(non_pen_synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
-        if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+        # if write_flag:
+        #     wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
 
         pen_h_sum = np.sum(activations)
         nonpen_h_sum = np.sum(non_pen_activations)
@@ -670,17 +681,17 @@ class RestoreTests(unittest.TestCase):
         synthetic_spectrogram = basis_vectors @ activations
         non_pen_synthetic_spectrogram = non_pen_basis_vectors @ non_pen_activations
 
-        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
-        non_pen_synthetic_sig = make_synthetic_signal(non_pen_synthetic_spectrogram, phases, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
+        synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
+        non_pen_synthetic_sig = make_synthetic_signal(non_pen_synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # For Brahms only - write fix
-        orig_sig_min = 100
-        orig_sig_max = 153
+        # # For Brahms only - write fix
+        # orig_sig_min = 100
+        # orig_sig_max = 153
 
-        # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        synthetic_sig = synthetic_sig / 2
-        # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
+        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
+        # synthetic_sig = synthetic_sig / 2
+        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
+        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))

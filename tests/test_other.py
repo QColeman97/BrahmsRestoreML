@@ -27,8 +27,29 @@ mary_filepath = '/Users/quinnmc/Desktop/AudioRestore/Mary.wav'
 # mary32_filepath = '/Users/quinnmc/Desktop/AudioRestore/Mary_44100Hz.wav'
 piano_echo_filepath = '/Users/quinnmc/Desktop/AudioRestore/piano-echo.wav'
 test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_other/'
+noise_test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_noise/'
 
 class RestOfTests(unittest.TestCase):
+
+    # Partial Brahms Sig Playground
+    def test_partial_brahms(self):
+        sr, sig = wavfile.read(brahms_filepath)
+        start, stop = 0, 25
+        out_filepath = ('/Users/quinnmc/Desktop/AudioRestore/brahms_partial_wav/sgmt' 
+                        + str(start) + '-' + str(stop) + '.wav')
+
+        write_partial_sig(sig, PIANO_WDW_SIZE, start, stop, out_filepath, sr)
+    
+    # Pointless test? Begin noise basis vector number tests
+    def test_bv_sound(self):
+        num_noise = 25
+        noise_bvs = np.array(make_noise_basis_vectors(num_noise, PIANO_WDW_SIZE, 
+                                                      ova=True, debug=debug_flag)).T
+        out_filepath = noise_test_path + 'NoiseBasisVectors' + str(num_noise) + '.wav'
+        wavfile.write(out_filepath, 44100, noise_bvs)
+
+
+    # Begin signal conversion tests
 
     def test_no_data_loss(self):
         wdw_size = 4
@@ -39,51 +60,75 @@ class RestOfTests(unittest.TestCase):
         # If not a mono signal
         # orig_arr = np.array([((x[0] + x[1]) / 2) for x in arr.astype('float64')]).astype('uint8')
 
-        # Conversion back and forth
+        # FOR COMPARING OUR 16-bit CONVERSION, TO SOUNDFILE CONVERSION
+        wavfile.write('/Users/quinnmc/Desktop/AudioRestore/test_8bitPCM.wav', 44100, arr)
+        conv_8bit_sig, conv_8bit_sr = soundfile.read('/Users/quinnmc/Desktop/AudioRestore/test_8bitPCM.wav')
+        soundfile.write('/Users/quinnmc/Desktop/AudioRestore/test_16bitPCM.wav', conv_8bit_sig, conv_8bit_sr, subtype='PCM_16')
+        
+        sr_16bit, arr_16bit_file = wavfile.read('/Users/quinnmc/Desktop/AudioRestore/test_16bitPCM.wav')
+        orig_16bit_arr = arr_16bit_file
+        spectrogram, phases = make_spectrogram(arr_16bit_file, wdw_size, ova=True, debug=debug_flag)
+        arr_16bit = make_synthetic_signal(spectrogram, phases, wdw_size, orig_16bit_arr.dtype, ova=True, debug=debug_flag)
+
+        # CONVERSION BACK AND FORTH
         # arr = convert_sig_8bit_to_16bit(arr)
         # arr = convert_sig_16bit_to_8bit(arr)
         # -- substitute
         spectrogram, phases = make_spectrogram(arr, wdw_size, ova=True, debug=debug_flag)
         arr = make_synthetic_signal(spectrogram, phases, wdw_size, orig_arr.dtype, ova=True, debug=debug_flag)
 
+        # LOGIC FOR COMPARISON IN UNIT TEST
         # Displace both signals to center around 0, then do our ratio change
-        orig_arr = orig_arr.astype('int16')
-        arr = arr.astype('int16')
-        orig_arr = orig_arr - 128
-        arr = arr - 128
+        # orig_arr = orig_arr.astype('int16')
+        # arr = arr.astype('int16')
+        # orig_arr = orig_arr - 128
+        # arr = arr - 128
 
-        # ratio = list(stats.mode(arr[(wdw_size // 2): -(wdw_size // 2)] /
-        #                         orig_arr[(wdw_size // 2): -(wdw_size // 2)])[0])[0]
-        ratios = orig_arr[(wdw_size // 2): -(wdw_size // 2)] / arr[(wdw_size // 2): -(wdw_size // 2)]
-        print('Ratios:\n', ratios)
-        ratio = sum(ratios) / len(ratios)
-        print('RATIO:', ratio)  # Correct ratio is 4/3 ~ 1.333
+        # So we can compare w/ 16bit Brahms
+        # # orig_arr = orig_arr / 128
+        # # arr = arr / 128
+        # # orig_arr = orig_arr * 32768
+        # # arr = arr * 32768
+        # arr_16bit = arr_16bit / 32768
+        # arr_16bit = arr_16bit * 128
 
-        print('Plotting before')
-        plt.plot(orig_arr)
-        plt.plot(arr)
-        plt.show()
+        # # ratio = list(stats.mode(arr[(wdw_size // 2): -(wdw_size // 2)] /
+        # #                         orig_arr[(wdw_size // 2): -(wdw_size // 2)])[0])[0]
+        # ratios = orig_arr[(wdw_size // 2): -(wdw_size // 2)] / arr[(wdw_size // 2): -(wdw_size // 2)]
+        # print('Ratios:\n', ratios)
+        # ratio = sum(ratios) / len(ratios)
+        # print('RATIO:', ratio)  # Correct ratio is 4/3 ~ 1.333
 
-        orig_arr = orig_arr.astype('float64')
-        arr = arr.astype('float64')
-        # Get rid of OVA artifacts for comparison
-        # arr = arr[(wdw_size // 2): -(wdw_size // 2)]
+        # print('Plotting before')
+        # plt.plot(orig_arr)
+        # plt.plot(arr)
+        # plt.plot(arr_16bit)
+        # plt.show()
+
+        # orig_arr = orig_arr.astype('float64')
         # arr = arr.astype('float64')
-        arr *= (4/3) # ratio # Amplitude ratio made by this ova
-        # arr = arr.astype('uint8')
+        # arr_16bit = arr_16bit.astype('float64')
+        # # Get rid of OVA artifacts for comparison
+        # # arr = arr[(wdw_size // 2): -(wdw_size // 2)]
+        # # arr = arr.astype('float64')
+        # arr *= (4/3) # ratio # Amplitude ratio made by this ova
+        # # arr = arr.astype('uint8')
+        # arr_16bit *= (4/3)
 
-        print('Orig as float:\n', orig_arr)
-        print('New as float:\n', arr)
+        # print('Orig as float:\n', orig_arr)
+        # print('New as float:\n', arr)
 
-        orig_arr = np.around(orig_arr).astype('int16')
-        arr = np.around(arr).astype('int16')
+        # orig_arr = np.around(orig_arr).astype('int16')
+        # arr = np.around(arr).astype('int16')
+        # arr_16bit = np.around(arr_16bit).astype('int16')
 
-        print('Orig as int:\n', orig_arr)
-        print('New as int:\n', arr)
+        # print('Orig as int:\n', orig_arr)
+        # print('New as int:\n', arr)
 
-        print('Plotting after')
-        plt.plot(orig_arr)
+        # print('Plotting after')
+        # plt.plot(orig_arr)
         plt.plot(arr)
+        plt.plot(arr_16bit)
         plt.show()
 
         if debug_flag:
@@ -91,7 +136,15 @@ class RestOfTests(unittest.TestCase):
             print('Orig arr:\n', orig_arr)
             print('Arr:\n', arr)
 
-        np.testing.assert_array_equal(arr[(wdw_size // 2): -(wdw_size // 2)], orig_arr[(wdw_size // 2): -(wdw_size // 2)])
+        # Standalone, compare our conv arr to 16bit orignally arr
+        print('Compare converted arr (8 to 16 bit), to orig 16-bit arr')
+        np.testing.assert_array_equal(arr[(wdw_size // 2): -(wdw_size // 2)], arr_16bit[(wdw_size // 2): -(wdw_size // 2)])
+        # # Swap these around to test each (first doesn't let second go)
+        # print('Compare converted arr (8 to 16 to 8 bit), to orig arr')
+        # np.testing.assert_array_equal(arr[(wdw_size // 2): -(wdw_size // 2)], orig_arr[(wdw_size // 2): -(wdw_size // 2)])
+        # print('Compare 16 bit arr (downscaled to 8 bit-ish), to orig arr')
+        # np.testing.assert_array_equal(arr_16bit[(wdw_size // 2): -(wdw_size // 2)], orig_arr[(wdw_size // 2): -(wdw_size // 2)])
+
 
     # Function to compare my conv (lossy) to soundfile & librosa, test their performance
     def test_lossless_conv(self):
@@ -569,6 +622,17 @@ class RestOfTests(unittest.TestCase):
     # # # Mary.wav?
     # # def test_make_spectrogram(self):
     # #     pass
+
+    # Dummy test to create visuals
+    def test_piano_sig_spgm_plot(self):
+        sr, sig = wavfile.read('/Users/quinnmc/Desktop/AudioRestore/piano.wav')
+        sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')]).astype('int16')
+        plt.plot(sig)
+        plt.title('Piano Recording Signal')
+        plt.ylabel('Amplitude')
+        plt.show()
+
+        spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=True)
     
 if __name__ == '__main__':
     unittest.main()
