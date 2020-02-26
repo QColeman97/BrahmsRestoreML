@@ -24,10 +24,10 @@ class RestoreTests(unittest.TestCase):
     def test_restore_brahms_unsupnmf(self):
         sr, sig = wavfile.read(brahms_filepath)
         # sig, sr = soundfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
 
         if write_flag:
             out_filepath = test_path + 'restored_brahms_unsupnmf.wav'
-            orig_sig_type = sig.dtype   # CRUCIAL INCLUSION?
 
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]    # For nice comparing
         spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
@@ -38,17 +38,9 @@ class RestoreTests(unittest.TestCase):
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, 
                                               orig_sig_type, ova=True, debug=debug_flag)
 
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
-
         if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+            wavfile.write(out_filepath, sr, synthetic_sig)
+            # wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
             # soundfile.write(out_filepath, synthetic_sig, sr, subtype='PCM_S8')
 
 
@@ -135,195 +127,176 @@ class RestoreTests(unittest.TestCase):
 
     def test_restore_brahms_ssln_piano_madeinit(self):
         sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_piano_madeinit_' + str(num_noise_bv_test) + 'nbv.wav'
-            orig_sig_type = sig.dtype
     
         given_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag, num_noise=num_noise_bv_test)
 
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        orig_sig_len = len(sig)
         spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
         activations, basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors,
                                                learn_index=num_noise_bv_test, madeinit=True, debug=debug_flag, incorrect=False)
 
-        noise_vectors = basis_vectors[:, :num_noise_bv_test].copy()
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        print('\n--Making Synthetic Spectrogram--\n')
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spectrogram = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
 
-        synthetic_spectrogram = basis_vectors @ activations
+        # noise_vectors = basis_vectors[:, :num_noise_bv_test].copy()
+        # activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        # synthetic_spectrogram = basis_vectors @ activations
 
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, 
                                               orig_sig_type, ova=True, debug=debug_flag)
 
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
-
         if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+            wavfile.write(out_filepath, sr, synthetic_sig)
 
-        np.testing.assert_array_equal(
-            given_basis_vectors[:, :num_noise_bv_test], noise_vectors)
+        np.testing.assert_array_equal(given_basis_vectors[:, :num_noise_bv_test], noise_basis_vectors)
         # self.assertEqual(given_basis_vectors[:, :num_noise_bv_test].shape, noise_vectors.shape)
 
     # No difference in sound
     def test_restore_brahms_ssln_piano_madeinit_removemorenoise(self):
         sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_piano_madeinit_morenoiseremoved_' + str(num_noise_bv_test) + 'nbv.wav'
-            orig_sig_type = sig.dtype
 
         given_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag, num_noise=num_noise_bv_test)
 
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        orig_sig_len = len(sig)
         spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
         activations, basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors,
                                                learn_index=num_noise_bv_test, madeinit=True, debug=debug_flag, incorrect=False)
 
-        noise_vectors = basis_vectors[:, :num_noise_bv_test].copy()
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test + 3, 
-                                                          debug=debug_flag) # HERE we take more noise out (learned in piano part)
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        print('\n--Making Synthetic Spectrogram--\n')
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spectrogram = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
 
-        synthetic_spectrogram = basis_vectors @ activations
+        # noise_vectors = basis_vectors[:, :num_noise_bv_test].copy()
+        # activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test + 3, 
+        #                                                   debug=debug_flag) # HERE we take more noise out (learned in piano part)
+        # synthetic_spectrogram = basis_vectors @ activations
 
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, 
                                               orig_sig_type, ova=True, debug=debug_flag)
 
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
-
         if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+            wavfile.write(out_filepath, sr, synthetic_sig)
 
         np.testing.assert_array_equal(
-            given_basis_vectors[:, :num_noise_bv_test], noise_vectors)
+            given_basis_vectors[:, :num_noise_bv_test], noise_basis_vectors)
 
 
     def test_restore_brahms_ssln_piano_randinit(self):
         sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_piano_randinit_' + str(num_noise_bv_test) + 'nbv.wav'
-            orig_sig_type = sig.dtype
 
         given_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag, num_noise=num_noise_bv_test)
 
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        orig_sig_len = len(sig)
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
         activations, basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors,
                                                learn_index=num_noise_bv_test, madeinit=False, debug=debug_flag, incorrect=False)
 
-        noise_vectors = basis_vectors[:, :num_noise_bv_test].copy()
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        print('\n--Making Synthetic Spectrogram--\n')
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spectrogram = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
 
-        synthetic_spectrogram = basis_vectors @ activations
+        # noise_vectors = basis_vectors[:, :num_noise_bv_test].copy()
+        # activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        # synthetic_spectrogram = basis_vectors @ activations
 
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
-
         if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+            wavfile.write(out_filepath, sr, synthetic_sig)
 
         np.testing.assert_array_equal(
-            given_basis_vectors[:, :num_noise_bv_test], noise_vectors)
+            given_basis_vectors[:, :num_noise_bv_test], noise_basis_vectors)
         # self.assertEqual(given_basis_vectors[:, :num_noise_bv_test].shape, noise_vectors.shape)
 
     def test_restore_brahms_ssln_noise_madeinit(self):
         sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_noise_madeinit_' + str(num_noise_bv_test) + 'nbv.wav'
-            orig_sig_type = sig.dtype
         
         given_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag, num_noise=num_noise_bv_test)
 
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        orig_sig_len = len(sig)
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
         activations, basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors,
                                                learn_index=(-1 * num_noise_bv_test), madeinit=True, debug=debug_flag, incorrect=False)
 
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        print('\n--Making Synthetic Spectrogram--\n')
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spectrogram = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
 
-        # print('Basis Vectors Shape after de-noise:', basis_vectors.shape)
-
-        synthetic_spectrogram = basis_vectors @ activations
+        # activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        # # print('Basis Vectors Shape after de-noise:', basis_vectors.shape)
+        # synthetic_spectrogram = basis_vectors @ activations
 
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
-
         if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+            wavfile.write(out_filepath, sr, synthetic_sig)
 
         # print('Given Basis Vectors Shape:', given_basis_vectors.shape, 'Basis Vectors Shape:', basis_vectors.shape)
 
-        np.testing.assert_array_equal(
-            given_basis_vectors[:, num_noise_bv_test:], basis_vectors[:, :])
+        np.testing.assert_array_equal(given_basis_vectors[:, num_noise_bv_test:], basis_vectors[:, :])
         # self.assertEqual(given_basis_vectors[:, num_noise_bv_test:].shape, basis_vectors[:, :].shape)
 
     def test_restore_brahms_ssln_noise_randinit(self):
         sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_noise_randinit_' + str(num_noise_bv_test) + 'nbv.wav'
-            orig_sig_type = sig.dtype
 
         given_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag, num_noise=num_noise_bv_test)
 
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        orig_sig_len = len(sig)
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
         activations, basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors,
                                                learn_index=(-1 * num_noise_bv_test), madeinit=False, debug=debug_flag, incorrect=False)
 
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        print('\n--Making Synthetic Spectrogram--\n')
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spectrogram = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
 
-        # print('Basis Vectors Shape after de-noise:', basis_vectors.shape)
-
-        synthetic_spectrogram = basis_vectors @ activations
+        # activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        # # print('Basis Vectors Shape after de-noise:', basis_vectors.shape)
+        # synthetic_spectrogram = basis_vectors @ activations
 
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
-
         if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+            wavfile.write(out_filepath, sr, synthetic_sig)
 
         # print('Given Basis Vectors Shape:', given_basis_vectors.shape, 'Basis Vectors Shape:', basis_vectors.shape)
 
@@ -333,107 +306,97 @@ class RestoreTests(unittest.TestCase):
 
     def test_restore_brahms_ssln_piano_madeinit_incorrect(self):
         sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_piano_madeinit_incorrect_nbv.wav'
-            orig_sig_type = sig.dtype
       
         given_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag, num_noise=num_noise_bv_test)
 
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        orig_sig_len = len(sig)
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
         activations, basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors,
                                                learn_index=num_noise_bv_test, madeinit=True, debug=debug_flag, incorrect=True)
 
-        noise_vectors = basis_vectors[:, :num_noise_bv_test].copy()
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        print('\n--Making Synthetic Spectrogram--\n')
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spectrogram = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
 
-        synthetic_spectrogram = basis_vectors @ activations
+        # noise_vectors = basis_vectors[:, :num_noise_bv_test].copy()
+        # activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        # synthetic_spectrogram = basis_vectors @ activations
 
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
-
         if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+            wavfile.write(out_filepath, sr, synthetic_sig)
 
         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
-                                 given_basis_vectors[:, :num_noise_bv_test], noise_vectors)
+                                 given_basis_vectors[:, :num_noise_bv_test], noise_basis_vectors)
 
     def test_restore_brahms_ssln_piano_randinit_incorrect(self):
         sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_piano_randinit_incorrect.wav'
-            orig_sig_type = sig.dtype
       
         given_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag, num_noise=num_noise_bv_test)
 
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        orig_sig_len = len(sig)
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
         activations, basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors,
                                                learn_index=num_noise_bv_test, madeinit=False, debug=debug_flag, incorrect=True)
 
-        noise_vectors = basis_vectors[:, :num_noise_bv_test].copy()
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        print('\n--Making Synthetic Spectrogram--\n')
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spectrogram = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
 
-        synthetic_spectrogram = basis_vectors @ activations
+        # noise_vectors = basis_vectors[:, :num_noise_bv_test].copy()
+        # activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        # synthetic_spectrogram = basis_vectors @ activations
 
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
-
         if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+            wavfile.write(out_filepath, sr, synthetic_sig)
 
         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
-                                 given_basis_vectors[:, :num_noise_bv_test], noise_vectors)
+                                 given_basis_vectors[:, :num_noise_bv_test], noise_basis_vectors)
 
     def test_restore_brahms_ssln_noise_madeinit_incorrect(self):
         sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_noise_madeinit_incorrect.wav'
-            orig_sig_type = sig.dtype
         
         given_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag, num_noise=num_noise_bv_test)
 
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        orig_sig_len = len(sig)
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
         activations, basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors,
                                                learn_index=(-1 * num_noise_bv_test), madeinit=True, debug=debug_flag, incorrect=True)
 
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spectrogram = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
 
-        synthetic_spectrogram = basis_vectors @ activations
+        # activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        # synthetic_spectrogram = basis_vectors @ activations
 
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
-
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
 
         if write_flag:
             wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
@@ -443,36 +406,33 @@ class RestoreTests(unittest.TestCase):
 
     def test_restore_brahms_ssln_noise_randinit_incorrect(self):
         sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
         if write_flag:
             out_filepath = test_path + 'restored_brahms_ssln_noise_randinit_incorrect.wav'
-            orig_sig_type = sig.dtype
         
         given_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag, num_noise=num_noise_bv_test)
 
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        orig_sig_len = len(sig)
         spectrogram, phases = make_spectrogram(
             sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
         activations, basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors,
                                                learn_index=(-1 * num_noise_bv_test), madeinit=False, debug=debug_flag, incorrect=True)
 
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        print('\n--Making Synthetic Spectrogram--\n')
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spectrogram = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
 
-        synthetic_spectrogram = basis_vectors @ activations
+        # activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        # synthetic_spectrogram = basis_vectors @ activations
 
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
-
         if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+            wavfile.write(out_filepath, sr, synthetic_sig)
 
         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal,
                                  given_basis_vectors[:, num_noise_bv_test:], basis_vectors[:, :])
@@ -482,36 +442,33 @@ class RestoreTests(unittest.TestCase):
     def test_restore_brahms_iter(self):
         learn_iter = 25
         sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
         if write_flag:
             out_filepath = test_path + 'restored_brahms_iter25.wav'
-            orig_sig_type = sig.dtype
         
         given_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag, num_noise=num_noise_bv_test)
 
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        orig_sig_len = len(sig)
         spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
 
         activations, basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors,
                                                learn_index=num_noise_bv_test, madeinit=True, debug=debug_flag, incorrect=False, 
                                                learn_iter=learn_iter)
+        
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        print('\n--Making Synthetic Spectrogram--\n')
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spectrogram = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
 
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
-
-        synthetic_spectrogram = basis_vectors @ activations
+        # activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        # synthetic_spectrogram = basis_vectors @ activations
 
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
-
         if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+            wavfile.write(out_filepath, sr, synthetic_sig)
 
         mean_abs_error = np.mean(np.abs(spectrogram - synthetic_spectrogram))
         print('MAE @ 25 iter:', mean_abs_error)
@@ -559,13 +516,14 @@ class RestoreTests(unittest.TestCase):
     # Fixed Piano W - Penalized Piano Activations
     def test_restore_brahms_l1pen_pianoh(self):
         sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
         if write_flag:
             out_filepath = test_path + 'restored_brahms_l1pen' + str(l1_penalty_test) + '_piano_h_sslrnmade_noise_' + str(num_noise_bv_test) + 'nbv.wav'
-            orig_sig_type = sig.dtype
 
         given_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag, num_noise=num_noise_bv_test)
         
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        orig_sig_len = len(sig)
         spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
         
         # Pos. learn index = learn piano
@@ -576,26 +534,29 @@ class RestoreTests(unittest.TestCase):
         non_pen_activations, non_pen_basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors, 
                                                                learn_index=(-1* num_noise_bv_test), madeinit=True, debug=debug_flag)
 
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
-        non_pen_activations, non_pen_basis_vectors = remove_noise_vectors(non_pen_activations, non_pen_basis_vectors, num_noise_bv_test, debug=debug_flag)
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        non_pen_noise_activations, non_pen_noise_basis_vectors, non_pen_piano_activations, non_pen_piano_basis_vectors = noise_split_matrices(
+            non_pen_activations, non_pen_basis_vectors, num_noise_bv_test, debug=debug_flag)
 
-        synthetic_spectrogram = basis_vectors @ activations
-        non_pen_synthetic_spectrogram = non_pen_basis_vectors @ non_pen_activations
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spectrogram = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
+
+        non_pen_synthetic_piano_spgm = non_pen_piano_basis_vectors @ non_pen_piano_activations
+        non_pen_synthetic_noise_spgm = non_pen_noise_basis_vectors @ non_pen_noise_activations
+        non_pen_synthetic_spectrogram = np.concatenate((non_pen_synthetic_noise_spgm, non_pen_synthetic_piano_spgm), axis=1)
+
+        # activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        # non_pen_activations, non_pen_basis_vectors = remove_noise_vectors(non_pen_activations, non_pen_basis_vectors, num_noise_bv_test, debug=debug_flag)
+
+        # synthetic_spectrogram = basis_vectors @ activations
+        # non_pen_synthetic_spectrogram = non_pen_basis_vectors @ non_pen_activations
 
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
         non_pen_synthetic_sig = make_synthetic_signal(non_pen_synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
-
         if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+            wavfile.write(out_filepath, sr, synthetic_sig)
 
         pen_h_sum = np.sum(activations)
         nonpen_h_sum = np.sum(non_pen_activations)
@@ -607,43 +568,48 @@ class RestoreTests(unittest.TestCase):
 
     def test_restore_brahms_l1pen_noiseh(self):
         sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
         if write_flag:
             out_filepath = test_path + 'restored_brahms_l1pen' + str(l1_penalty_test) + '_noise_h_sslrnmade_piano.wav'
-            orig_sig_type = sig.dtype
 
         given_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag, num_noise=num_noise_bv_test)
         
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        orig_sig_len = len(sig)
         spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
         
         # Pos. learn index = learn piano
         activations, basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors, 
                                                learn_index=num_noise_bv_test, madeinit=True, debug=debug_flag, l1_penalty=l1_penalty_test, pen='Noise')
+        
         print('\nL1-Penalty to No L1-Penalty Transition\n')
         # Compare to no l1-Penalty
         non_pen_activations, non_pen_basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors, 
                                                                learn_index=num_noise_bv_test, madeinit=True, debug=debug_flag)
 
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
-        non_pen_activations, non_pen_basis_vectors = remove_noise_vectors(non_pen_activations, non_pen_basis_vectors, num_noise_bv_test, debug=debug_flag)
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        non_pen_noise_activations, non_pen_noise_basis_vectors, non_pen_piano_activations, non_pen_piano_basis_vectors = noise_split_matrices(
+            non_pen_activations, non_pen_basis_vectors, num_noise_bv_test, debug=debug_flag)
 
-        synthetic_spectrogram = basis_vectors @ activations
-        non_pen_synthetic_spectrogram = non_pen_basis_vectors @ non_pen_activations
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spectrogram = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
+
+        non_pen_synthetic_piano_spgm = non_pen_piano_basis_vectors @ non_pen_piano_activations
+        non_pen_synthetic_noise_spgm = non_pen_noise_basis_vectors @ non_pen_noise_activations
+        non_pen_synthetic_spectrogram = np.concatenate((non_pen_synthetic_noise_spgm, non_pen_synthetic_piano_spgm), axis=1)
+
+        # activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        # non_pen_activations, non_pen_basis_vectors = remove_noise_vectors(non_pen_activations, non_pen_basis_vectors, num_noise_bv_test, debug=debug_flag)
+
+        # synthetic_spectrogram = basis_vectors @ activations
+        # non_pen_synthetic_spectrogram = non_pen_basis_vectors @ non_pen_activations
 
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
         non_pen_synthetic_sig = make_synthetic_signal(non_pen_synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
-
-        # if write_flag:
-        #     wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+        if write_flag:
+            wavfile.write(out_filepath, sr, synthetic_sig)
 
         pen_h_sum = np.sum(activations)
         nonpen_h_sum = np.sum(non_pen_activations)
@@ -655,46 +621,51 @@ class RestoreTests(unittest.TestCase):
 
     def test_restore_brahms_l1pen_allh(self):
         sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
         if write_flag:
             out_filepath = test_path + 'restored_brahms_l1pen' + str(l1_penalty_test) + '_all_h.wav'
-            orig_sig_type = sig.dtype
 
         given_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, noise=True, avg=True, debug=debug_flag, num_noise=num_noise_bv_test)
         
         sig = sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE:]
+        orig_sig_len = len(sig)
         spectrogram, phases = make_spectrogram(sig, PIANO_WDW_SIZE, ova=True, debug=debug_flag)
         
         # Pos. learn index = learn piano
         activations, basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors, 
                                                debug=debug_flag, l1_penalty=l1_penalty_test, pen='Both')
+        
         print('\nL1-Penalty to No L1-Penalty Transition\n')
         # Compare to no l1-Penalty
         non_pen_activations, non_pen_basis_vectors = nmf_learn(spectrogram, (NUM_PIANO_NOTES + num_noise_bv_test), basis_vectors=given_basis_vectors, 
                                                                debug=debug_flag)
+
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        non_pen_noise_activations, non_pen_noise_basis_vectors, non_pen_piano_activations, non_pen_piano_basis_vectors = noise_split_matrices(
+            non_pen_activations, non_pen_basis_vectors, num_noise_bv_test, debug=debug_flag)
+
+        synthetic_piano_spgm = piano_basis_vectors @ piano_activations
+        synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+        synthetic_spectrogram = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
+
+        non_pen_synthetic_piano_spgm = non_pen_piano_basis_vectors @ non_pen_piano_activations
+        non_pen_synthetic_noise_spgm = non_pen_noise_basis_vectors @ non_pen_noise_activations
+        non_pen_synthetic_spectrogram = np.concatenate((non_pen_synthetic_noise_spgm, non_pen_synthetic_piano_spgm), axis=1)
         
         pen_h_sum = np.sum(activations)
         nonpen_h_sum = np.sum(non_pen_activations)
 
-        activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
-        non_pen_activations, non_pen_basis_vectors = remove_noise_vectors(non_pen_activations, non_pen_basis_vectors, num_noise_bv_test, debug=debug_flag)
+        # activations, basis_vectors = remove_noise_vectors(activations, basis_vectors, num_noise_bv_test, debug=debug_flag)
+        # non_pen_activations, non_pen_basis_vectors = remove_noise_vectors(non_pen_activations, non_pen_basis_vectors, num_noise_bv_test, debug=debug_flag)
 
-        synthetic_spectrogram = basis_vectors @ activations
-        non_pen_synthetic_spectrogram = non_pen_basis_vectors @ non_pen_activations
+        # synthetic_spectrogram = basis_vectors @ activations
+        # non_pen_synthetic_spectrogram = non_pen_basis_vectors @ non_pen_activations
 
         synthetic_sig = make_synthetic_signal(synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
         non_pen_synthetic_sig = make_synthetic_signal(non_pen_synthetic_spectrogram, phases, PIANO_WDW_SIZE, orig_sig_type, ova=True, debug=debug_flag)
 
-        # # For Brahms only - write fix
-        # orig_sig_min = 100
-        # orig_sig_max = 153
-
-        # # Divide signal in half, b/c orig sig max min diff about half of the synth sig's
-        # synthetic_sig = synthetic_sig / 2
-        # # Add to signal based on between orig min and max, b/c synth centered around 0 seemingly
-        # synthetic_sig = synthetic_sig + ((orig_sig_max + orig_sig_min) / 2)
-
         if write_flag:
-            wavfile.write(out_filepath, sr, synthetic_sig.astype(orig_sig_type))
+            wavfile.write(out_filepath, sr, synthetic_sig)
 
         # After noise removed, non-penalized H actually has less sum, prob because all the penalty was focused on noise?
         # pen_h_sum = np.sum(activations)

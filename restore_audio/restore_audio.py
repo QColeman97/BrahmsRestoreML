@@ -41,7 +41,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from copy import deepcopy
 
-
 # Constants
 STD_SR_HZ = 44100
 MARY_SR_HZ = 16000
@@ -122,7 +121,7 @@ def make_basis_vector_old(waveform, wdw_size, ova=False, avg=False):
         sgmt = np.mean(all_sgmts, axis=0)
     
     else:
-        sgmt = waveform[(BEST_PIANO_BV_SGMT - 1) * wdw_size: BEST_PIANO_BV_SGMT * wdw_size]    # BEST_PIANO_BV_SGMT is naturally-indexed
+        sgmt = waveform[(BEST_PIANO_BV_SGMT - 1) * wdw_size: BEST_PIANO_BV_SGMT * wdw_size].copy()  # BEST_PIANO_BV_SGMT is naturally-indexed
         # print("Type of elem in piano note sig:", type(sgmt[0]))
         if len(sgmt) != wdw_size:
                 deficit = wdw_size - len(sgmt)
@@ -131,7 +130,7 @@ def make_basis_vector_old(waveform, wdw_size, ova=False, avg=False):
     if ova:
         sgmt *= np.hanning(wdw_size)
     # Positive frequencies in ascending order, including 0Hz and the middle frequency (pos & neg)
-    return np.abs(np.fft.fft(sgmt))[: (wdw_size // 2) + 1]
+    return np.abs(np.fft.fft(sgmt))[: (wdw_size // 2) + 1].copy()
 
 
 # Time/#segments is irrelevant to # of basis vectors made (so maximize)
@@ -295,8 +294,8 @@ def signal_to_pos_fft(sgmt, wdw_size, ova=False, debug_flag=False):
     fft = np.fft.fft(sgmt)
     phases_fft = np.angle(fft)
     mag_fft = np.abs(fft)
-    pos_phases_fft = phases_fft[: (wdw_size // 2) + 1]
-    pos_mag_fft = mag_fft[: (wdw_size // 2) + 1]
+    pos_phases_fft = phases_fft[: (wdw_size // 2) + 1].copy()
+    pos_mag_fft = mag_fft[: (wdw_size // 2) + 1].copy()
 
     if debug_flag:
         if ova:
@@ -325,8 +324,7 @@ def make_spectrogram(signal, wdw_size, ova=False, debug=False):
     else:                                   # Mono signal = 1 channel    
         sig = np.array(signal).astype('float64')
 
-    if debug:
-        print('Original Sig:\n', sig[:20])
+    print('ORIGINAL SIG (FLOAT64) BEFORE SPGM:\n', sig[(wdw_size // 2): (wdw_size // 2) + 20]) if len(sig) > 20 else print('ORIGINAL SIG (FLOAT64) BEFORE SPGM:\n', sig)
 
     # Hop size is half-length of window if OVA, else it's just window length
     hop_size = int(math.floor(wdw_size / 2)) if (ova and len(sig) >= (wdw_size + int(math.floor(wdw_size / 2)))) else wdw_size
@@ -425,9 +423,11 @@ def partition_matrices(learn_index, basis_vectors, activations, madeinit=False):
 
 # General case NMF algorithm
 def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, madeinit=False, debug=False, incorrect=False, 
-              learn_iter=MAX_LEARN_ITER, l1_penalty=0, pen='Both', mutual_use_update=False):
+              learn_iter=MAX_LEARN_ITER, l1_penalty=0, pen='Both', mutual_use_update=True):
     activations = np.random.rand(num_components, input_matrix.shape[1])
     ones = np.ones(input_matrix.shape) # so dimensions match W transpose dot w/ V
+    if debug:
+        print('Made activations:\n', activations)
 
     if debug:
         print('In NMF Learn, input_matrix sum:', np.sum(input_matrix))
@@ -547,11 +547,14 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
         # No L1-Penalty in Unsupervised Learning
         basis_vectors = np.random.rand(input_matrix.shape[0], num_components)
         if debug:
+            print('Made basis_vectors:\n', basis_vectors)
+
+        if debug:
             print('In Unsup Learn - Shape of Learn Basis Vectors W:', basis_vectors.shape, 'Sum:', np.sum(basis_vectors))
             print('In Unsup Learn - Shape of Learn Activations H:', activations.shape, 'Sum:', np.sum(activations))
 
         if mutual_use_update:
-            for _ in range(learn_iter):
+            for learn_i in range(learn_iter):
                 # if debug:
                 #     print('Before H update:')
                 #     print('W Calc Sum 1:', np.sum(basis_vectors @ activations))
@@ -560,13 +563,16 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
                 #     print('W Calc Sum 4:', np.sum(ones @ activations.T))
 
                 activations *= ((basis_vectors.T @ (input_matrix / (basis_vectors @ activations))) / (basis_vectors.T @ ones))
-                
-                # if debug:
-                #     print('After H, Before W update:')
-                #     print('W Calc Sum 1:', np.sum(basis_vectors @ activations))
-                #     print('W Calc Sum 2:', np.sum(input_matrix / (basis_vectors @ activations)))
-                #     print('W Calc Sum 3:', np.sum((input_matrix / (basis_vectors @ activations)) @ activations.T))
-                #     print('W Calc Sum 4:', np.sum(ones @ activations.T))
+
+                if debug and (learn_i == 0):
+                    print('After H, Before W update:')
+                    print('Input Matrix:\n', input_matrix)
+                    print('Basis Vectors:\n', basis_vectors)
+                    print('Activations:\n', activations)
+                    print('W Calc Sum 1:\n', basis_vectors @ activations)
+                    print('W Calc Sum 2:\n', input_matrix / (basis_vectors @ activations))
+                    print('W Calc Sum 3:\n', (input_matrix / (basis_vectors @ activations)) @ activations.T)
+                    print('W Calc Sum 4:\n', ones @ activations.T)
                 
                 
                 basis_vectors *= (((input_matrix / (basis_vectors @ activations)) @ activations.T) / (ones @ activations.T))
@@ -595,10 +601,10 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
 
 def noise_split_matrices(activations, basis_vectors, num_noisebv, debug=False):
     # piano_basis_vectors = basis_vectors.T[num_noisebv:].T
-    piano_basis_vectors = basis_vectors[:, num_noisebv:]
-    piano_activations = activations[num_noisebv:]
-    noise_basis_vectors = basis_vectors[:, :num_noisebv]
-    noise_activations = activations[:num_noisebv]
+    piano_basis_vectors = basis_vectors[:, num_noisebv:].copy()
+    piano_activations = activations[num_noisebv:].copy()
+    noise_basis_vectors = basis_vectors[:, :num_noisebv].copy()
+    noise_activations = activations[:num_noisebv].copy()
     if debug:
         plot_matrix(piano_basis_vectors, name="De-noised Piano Basis Vectors", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
         plot_matrix(piano_activations, name="De-noised Piano Activations", ylabel='Components', ratio=ACTIVATION_RATIO)
@@ -679,14 +685,35 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_type, ova=False
             print('End of synth sig:', synthetic_sig[-20:])
 
     synthetic_sig = np.array(synthetic_sig)
+
+    # if debug:
+    print_synth_sig = np.around(synthetic_sig).astype('float64')
+    (print('SYNTHETIC SIG (FLOAT64) AFTER SPGM:\n', print_synth_sig[(wdw_size // 2): (wdw_size // 2) + 20]) 
+        if len(synthetic_sig) > 20 else 
+            print('SYNTHETIC SIG (FLOAT64) AFTER SPGM:\n', print_synth_sig))
+    # --- either above or below ---
+    # print_synth_sig = synthetic_sig * (4/3)
+    # print_synth_sig = np.around(print_synth_sig).astype('float64')
+    # print('SYNTHETIC SIG (FLOAT64 - FACTOR ADJUST) AFTER SPGM:\n', print_synth_sig[:20]) if len(synthetic_sig) > 20 else print('SYNTHETIC SIG (FLOAT64 - FACTOR ADJUST) AFTER SPGM:\n', print_synth_sig)
+
+    toy = print_synth_sig / 128
+    toy = toy + 128
+    toy = np.around(toy).astype('float64')
+    (print('TOY (FLOAT64) should be same as in test:\n', toy[(wdw_size // 2): (wdw_size // 2) + 20]) 
+
+    # Adjust volume to original signal level
+    # Multiplicative factor works for wdw_size = 4, experimenting....
+    # TEMP - KEEP!!! - (4/3) works for wdw_size = 4!
+    # synthetic_sig = synthetic_sig * (4/3)
+    # synthetic_sig = np.around(synthetic_sig).astype('float64')
+
     if orig_type == 'uint8':
+        # synthetic_sig = np.around(synthetic_sig).astype('int16')    # Careful: round floats, before converting to int
+        # synthetic_sig = np.clip(synthetic_sig, -32768, 32767)       # Safety measure
         synthetic_sig = convert_sig_16bit_to_8bit(synthetic_sig)
         # TEMPORARY - Don't convert 8-bit PCM back, instead write to 16-bit PCM
         # Confirms that soundfile's 16-bit PCM conv, is same conv as ours
         # return synthetic_sig.astype('int16')
-
-    if debug:
-        print('Synthetic Sig:\n', synthetic_sig[:20])
 
     return synthetic_sig.astype(orig_type)
 
@@ -727,14 +754,22 @@ def plot_matrix(matrix, name, ylabel, ratio=0.08):
 def convert_sig_8bit_to_16bit(sig):
     sig = sig.astype('int16')
     sig = sig - 128     # Bring to range [-128, 127]
-    sig = sig / 128     # Bring to range [-1.0, 0.99] ~ [-1.0, 1.0]
-    sig = sig * 32768   # Bring to range [-32768, 32512] ~ [-32768, 32767]
-    return np.around(sig).astype('int16')   # Careful: round floats, before converting to int
+    # sig = sig / 128     # Bring to range [-1.0, 0.99] ~ [-1.0, 1.0]
+    # sig = sig * 32768   # Bring to range [-32768, 32512] ~ [-32768, 32767]
+    sig = sig * 256     # Bring to range [-32768, 32512] ~ [-32768, 32767], no more info loss (no div, and trunc)
+    # return np.around(sig).astype('int16')   # Careful: round floats, before converting to int
+    return sig          # No need to round, since int preserved
 
+# Badly named function, actually converts from type output by DSP (float64)
 def convert_sig_16bit_to_8bit(sig):
+    # TOTRY: If we fuck up try this line in replacement of the two below it:
+    # sig = sig.astype('int16')
     sig = np.around(sig).astype('int16')    # Careful: round floats, before converting to int
-    sig = sig / 32768   # Bring to range [-1.0, 0.99] ~ [-1.0, 1.0]
-    sig = sig * 128     # Bring to range [-128, 127]
+    sig = np.clip(sig, -32768, 32767)         # Safety measure
+    sig = sig / 256     # Bring to range [-128, 127]
+    # sig = sig / 32768   # Bring to range [-1.0, 0.99] ~ [-1.0, 1.0]
+    # sig = sig * 128     # Bring to range [-128, 127]
+    sig = sig.astype('int16')
     sig = sig + 128     # Bring to range [0, 255]
     return sig.astype('uint8')
 
@@ -801,7 +836,7 @@ def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=Fa
 
 def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, noisebv=False, avgbv=False, semisuplearn='None', 
                   semisupmadeinit=False, write_file=False, debug=False, nohanbv=False, prec_noise=False, eqbv=False, incorrect_semisup=False,
-                  learn_iter=MAX_LEARN_ITER, num_noisebv=0, noise_start=0, noise_stop=25, l1_penalty=0):
+                  learn_iter=MAX_LEARN_ITER, num_noisebv=0, noise_start=6, noise_stop=25, l1_penalty=0):
     print('--Initiating Restore Mode--')
     orig_sig_type = sig.dtype
 
@@ -860,9 +895,9 @@ def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, 
             plot_matrix(synthetic_spgm, name='Synthetic Spectrogram', ylabel='Frequency (Hz)', ratio=SPGM_BRAHMS_RATIO)
     else:
         print('\n--Making Synthetic Spectrogram--\n')
-        synthetic_spgm = basis_vectors @ spectrogram
+        synthetic_spgm = basis_vectors @ activations
         if debug:
-            print('Shape of Piano Activations H:', piano_activations.shape)
+            print('Shape of Piano Activations H:', activations.shape)
             print('Shape of Synthetic Signal Spectrogram V\':', synthetic_spgm.shape)
             plot_matrix(synthetic_spgm, name='Synthetic Spectrogram', ylabel='Frequency (Hz)', ratio=SPGM_BRAHMS_RATIO)
 
@@ -871,7 +906,7 @@ def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, 
     
     if noisebv:
         # Update: Remove first half of signal (noise half)
-        synthetic_sig = synthetic_sig[orig_sig_len:].copy()
+        synthetic_sig = synthetic_sig[orig_sig_len:]
 
     # FIX (JUST FOR BRAHMS SIGNAL)!!!, TODO: Generalize this to all input signals
     # orig_sig_min = 100

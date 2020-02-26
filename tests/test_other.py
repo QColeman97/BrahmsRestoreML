@@ -14,6 +14,7 @@ sys.path.append('/Users/quinnmc/Desktop/AudioRestore/restore_audio')
 from restore_audio import *
 import soundfile
 from scipy import stats
+from sklearn.metrics import mean_absolute_error
 
 # Testing global vars
 write_flag = True
@@ -50,8 +51,78 @@ class RestOfTests(unittest.TestCase):
 
 
     # Begin signal conversion tests
-
     def test_no_data_loss(self):
+        # The multiplicative factor needed in OVA is dependant on window size (wdw_size = 4, factor = 4/3)
+        # Try to find a relationship
+        wdw_size = 4096 # 4
+        # 8-BIT SIGNAL
+        # arr = np.random.rand(500, 2) * 255
+        arr = np.random.rand(20480) * 255
+        arr = arr.astype('uint8')
+        # 16-BIT SIGNAL
+        # arr = np.random.rand(500) * 16384
+        # arr = arr - 32768
+        # arr = arr.astype('int16')
+        orig_arr = arr
+        # If not a mono signal
+        # orig_arr = np.array([((x[0] + x[1]) / 2) for x in arr.astype('float64')]).astype('uint8')
+
+        # CONVERSION BACK AND FORTH
+        # arr = convert_sig_8bit_to_16bit(arr)
+        # arr = convert_sig_16bit_to_8bit(arr)
+        # -- substitute
+        spectrogram, phases = make_spectrogram(arr, wdw_size, ova=True, debug=debug_flag)
+        arr = make_synthetic_signal(spectrogram, phases, wdw_size, orig_arr.dtype, ova=True, debug=debug_flag)
+
+        print('MAE of arr and orig_arr:', mean_absolute_error(orig_arr, arr))
+        # print('Orig arr:\n', orig_arr[:10])
+        # print('New arr:\n', arr[:10])
+
+        # ratios = orig_arr[(wdw_size // 2): -(wdw_size // 2)].copy() / arr[(wdw_size // 2): -(wdw_size // 2)].copy()
+        # print('Ratios:\n', ratios)
+        # print('Mean of ratios:', np.mean(ratios))
+        # # print('Sum of ratios:', np.sum(ratios))
+        # # ratio = np.sum(ratios) / ratios.shape[0]
+        # ratio = np.mean(ratios)
+        # print('RATIO:', ratio)  # Correct ratio is 4/3 ~ 1.333
+
+        # print('Plotting arrs before adjust by factor')
+        # plt.plot(orig_arr)
+        # plt.plot(arr)
+        # plt.show()
+
+        # # LOGIC FOR COMPARISON IN UNIT TEST
+        # # Displace signal to center around 0, then do our ratio change
+        # arr = arr.astype('int16')
+        # arr = arr - 128
+
+        # # Get rid of OVA artifacts for comparison
+        # # orig_arr = orig_arr.astype('float64')
+        # arr = arr.astype('float64')
+        # arr *= (4/3) # ratio # Amplitude ratio made by this ova
+
+        # # Bring signal to original position
+        # # TRY - prob better than below - closer to actual factor change
+        # arr = np.around(arr).astype('int16')
+        # # arr = arr.astype('int16')
+        # arr = arr + 128
+        # arr = arr.astype('uint8')
+
+        # print('Orig arr:\n', orig_arr)
+        # print('Arr:\n', arr)
+        # print('Plotting arrs after adjust by factor')
+        # plt.plot(orig_arr)
+        # plt.plot(arr)
+        # plt.show()
+
+        # # Swap these around to test each (first doesn't let second go)
+        print('Compare converted arr (8 to 16 to 8 bit), to orig arr')
+        np.testing.assert_array_equal(arr[(wdw_size // 2): -(wdw_size // 2)], orig_arr[(wdw_size // 2): -(wdw_size // 2)])
+
+
+    # THIS TEST NOT FINISHED
+    # Begin signal conversion tests
+    def test_no_data_loss_16bitversion(self):
         wdw_size = 4
         # arr = np.random.rand(500, 2) * 255
         arr = np.random.rand(200) * 255
@@ -61,9 +132,9 @@ class RestOfTests(unittest.TestCase):
         # orig_arr = np.array([((x[0] + x[1]) / 2) for x in arr.astype('float64')]).astype('uint8')
 
         # FOR COMPARING OUR 16-bit CONVERSION, TO SOUNDFILE CONVERSION
-        wavfile.write('/Users/quinnmc/Desktop/AudioRestore/test_8bitPCM.wav', 44100, arr)
-        conv_8bit_sig, conv_8bit_sr = soundfile.read('/Users/quinnmc/Desktop/AudioRestore/test_8bitPCM.wav')
-        soundfile.write('/Users/quinnmc/Desktop/AudioRestore/test_16bitPCM.wav', conv_8bit_sig, conv_8bit_sr, subtype='PCM_16')
+        # wavfile.write('/Users/quinnmc/Desktop/AudioRestore/test_8bitPCM.wav', 44100, arr)
+        # conv_8bit_sig, conv_8bit_sr = soundfile.read('/Users/quinnmc/Desktop/AudioRestore/test_8bitPCM.wav')
+        # soundfile.write('/Users/quinnmc/Desktop/AudioRestore/test_16bitPCM.wav', conv_8bit_sig, conv_8bit_sr, subtype='PCM_16')
         
         sr_16bit, arr_16bit_file = wavfile.read('/Users/quinnmc/Desktop/AudioRestore/test_16bitPCM.wav')
         orig_16bit_arr = arr_16bit_file
@@ -144,7 +215,6 @@ class RestOfTests(unittest.TestCase):
         # np.testing.assert_array_equal(arr[(wdw_size // 2): -(wdw_size // 2)], orig_arr[(wdw_size // 2): -(wdw_size // 2)])
         # print('Compare 16 bit arr (downscaled to 8 bit-ish), to orig arr')
         # np.testing.assert_array_equal(arr_16bit[(wdw_size // 2): -(wdw_size // 2)], orig_arr[(wdw_size // 2): -(wdw_size // 2)])
-
 
     # Function to compare my conv (lossy) to soundfile & librosa, test their performance
     def test_lossless_conv(self):
