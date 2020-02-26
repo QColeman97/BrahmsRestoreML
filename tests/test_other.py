@@ -14,7 +14,7 @@ sys.path.append('/Users/quinnmc/Desktop/AudioRestore/restore_audio')
 from restore_audio import *
 import soundfile
 from scipy import stats
-from sklearn.metrics import mean_absolute_error
+# from sklearn.metrics import mean_absolute_error
 
 # Testing global vars
 write_flag = True
@@ -58,6 +58,7 @@ class RestOfTests(unittest.TestCase):
         # 8-BIT SIGNAL
         # arr = np.random.rand(500, 2) * 255
         arr = np.random.rand(20480) * 255
+        # arr = np.random.rand(500) * 255
         arr = arr.astype('uint8')
         # 16-BIT SIGNAL
         # arr = np.random.rand(500) * 16384
@@ -67,6 +68,10 @@ class RestOfTests(unittest.TestCase):
         # If not a mono signal
         # orig_arr = np.array([((x[0] + x[1]) / 2) for x in arr.astype('float64')]).astype('uint8')
 
+        # comp_orig_arr = convert_sig_8bit_to_16bit(orig_arr)
+        # # sig = np.array(signal).astype('float64')
+        # comp_orig_arr = comp_orig_arr.astype('float64')
+
         # CONVERSION BACK AND FORTH
         # arr = convert_sig_8bit_to_16bit(arr)
         # arr = convert_sig_16bit_to_8bit(arr)
@@ -74,16 +79,19 @@ class RestOfTests(unittest.TestCase):
         spectrogram, phases = make_spectrogram(arr, wdw_size, ova=True, debug=debug_flag)
         arr = make_synthetic_signal(spectrogram, phases, wdw_size, orig_arr.dtype, ova=True, debug=debug_flag)
 
-        print('MAE of arr and orig_arr:', mean_absolute_error(orig_arr, arr))
+        # print('ABOUT to compare these:')
+        # print(arr[(wdw_size // 2): (wdw_size // 2) + 20])
+        # print(orig_arr[(wdw_size // 2): (wdw_size // 2) + 20])
+
+        # print('MAE of arr and orig_arr:', mean_absolute_error(orig_arr, arr))
         # print('Orig arr:\n', orig_arr[:10])
         # print('New arr:\n', arr[:10])
 
-        # ratios = orig_arr[(wdw_size // 2): -(wdw_size // 2)].copy() / arr[(wdw_size // 2): -(wdw_size // 2)].copy()
+        # ratios = comp_orig_arr[(wdw_size // 2): -(wdw_size // 2)].copy() / comp_arr[(wdw_size // 2): -(wdw_size // 2)].copy()
         # print('Ratios:\n', ratios)
-        # print('Mean of ratios:', np.mean(ratios))
         # # print('Sum of ratios:', np.sum(ratios))
         # # ratio = np.sum(ratios) / ratios.shape[0]
-        # ratio = np.mean(ratios)
+        # ratio = np.nanmean(ratios)
         # print('RATIO:', ratio)  # Correct ratio is 4/3 ~ 1.333
 
         # print('Plotting arrs before adjust by factor')
