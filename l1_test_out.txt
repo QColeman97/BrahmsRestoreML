@@ -1,0 +1,924 @@
+(base) Quinns-MacBook-Pro-3:tests quinnmc$ python test_restore.py 
+All H Non-Penalized:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+H Sum: 12594346.98104907
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+All H Penalty 1:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) H Sum: 11952920.750898909
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.All H Penalty 1048576:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) H Sum: 6391.83013339584
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.All H Penalty 131072:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) H Sum: 14882.48421673266
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.All H Penalty 2:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) H Sum: 11841555.701269545
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.All H Penalty 256:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) H Sum: 5984860.690761675
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.All H Penalty 262144:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) H Sum: 11411.27411386127
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.All H Penalty 524288:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) H Sum: 8855.393858939093
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.All H Penalty 65536:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) H Sum: 23514.25586467769
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+(Penalty Present) H Sum: 47012.56591888339
+H Sum: 11890362.772135058
+Penalize All Activations - Supervised
+Penalized H Sum: 47012.56591888339 Non-Penalized H Sum: 11890362.772135058
+(No diff) Penalized W Sum: 94858580.29964791 Non-Penalized W Sum: 94858580.29964791
+Penalized V' Sum: 15739919990.951792 Non-Penalized V' Sum: 15932483460.955551
+Penalized Sig' Sum: 282981451 Non-Penalized Sig' Sum: 282733754
+.FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+(Penalty Present) Hfix Sum: 3092112.7888375423
+(Penalty Present) H Sum: 3109015.479638496
+Hfix Sum: 15716547.93381673
+H Sum: 15733412.598106941
+Penalize Noise Activations - Semi-Supervised Learn Made Piano
+Penalized Hnoise Sum: 3092112.7888375423 Non-Penalized Hnoise Sum: 15716547.93381673
+(No diff) Penalized Wnoise Sum: 10252.789499550674 Non-Penalized Wnoise Sum: 10252.789499550674
+Penalized V'noise Sum: 3267189477.876982 Non-Penalized V'noise Sum: 15932483460.955545
+(Shouldn't be) Penalized V'piano Sum: 15932483460.95555 Non-Penalized V'piano Sum: 15932483460.955555
+Penalized V' Sum: 19199672938.832565 Non-Penalized V' Sum: 31864966921.911114
+Penalized Sig' Sum: 282733207 Non-Penalized Sig' Sum: 282733417
+.FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+(Penalty Present) Hfix Sum: 47007.735960757964
+(Penalty Present) H Sum: 15740742.004322441
+Hfix Sum: 49552.19495553369
+H Sum: 15738520.134037204
+Penalize Piano Activations - Semi-Supervised Learn Made Noise
+Penalized Hpiano Sum: 47007.735960757964 Non-Penalized Hpiano Sum: 49552.19495553369
+(No diff) Penalized Wpiano Sum: 94848345.58309117 Non-Penalized Wpiano Sum: 94848345.58309117
+(Shouldn't be) Penalized V'noise Sum: 15932483460.955557 Non-Penalized V'noise Sum: 15932483460.955553
+Penalized V'piano Sum: 15739939774.46029 Non-Penalized V'piano Sum: 15932483460.955542
+Penalized V' Sum: 31672423235.41588 Non-Penalized V' Sum: 31864966921.911156
+Penalized Sig' Sum: 282982794 Non-Penalized Sig' Sum: 282997498
+.All H Non-Penalized:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+Hfix Sum: 15140265.281331465
+H Sum: 15157155.456432875
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+Noise H Penalty 1:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 15077009.643989928
+(Penalty Present) H Sum: 15093922.000021009
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Noise H Penalty 1048576:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 15178.154700130872
+(Penalty Present) H Sum: 32091.84443806497
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Noise H Penalty 131072:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 120572.40888454847
+(Penalty Present) H Sum: 137515.4714496584
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Noise H Penalty 2:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 16270177.354025299
+(Penalty Present) H Sum: 16287102.46316208
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Noise H Penalty 256:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 12385888.82203914
+(Penalty Present) H Sum: 12402819.650914226
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Noise H Penalty 262144:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 60527.77036615861
+(Penalty Present) H Sum: 77431.31922613306
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Noise H Penalty 524288:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 30329.30432671216
+(Penalty Present) H Sum: 47237.481381255675
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Noise H Penalty 65536:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 238987.3881574655
+(Penalty Present) H Sum: 255875.6225935369
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.All H Non-Penalized:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+Hfix Sum: 49548.11649827136
+H Sum: 15796524.923971113
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+Piano H Penalty 1:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 49554.28635423695
+(Penalty Present) H Sum: 15647194.15055882
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Piano H Penalty 1048576:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 6391.90178955755
+(Penalty Present) H Sum: 15750099.965859447
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Piano H Penalty 131072:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 14882.496854185796
+(Penalty Present) H Sum: 15713172.898054501
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Piano H Penalty 2:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 49551.54473716539
+(Penalty Present) H Sum: 15616477.084814345
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Piano H Penalty 256:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 49391.2812377122
+(Penalty Present) H Sum: 15675780.990143355
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Piano H Penalty 262144:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 11411.341304763871
+(Penalty Present) H Sum: 15484325.632661872
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Piano H Penalty 524288:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 8855.333164627069
+(Penalty Present) H Sum: 15654192.522655483
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+
+.Piano H Penalty 65536:
+--Initiating Restore Mode--
+
+--Making Piano Basis Vectors--
+
+FILE FOUND - READING IN BASIS VECTORS: /Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors_ova_avg.csv
+
+----Making Noise Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [-256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256. -256.
+ -256. -256. -256. -256. -256. -256. -256. -256.]
+
+----Learning Noise Basis Vectors--
+
+
+--Making Signal Spectrogram--
+
+ORIGINAL SIG (FLOAT64) BEFORE SPGM:
+ [  0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.   0.
+   0. 256. 256. 256. 256. 256.]
+
+--Learning Piano Activations--
+
+(Penalty Present) Hfix Sum: 23517.22673371956
+(Penalty Present) H Sum: 15545775.303711947
+
+--Making Synthetic Spectrogram--
+
+
+--Making Synthetic Signal--
+

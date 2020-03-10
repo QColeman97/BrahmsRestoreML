@@ -425,6 +425,7 @@ def partition_matrices(learn_index, basis_vectors, activations, madeinit=False):
 def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, madeinit=False, debug=False, incorrect=False, 
               learn_iter=MAX_LEARN_ITER, l1_penalty=0, mutual_use_update=True):
     activations = np.random.rand(num_components, input_matrix.shape[1])
+    basis_vectors_on_pass = basis_vectors   # For use in debug print for l1-penalty
     ones = np.ones(input_matrix.shape) # so dimensions match W transpose dot w/ V
     if debug:
         print('Made activations:\n', activations)
@@ -616,8 +617,14 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
                 activations *= ((basis_vectors_use.T @ (input_matrix / (basis_vectors_use @ activations))) / (basis_vectors_use.T @ ones))
                 basis_vectors *= (((input_matrix / (basis_vectors @ activations_use)) @ activations_use.T) / (ones @ activations_use.T))
 
-    if debug:
+    # Report activation sums for penalty check (sup and semisup)
+    if basis_vectors_on_pass is not None:
+        # Report fixed activation sum for penalty check in case of semi-sup
+        if learn_index != 0:
+            print('(Penalty Present) Hfix Sum:' if (l1_penalty != 0) else 'Hfix Sum:', np.sum(activations_for_fixed))
         print('(Penalty Present) H Sum:' if (l1_penalty != 0) else 'H Sum:', np.sum(activations))
+
+    if debug:
         print('In Learn - Shape of Learned Activations H:', activations.shape)
         plot_matrix(activations, name="Learned Activations", ylabel='Components', ratio=ACTIVATION_RATIO)
         print('In Learn - Shape of Learned Basis Vectors W:', basis_vectors.shape)
