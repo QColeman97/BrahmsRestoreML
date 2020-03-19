@@ -28,7 +28,7 @@ mary_filepath = '/Users/quinnmc/Desktop/AudioRestore/Mary.wav'
 # mary32_filepath = '/Users/quinnmc/Desktop/AudioRestore/Mary_44100Hz.wav'
 piano_echo_filepath = '/Users/quinnmc/Desktop/AudioRestore/piano-echo.wav'
 test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_other/'
-noise_test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_noise/'
+# noise_test_path = '/Users/quinnmc/Desktop/AudioRestore/output_test_noise/'
 
 class RestOfTests(unittest.TestCase):
 
@@ -42,12 +42,12 @@ class RestOfTests(unittest.TestCase):
         write_partial_sig(sig, PIANO_WDW_SIZE, start, stop, out_filepath, sr)
     
     # Pointless test? Begin noise basis vector number tests
-    def test_bv_sound(self):
-        num_noise = 25
-        noise_bvs = np.array(make_noise_basis_vectors(num_noise, PIANO_WDW_SIZE, 
-                                                      ova=True, debug=debug_flag)).T
-        out_filepath = noise_test_path + 'NoiseBasisVectors' + str(num_noise) + '.wav'
-        wavfile.write(out_filepath, 44100, noise_bvs)
+    # def test_bv_sound(self):
+    #     num_noise = 25
+    #     noise_bvs = np.array(make_noise_basis_vectors(num_noise, PIANO_WDW_SIZE, 
+    #                                                   ova=True, debug=debug_flag)).T
+    #     out_filepath = noise_test_path + 'NoiseBasisVectors' + str(num_noise) + '.wav'
+    #     wavfile.write(out_filepath, 44100, noise_bvs)
 
 
     # Begin signal conversion tests

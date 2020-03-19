@@ -57,7 +57,7 @@ MAX_LEARN_ITER = 100
 
 BASIS_VECTOR_FULL_RATIO = 0.01
 BASIS_VECTOR_MARY_RATIO = 0.001
-ACTIVATION_RATIO = 0.08
+ACTIVATION_RATIO = 8.0
 SPGM_BRAHMS_RATIO = 0.08
 SPGM_MARY_RATIO = 0.008
 
@@ -104,7 +104,7 @@ def make_basis_vector(waveform, wf_type, wf_sr, num, wdw_size, ova=False, avg=Fa
     if debug:
         if wf_sr > 0 and avg and ova:   # Temp test - success!
             avg_spgm = np.array([basis_vector for _ in range(spectrogram.shape[1])]).T
-            avg_sig = make_synthetic_signal(avg_spgm, phases, wdw_size, ova=ova, debug=False)
+            avg_sig = make_synthetic_signal(avg_spgm, phases, wdw_size, wf_type, ova=ova, debug=False)
             wavfile.write('/Users/quinnmc/Desktop/AudioRestore/avged_ova_notes/avged_ova_note_' + str(num) + '.wav', 
                           wf_sr, avg_sig.astype(wf_type))
 
@@ -134,7 +134,7 @@ def make_basis_vector_old(waveform, wdw_size, ova=False, avg=False):
 
 
 # Time/#segments is irrelevant to # of basis vectors made (so maximize)
-def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, precise_noise=False, bv_thresh=800000,
+def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, precise_noise=False, eq_thresh=800000,
                              start=0, stop=25):
     # sr, brahms_sig = wavfile.read('../brahms.wav')
     _, brahms_sig = wavfile.read('/Users/quinnmc/Desktop/AudioRestore/brahms.wav')
@@ -153,6 +153,11 @@ def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, pr
 
     noise_sig = brahms_sig[(start * wdw_size): (stop * wdw_size)].copy()
 
+    # Equalize noise bv's? - no doesnt make sense to
+    # if eq:  # Make it louder
+    #     while np.max(np.abs(sig)) < sig_thresh:
+    #         sig *= 1.1
+
     print('\n----Making Noise Spectrogram--\n')
     spectrogram, _ = make_spectrogram(noise_sig, wdw_size, ova=ova, debug=debug)
     print('\n----Learning Noise Basis Vectors--\n')
@@ -161,19 +166,20 @@ def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, pr
         print('Shape of Noise Spectogram V:', spectrogram.shape, np.sum(spectrogram))
         print('Shape of Learned Noise Basis Vectors W:', noise_basis_vectors.shape)
 
-    if False:  # Make louder # if eq:
-        new_bvs = []
-        for bv in noise_basis_vectors:
-            while np.max(bv[1:]) < bv_thresh:
-                bv *= 1.1
-            new_bvs.append(bv)
-        noise_basis_vectors = np.array(new_bvs)
+    # if False:  # Make louder # if eq:
+    #     new_bvs = []
+    #     for bv in noise_basis_vectors:
+    #         while np.max(bv[1:]) < bv_thresh:
+    #             bv *= 1.1
+    #         new_bvs.append(bv)
+    #     noise_basis_vectors = np.array(new_bvs)
 
     return list(noise_basis_vectors.T)    # List format is for use in get_basis_vectors(), transpose into similar format
 
 
-def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False, eq=False, bv_thresh=800000, debug=False):
+def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False, eq=False, eq_thresh=800000, debug=False):
     # bv_thresh = 800000  # Based on max_val (not including first freq bin) - (floor) is 943865
+    sig_thresh = 410    # 137 150.0 - Actual median max, 410 448.8 - Actual mean max, 11000 11966.0 - Actual max
     # max_val = None      # To get threshold
     basis_vectors, sorted_notes = [], []
     # Read in ordered piano notes
@@ -208,27 +214,37 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
             while sig[-1] < amp_thresh:
                 sig = sig[:-1]
 
+            if eq:  # Make it louder
+                while np.mean(np.abs(sig)) < sig_thresh:
+                    sig *= 1.1
+                # Manual override for fussy basis vectors (85, 86, 88)
+                if i == 85 or i == 87:
+                    sig *= 1.5
+                elif i == 84:
+                    sig *= 1.75
+
             # Write trimmed piano note signals to WAV - check if trim is good
-            if i == 40 or i == 43 or i == 46 or i < 10:
-                wavfile.write('/Users/quinnmc/Desktop/AudioRestore/trimmed_notes/trimmed_note_' + str(i) + '.wav', 
-                              note_sr, sig.astype(orig_note_sig_type))
+            # if i == 40 or i == 43 or i == 46 or i < 10:
+            #     wavfile.write('/Users/quinnmc/Desktop/AudioRestore/trimmed_notes/trimmed_note_' + str(i) + '.wav', 
+            #                   note_sr, sig.astype(orig_note_sig_type))
             
             basis_vector = make_basis_vector(sig, orig_note_sig_type, note_sr, i, wdw_size, ova=ova, avg=avg, debug=debug)
             # else:   # Testing temp block - success!
                 # basis_vector = make_basis_vector(sig, orig_note_sig_type, -1, i, wdw_size, ova=ova, avg=avg, debug=debug)
 
-            if eq:  # Make it louder
-                while np.max(basis_vector[1:]) < bv_thresh:
-                    basis_vector *= 1.1
+            # Old - adjust signal instead
+            # if eq:  # Make it louder
+            #     while np.max(basis_vector[1:]) < bv_thresh:
+            #         basis_vector *= 1.1
 
             basis_vectors.append(basis_vector)
             bv_f.write(','.join([str(x) for x in basis_vector]) + '\n')
 
-            # if max_val is None or np.max(basis_vector[1:]) > max_val:
-            #     max_val = np.max(basis_vector)
+            # if max_val is None or np.median(np.abs(sig)) > max_val:
+            #     max_val = np.median(np.abs(sig))
 
         os.chdir(base_dir)
-    # print('\nMAX BASIS VECTOR VAL:', max_val, '\n')
+    # print('\nMAX SIG VAL:', max_val, '\n')
     return basis_vectors
 
 
@@ -248,7 +264,7 @@ def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, d
     if avg:
         filepath += '_avg'
     if eq:
-        filepath += ('_eq_piano' + str(bv_thresh))
+        filepath += '_eqsig' # '_eqmeansig' '_eqmediansig'
     filepath += '.csv'
 
     try:
@@ -258,7 +274,7 @@ def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, d
 
     except FileNotFoundError:
         print('FILE NOT FOUND - MAKING BASIS VECTORS:', filepath)
-        basis_vectors = make_basis_vectors(wdw_size, filepath, ova=ova, avg=avg, mary_flag=mary, eq=eq, bv_thresh=800000, debug=debug)
+        basis_vectors = make_basis_vectors(wdw_size, filepath, ova=ova, avg=avg, mary_flag=mary, eq=eq, eq_thresh=800000, debug=debug)
 
     if debug:
         print('Basis Vectors Length:', len(basis_vectors))
@@ -266,7 +282,7 @@ def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, d
     # Make and add noise bv's if necessary
     if noise:
         noise_basis_vectors = make_noise_basis_vectors(num_noise, wdw_size, ova=ova, eq=eq, debug=debug, 
-                                                    precise_noise=precise_noise, bv_thresh=800000,
+                                                    precise_noise=precise_noise, eq_thresh=800000,
                                                     start=noise_start, stop=noise_stop)
         basis_vectors = (noise_basis_vectors + basis_vectors)
         if debug:
@@ -324,7 +340,8 @@ def make_spectrogram(signal, wdw_size, ova=False, debug=False):
     else:                                   # Mono signal = 1 channel    
         sig = np.array(signal).astype('float64')
 
-    print('ORIGINAL SIG (FLOAT64) BEFORE SPGM:\n', sig[(wdw_size // 2): (wdw_size // 2) + 20]) if len(sig) > 20 else print('ORIGINAL SIG (FLOAT64) BEFORE SPGM:\n', sig)
+    if debug:
+        print('ORIGINAL SIG (FLOAT64) BEFORE SPGM:\n', sig[(wdw_size // 2): (wdw_size // 2) + 20]) if len(sig) > 20 else print('ORIGINAL SIG (FLOAT64) BEFORE SPGM:\n', sig)
 
     # Hop size is half-length of window if OVA, else it's just window length
     hop_size = int(math.floor(wdw_size / 2)) if (ova and len(sig) >= (wdw_size + int(math.floor(wdw_size / 2)))) else wdw_size
@@ -454,8 +471,8 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
                 print('In Semi-Sup Learn - Shape of Wlearn:', basis_vectors_learn.shape)
                 print('In Semi-Sup Learn - Shape of Hfromfix:', activations_for_fixed.shape)
                 print('In Semi-Sup Learn - Shape of Hfromlearn:', activations_for_learn.shape)
-                plot_matrix(basis_vectors_fixed, name="Fixed BV Before Learn", ylabel='Components', ratio=BASIS_VECTOR_FULL_RATIO)
-                plot_matrix(basis_vectors_learn, name="Learned BV Before Learn", ylabel='Components', ratio=BASIS_VECTOR_FULL_RATIO)
+                plot_matrix(basis_vectors_fixed, name="Fixed BV Before Learn", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
+                plot_matrix(basis_vectors_learn, name="Learned BV Before Learn", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
                 plot_matrix(activations_for_fixed, name="Activations of Fixed Before Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
                 plot_matrix(activations_for_learn, name="Activations of Learned Before Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
 
@@ -485,8 +502,47 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
                 if debug:
                     print('Applying L1-Penalty of', str(l1_penalty), 'to', 'Noise' if (learn_index > 0) else 'Piano', '(Fixed) Activations')
                 # Do NMF w/ Wfix (W given subset), only H learn step, get H
-                for _ in range(learn_iter):
+                for learn_i in range(learn_iter):
                     activations_for_fixed *= ((basis_vectors_fixed.T @ (input_matrix / (basis_vectors_fixed @ activations_for_fixed))) / ((basis_vectors_fixed.T @ ones) + l1_penalty))
+
+                    if debug and (learn_i % 5 == 0):
+                        # Strange - activations seem tobe the same for cmoponents in groups of almost 3 (2.75)
+                        #     (only see 32 distinguishable rows), try to see difference in first 8 components - look the same
+                        # Lets look at first 5ish components (rows) of activations
+                        print('Last 10 (components) rows of activations:')
+                        print(np.mean(activations_for_fixed[-1]))
+                        print(np.mean(activations_for_fixed[-2]))
+                        print(np.mean(activations_for_fixed[-3]))
+                        print(np.mean(activations_for_fixed[-4]))
+                        print(np.mean(activations_for_fixed[-5]))
+                        print(np.mean(activations_for_fixed[-6]))
+                        print(np.mean(activations_for_fixed[-7]))
+                        print(np.mean(activations_for_fixed[-8]))
+                        print(np.mean(activations_for_fixed[-9]))
+                        print(np.mean(activations_for_fixed[-10]))
+                        print()
+
+                        print('Last 10 columns of basis vectors:')
+                        print(np.mean(basis_vectors_fixed[:, -1]))
+                        print(np.mean(basis_vectors_fixed[:, -2]))
+                        print(np.mean(basis_vectors_fixed[:, -3]))
+                        print(np.mean(basis_vectors_fixed[:, -4]))
+                        print(np.mean(basis_vectors_fixed[:, -5]))
+                        print(np.mean(basis_vectors_fixed[:, -6]))
+                        print(np.mean(basis_vectors_fixed[:, -7]))
+                        print(np.mean(basis_vectors_fixed[:, -8]))
+                        print(np.mean(basis_vectors_fixed[:, -9]))
+                        print(np.mean(basis_vectors_fixed[:, -10]))
+                        print()
+
+                        plot_matrix(activations_for_fixed, 'Fixed Activations', 'Components', ACTIVATION_RATIO)
+                        # plot_matrix(activations_for_fixed[:11], 'Fixed Activations (Components 1-11)', 'Components', ACTIVATION_RATIO)
+                        # plot_matrix(activations_for_fixed[:5], 'Fixed Activations (Components 1-5)', 'Components', ACTIVATION_RATIO)
+
+                        plot_matrix(basis_vectors_fixed, 'Fixed Basis Vectors', 'Frequency (Hz)', BASIS_VECTOR_FULL_RATIO)
+
+                        
+
                 # else:
                 #     # Do NMF w/ Wfix (W given subset), only H learn step, get H
                 #     for _ in range(learn_iter):
@@ -515,26 +571,28 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
                     for learn_i in range(learn_iter):
 
                         if debug and (learn_i == 0):
-                            print('Before Hlearn update:')
-                            print('Input Matrix:\n', input_matrix)
-                            print('Basis Vectors:\n', basis_vectors_learn)
-                            print('Activations:\n', activations_for_learn)
-                            print('H Calc 1:\n', basis_vectors_learn @ activations_for_learn)
-                            print('H Calc 2:\n', input_matrix / (basis_vectors_learn @ activations_for_learn))
-                            print('H Calc 3:\n', basis_vectors_learn.T @ (input_matrix / (basis_vectors_learn @ activations_for_learn)))
-                            print('H Calc 4:\n', basis_vectors_learn.T @ ones)
+                            pass
+                            # print('Before Hlearn update:')
+                            # print('Input Matrix:\n', input_matrix)
+                            # print('Basis Vectors:\n', basis_vectors_learn)
+                            # print('Activations:\n', activations_for_learn)
+                            # print('H Calc 1:\n', basis_vectors_learn @ activations_for_learn)
+                            # print('H Calc 2:\n', input_matrix / (basis_vectors_learn @ activations_for_learn))
+                            # print('H Calc 3:\n', basis_vectors_learn.T @ (input_matrix / (basis_vectors_learn @ activations_for_learn)))
+                            # print('H Calc 4:\n', basis_vectors_learn.T @ ones)
 
                         activations_for_learn *= ((basis_vectors_learn.T @ (input_matrix / (basis_vectors_learn @ activations_for_learn))) / (basis_vectors_learn.T @ ones))
                         
                         if debug and (learn_i == 0):
-                            print('After Hlearn, Before Wlearn update:')
-                            print('Input Matrix:\n', input_matrix)
-                            print('Basis Vectors:\n', basis_vectors_learn)
-                            print('Activations:\n', activations_for_learn)
-                            print('W Calc 1:\n', basis_vectors_learn @ activations_for_learn)
-                            print('W Calc 2:\n', input_matrix / (basis_vectors_learn @ activations_for_learn))
-                            print('W Calc 3:\n', (input_matrix / (basis_vectors_learn @ activations_for_learn)) @ activations_for_learn.T)
-                            print('W Calc 4:\n', ones @ activations_for_learn.T)
+                            pass
+                            # print('After Hlearn, Before Wlearn update:')
+                            # print('Input Matrix:\n', input_matrix)
+                            # print('Basis Vectors:\n', basis_vectors_learn)
+                            # print('Activations:\n', activations_for_learn)
+                            # print('W Calc 1:\n', basis_vectors_learn @ activations_for_learn)
+                            # print('W Calc 2:\n', input_matrix / (basis_vectors_learn @ activations_for_learn))
+                            # print('W Calc 3:\n', (input_matrix / (basis_vectors_learn @ activations_for_learn)) @ activations_for_learn.T)
+                            # print('W Calc 4:\n', ones @ activations_for_learn.T)
 
                         basis_vectors_learn *= (((input_matrix / (basis_vectors_learn @ activations_for_learn)) @ activations_for_learn.T) / (ones @ activations_for_learn.T))
                 else:
@@ -554,8 +612,8 @@ def nmf_learn(input_matrix, num_components, basis_vectors=None, learn_index=0, m
                     print('In Semi-Sup Learn - after learn - Shape of Wlearn:', basis_vectors_learn.shape)
                     print('In Semi-Sup Learn - after learn - Shape of Hfromfix:', activations_for_fixed.shape)
                     print('In Semi-Sup Learn - after learn - Shape of Hfromlearn:', activations_for_learn.shape)
-                    plot_matrix(basis_vectors_fixed, name="Fixed BV After Learn", ylabel='Components', ratio=BASIS_VECTOR_FULL_RATIO)
-                    plot_matrix(basis_vectors_learn, name="Learned BV After Learn", ylabel='Components', ratio=BASIS_VECTOR_FULL_RATIO)
+                    plot_matrix(basis_vectors_fixed, name="Fixed BV After Learn", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
+                    plot_matrix(basis_vectors_learn, name="Learned BV After Learn", ylabel='Frequency (Hz)', ratio=BASIS_VECTOR_FULL_RATIO)
                     plot_matrix(activations_for_fixed, name="Activations of Fixed After Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
                     plot_matrix(activations_for_learn, name="Activations of Learned After Learn", ylabel='Components', ratio=ACTIVATION_RATIO)
 
@@ -765,16 +823,42 @@ def make_mary_bv_test_activations():
 
 def plot_matrix(matrix, name, ylabel, ratio=0.08):
     num_wdws = matrix.shape[1]
+    num_comp = matrix.shape[0]
+
+
+    # plt.matshow(matrix)
+    # plt.colorbar()
+    # plt.title(name)
+
+    # # x_pos = np.arange(matrix.shape[0])
+    # # plt.xticks(x_pos)
+    
+    # # y_pos = np.arange(matrix.shape[1])
+    # # plt.yticks(y_pos)
+
+    # if ylabel == 'Frequency (Hz)':
+    #     # plt.ylim(top=STD_SR_HZ // 2)
+    #     plt.ylim(top=8000.0)
+    # else:
+    #     plt.ylim(top=num_comp)
+
 
     fig, ax = plt.subplots()
     ax.title.set_text(name)
     ax.set_ylabel(ylabel)
-    # Map the axis to a new correct frequency scale, something in imshow() 0 to 44100 / 2, step by window size
-    _ = ax.imshow(np.log(matrix), extent=[0, num_wdws, STD_SR_HZ // 2, 0])
-    fig.tight_layout()
-    # bottom, top = plt.ylim()
-    # print('Bottom:', bottom, 'Top:', top)
-    plt.ylim(8000.0, 0.0)   # Crop an axis (to ~double the piano frequency max)
+    if ylabel == 'Frequency (Hz)':
+        # Map the axis to a new correct frequency scale, something in imshow() 0 to 44100 / 2, step by window size
+        _ = ax.imshow(np.log(matrix), extent=[0, num_wdws, STD_SR_HZ // 2, 0])    
+        fig.tight_layout()
+        # bottom, top = plt.ylim()
+        # print('Bottom:', bottom, 'Top:', top)
+        plt.ylim(8000.0, 0.0)   # Crop an axis (to ~double the piano frequency max)
+    else:
+        _ = ax.imshow(matrix, extent=[0, num_wdws, num_comp, 0])
+        fig.tight_layout()
+        # bottom, top = plt.ylim()
+        # print('Bottom:', bottom, 'Top:', top)
+        plt.ylim(num_comp, 0.0)   # Crop an axis (to ~double the piano frequency max)
     ax.set_aspect(ratio)    # Set a visually nice ratio
     plt.show()
 
@@ -863,7 +947,7 @@ def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=Fa
 
 def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, noisebv=False, avgbv=False, semisuplearn='None', 
                   semisupmadeinit=False, write_file=False, debug=False, nohanbv=False, prec_noise=False, eqbv=False, incorrect_semisup=False,
-                  learn_iter=MAX_LEARN_ITER, num_noisebv=0, noise_start=6, noise_stop=25, l1_penalty=0, write_noise_sig=False):
+                  learn_iter=MAX_LEARN_ITER, num_noisebv=0, noise_start=6, noise_stop=83, l1_penalty=0, write_noise_sig=False):
     print('--Initiating Restore Mode--')
     orig_sig_type = sig.dtype
 
