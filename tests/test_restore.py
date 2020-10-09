@@ -701,14 +701,14 @@ class RestoreTests(unittest.TestCase):
     # Probably a bug in NMF
     # FIXED PIANO BV CONSTANT FREQUENCY - TESTS
 
-    # Observe: The higher the penalty, the higher the const freq
-
+    # Observation: The higher the penalty, the higher the const freq
+    # High freq - most easily noticable in fixed piano semisup-learning
     def test_fixpianobv_highfreq_1(self):
         pen = 0
         sr, sig = wavfile.read(brahms_filepath)
         orig_sig_type = sig.dtype
         if write_flag:
-            out_filepath = test_path + 'restored_brahms_ph' + str(pen) + 'l1pen_EQMEANMOD.wav'
+            out_filepath = test_path + 'restored_brahms_ph' + str(pen) + 'l1pen_EQMEANMOD_2_A7bvadjust.wav'
 
         synthetic_sig = restore_audio(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
                                       semisuplearn='Noise', semisupmadeinit=True, write_file=True, debug=True, 

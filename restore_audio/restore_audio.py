@@ -105,7 +105,7 @@ def make_basis_vector(waveform, wf_type, wf_sr, num, wdw_size, ova=False, avg=Fa
         if wf_sr > 0 and avg and ova:   # Temp test - success!
             avg_spgm = np.array([basis_vector for _ in range(spectrogram.shape[1])]).T
             avg_sig = make_synthetic_signal(avg_spgm, phases, wdw_size, wf_type, ova=ova, debug=False)
-            wavfile.write('/Users/quinnmc/Desktop/AudioRestore/avged_ova_notes/avged_ova_note_' + str(num) + '.wav', 
+            wavfile.write('/Users/quinnmc/Desktop/BMSThesis/MusicRestoreNMF/avged_ova_notes/avged_ova_note_' + str(num) + '.wav', 
                           wf_sr, avg_sig.astype(wf_type))
 
         # print('Shape of note spectrogram:', spectrogram.shape)
@@ -137,7 +137,7 @@ def make_basis_vector_old(waveform, wdw_size, ova=False, avg=False):
 def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, precise_noise=False, eq_thresh=800000,
                              start=0, stop=25):
     # sr, brahms_sig = wavfile.read('../brahms.wav')
-    _, brahms_sig = wavfile.read('/Users/quinnmc/Desktop/AudioRestore/brahms.wav')
+    _, brahms_sig = wavfile.read('/Users/quinnmc/Desktop/BMSThesis/MusicRestoreNMF/brahms.wav')
     # Convert to mono signal (avg left & right channels) 
     # brahms_sig = np.array([((x[0] + x[1]) / 2) for x in brahms_sig.astype('float64')])
 
@@ -183,13 +183,13 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
     # max_val = None      # To get threshold
     basis_vectors, sorted_notes = [], []
     # Read in ordered piano notes
-    with open('/Users/quinnmc/Desktop/AudioRestore/piano_notes_and_fund_freqs.csv', 'r') as notes_f:
+    with open('/Users/quinnmc/Desktop/BMSThesis/MusicRestoreNMF/piano_notes_and_fund_freqs.csv', 'r') as notes_f:
         for line in notes_f.readlines():
             sorted_notes.append(line.split(',')[0])
     
     with open(filepath, 'w') as bv_f:
         base_dir = os.getcwd()
-        os.chdir('/Users/quinnmc/Desktop/AudioRestore/all_notes_ff_wav')
+        os.chdir('/Users/quinnmc/Desktop/BMSThesis/MusicRestoreNMF/all_notes_ff_wav')
         # audio_files is a list of strings, need to sort it by note
         unsorted_audio_files = [x for x in os.listdir(os.getcwd()) if x.endswith('wav')]
         sorted_file_names = ['Piano.ff.' + x + '.wav' for x in sorted_notes]
@@ -217,15 +217,15 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
             if eq:  # Make it louder
                 while np.mean(np.abs(sig)) < sig_thresh:
                     sig *= 1.1
-                # Manual override for fussy basis vectors (85, 86, 88)
+                # TODO: Aggressive manual override for fussy basis vectors (85, 86, 88)
                 if i == 85 or i == 87:
                     sig *= 1.5
-                elif i == 84:
-                    sig *= 1.75
+                elif i == 84:   # A7 note that is distinct to ear, noisiest?
+                    sig *= 2.0
 
             # Write trimmed piano note signals to WAV - check if trim is good
             # if i == 40 or i == 43 or i == 46 or i < 10:
-            #     wavfile.write('/Users/quinnmc/Desktop/AudioRestore/trimmed_notes/trimmed_note_' + str(i) + '.wav', 
+            #     wavfile.write('/Users/quinnmc/Desktop/BMSThesis/MusicRestoreNMF/trimmed_notes/trimmed_note_' + str(i) + '.wav', 
             #                   note_sr, sig.astype(orig_note_sig_type))
             
             basis_vector = make_basis_vector(sig, orig_note_sig_type, note_sr, i, wdw_size, ova=ova, avg=avg, debug=debug)
@@ -256,7 +256,7 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
 def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, debug=False, precise_noise=False, eq=False, 
                       num_noise=0, noise_start=6, noise_stop=25):
     # Save/load basis vectors (w/o noise) to/from CSV files
-    filepath = '/Users/quinnmc/Desktop/AudioRestore/csv_saves_bv/basis_vectors'
+    filepath = '/Users/quinnmc/Desktop/BMSThesis/MusicRestoreNMF/csv_saves_bv/basis_vectors'
     if mary:
         filepath += '_mary'
     if ova:
@@ -753,7 +753,7 @@ def pos_fft_to_signal(pos_mag_fft, pos_phases_fft, wdw_size, ova=False, end_sig=
 
 
 # Construct synthetic waveform
-def make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_type, ova=False, debug=False):
+def make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_type, ova=False, debug=False, return_16bit=False):
     num_sgmts = synthetic_spgm.shape[1]
     # If both noise and piano in spgm, reuse phases in synthesis
     if num_sgmts != len(phases):   
@@ -792,7 +792,7 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_type, ova=False
     # synthetic_sig = synthetic_sig * 0.996275
     # synthetic_sig = np.around(synthetic_sig).astype('float64')
 
-    if orig_type == 'uint8':
+    if orig_type == 'uint8' and (not return_16bit):
         # synthetic_sig = np.around(synthetic_sig).astype('int16')    # Careful: round floats, before converting to int
         # synthetic_sig = np.clip(synthetic_sig, -32768, 32767)       # Safety measure
         synthetic_sig = convert_sig_16bit_to_8bit(synthetic_sig)
@@ -800,8 +800,10 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_type, ova=False
         # Confirms that soundfile's 16-bit PCM conv, is same conv as ours
         # return synthetic_sig.astype('int16')
 
-    # TEMP, change to just return processed sig, instead or returning it and sig_copy
-    return synthetic_sig.astype(orig_type)
+        # TEMP, change to just return processed sig, instead or returning it and sig_copy
+        return synthetic_sig.astype(orig_type)
+    else:
+        return synthetic_sig
 
 
 def make_mary_bv_test_activations():
@@ -945,9 +947,11 @@ def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=Fa
     return synthetic_sig
 
 
+# 10 noise bv is default now, noise window should be 19 windows b/c voice is being captured in noise if 77 windows
 def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, noisebv=False, avgbv=False, semisuplearn='None', 
                   semisupmadeinit=False, write_file=False, debug=False, nohanbv=False, prec_noise=False, eqbv=False, incorrect_semisup=False,
-                  learn_iter=MAX_LEARN_ITER, num_noisebv=0, noise_start=6, noise_stop=83, l1_penalty=0, write_noise_sig=False):
+                  learn_iter=MAX_LEARN_ITER, num_noisebv=0, noise_start=6, noise_stop=83, l1_penalty=0, write_noise_sig=False,
+                  return_16bit=False):
     print('--Initiating Restore Mode--')
     orig_sig_type = sig.dtype
 
@@ -1017,8 +1021,9 @@ def restore_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, marybv=False, 
             plot_matrix(synthetic_spgm, name='Synthetic Spectrogram', ylabel='Frequency (Hz)', ratio=SPGM_BRAHMS_RATIO)
 
     print('\n--Making Synthetic Signal--\n')
-    synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_sig_type, ova=ova, debug=debug)
+    synthetic_sig = make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_sig_type, ova=ova, debug=debug, return_16bit=return_16bit)
     
+    # Important - writing functionality isn't change for noise or not
     if noisebv:
         noise_synthetic_sig = synthetic_sig[:orig_sig_len].copy()
         # Update: Remove first half of signal (noise half)
@@ -1073,14 +1078,14 @@ def main():
 
     learn_iter = 100
 
-    num_noise_bv = 5 # 50 # 20 # 3 # 10 # 5 # 10000 is when last good # 100000 is when it gets bad, but 1000 sounds bad in tests.py
+    num_noise_bv = 10 # 50 # 20 # 3 # 10 # 5 # 10000 is when last good # 100000 is when it gets bad, but 1000 sounds bad in tests.py
 
     # TODO: Use argparse library
     # Configure params
     # Mode - RECONST or RESTORE
     mode = sys.argv[1]
-    out_filepath = ('/Users/quinnmc/Desktop/AudioRestore/output_restored_wav_v3/' if mode == 'RESTORE' else 
-                    '/Users/quinnmc/Desktop/AudioRestore/output_reconstructed_wav/')
+    out_filepath = ('/Users/quinnmc/Desktop/BMSThesis/MusicRestoreNMF/output_restored_wav_v3/' if mode == 'RESTORE' else 
+                    '/Users/quinnmc/Desktop/BMSThesis/MusicRestoreNMF/output_reconstructed_wav/')
     # Signal - comes as a list, filepath or a length
     sig_sr = STD_SR_HZ # Initialize sr to default
     if sys.argv[2].startswith('['):
@@ -1090,7 +1095,7 @@ def main():
         sig = np.random.rand(int(sys.argv[2].replace(',', '')))
         out_filepath += 'rand_sig'
     else:
-        sig_sr, sig = wavfile.read('/Users/quinnmc/Desktop/AudioRestore/' + sys.argv[2])
+        sig_sr, sig = wavfile.read('/Users/quinnmc/Desktop/BMSThesis/MusicRestoreNMF/' + sys.argv[2])
         if sig_sr != STD_SR_HZ:
             sig, sig_sr = librosa.load(sys.argv[2], sr=STD_SR_HZ)  # Upsample to 44.1kHz if necessary
         start_index = (sys.argv[2].rindex('/') + 1) if (sys.argv[2].find('/') != -1) else 0
