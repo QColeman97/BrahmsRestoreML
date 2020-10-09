@@ -1,6 +1,7 @@
 __pycache__/
 
-**/dlnn_data
+/BrahmsRestoreDLNN/dlnn_data/
+/BrahmsRestoreDLNN/tensorflow/
 
 .vscode
 .idea
