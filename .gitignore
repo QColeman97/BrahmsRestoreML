@@ -1,0 +1,6 @@
+__pycache__/
+
+**/dlnn_data
+
+.vscode
+.idea
