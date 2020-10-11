@@ -997,7 +997,7 @@ def evaluate_source_sep(train_generator, validation_generator,
                         num_train, num_val, n_feat, n_seq, batch_size, 
                         loss_const, epochs=20, 
                         optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.75),
-                        patience=10, epsilon=10 ** (-10), config=None, recent_model_path=None,
+                        patience=10, epsilon=10 ** (-10), config=None, recent_model_path=None, pc_run=False,
                         t_mean=None, t_std=None, grid_search_iter=None, gs_path=None, combos=None, gs_id=''):
     # print('X shape:', X.shape, 'y1 shape:', y1.shape, 'y2 shape:', y2.shape)
     # print('X shape:', X.shape)
@@ -1032,6 +1032,7 @@ def evaluate_source_sep(train_generator, validation_generator,
                      validation_steps=(num_val // batch_size),
                      callbacks=[EarlyStopping('val_loss', patience=patience, mode='min')])
 
+    pc_run_str = '' if pc_run else '_noPC'
     if grid_search_iter is None:
         model.save(recent_model_path)
 
@@ -1050,7 +1051,7 @@ def evaluate_source_sep(train_generator, validation_generator,
         plt.ylabel('Loss')
         plt.legend()
         # plt.show()
-        plt.savefig('train_val_loss_chart.png')
+        plt.savefig('train_val_loss_chart' + pc_run_str + '.png')
     else:
         epoch_r = range(1, len(hist.history['loss'])+1)
         plt.plot(epoch_r, hist.history['val_loss'], 'b', label = 'Validation Loss')
@@ -1062,7 +1063,8 @@ def evaluate_source_sep(train_generator, validation_generator,
         # plt.show()
         if len(gs_id) > 0:
             gs_id += '_'
-        plt.savefig(gs_path + gs_id + 'train_val_loss_chart_' + str(grid_search_iter) + 'of' + str(combos) + '.png')
+        plt.savefig(gs_path + gs_id + 'train_val_loss_chart_' + 
+                    str(grid_search_iter) + 'of' + str(combos) + pc_run_str + '.png')
 
     return model, hist.history['loss'], hist.history['val_loss']
 
@@ -1108,22 +1110,23 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # bidiric layer, amp var aug range, batch norm, skip connection over lstms,
     # standardize input & un-standardize output  
     # Maybe factor? Dmged/non-dmged piano input 
-    
+    print('\nPC RUN:', pc_run, '\n\nGRID SEARCH ID:', gs_id if len(gs_id) > 0 else 'N/A', '\n')
 
     num_train, num_val = len(y1_train_files), len(y1_val_files)
 
     # All factors version below:
     # IMPORTANT FOR BATCH SIZE: Factors of total samples * (1 - val_split) for performance
-    batch_size_optns = [1, 3] if pc_run == 'True' else [5, 9, 15]
+    #   - total options: 1,3,5,9,15
+    # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
+    batch_size_optns = [3] if pc_run else [3, 5, 15]
     epochs_optns = [10, 50, 100]
-    loss_const_optns = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
+    # IMPORTANT LATER: Possible exception - can split up one HP, if we run 2 on PC (must be HP easy on mem) ALL OTHER HPs SAME
+    # loss_const_optns = [0.02, 0.1] if pc_run else [0.2, 0.3]
+    #   - total options 0 - 0.3 by steps of 0.05
+    loss_const_optns = [0.02, 0.15, 0.3]
     optimizer_optns = [(tf.keras.optimizers.RMSprop(), 0, 0.001, 'RMSprop'), 
-                      (tf.keras.optimizers.RMSprop(clipvalue=0.3), 0.3, 0.001, 'RMSprop'), 
-                      (tf.keras.optimizers.RMSprop(clipvalue=0.8), 0.8, 0.001, 'RMSprop'), 
                       (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
                       (tf.keras.optimizers.Adam(), 0, 0.001, 'Adam'), 
-                      (tf.keras.optimizers.Adam(clipvalue=0.3), 0.3, 0.001, 'Adam'), 
-                      (tf.keras.optimizers.Adam(clipvalue=0.8), 0.8, 0.001, 'Adam'), 
                       (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')#,
                       ]
     # optimizer_optns = [(tf.keras.optimizers.RMSprop(), 0, 0.001, 'RMSprop'), 
@@ -1138,19 +1141,19 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
     # If time permits, later grid searches explore learning rate & momentum to fine tune
     # dropout_optns = [(0.0,0.0), (0.2,0.2), (0.2,0.5), (0.5,0.2), (0.5,0.5)]   # For RNN only
-    dropout_optns = [(0.0,0.0), (0.3,0.3), (0.3,0.8), (0.8,0.3), (0.8,0.8)]     # For RNN only
+    dropout_optns = [(0.0,0.0), (0.2,0.5), (0.5,0.2), (0.5,0.5)]     # For RNN only
     scale_optns = [True, False]
     rnn_skip_optns = [True, False]
     bias_rnn_optns = [True, False]
     bias_dense_optns = [True, False]
     bidir_optns = [True, False]
     bn_optns = [True, False]            # For Dense only
-    rnn_optns = ['RNN'] if pc_run == 'True' else ['RNN', 'LSTM']
+    rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']
 
     # Optional - for future when I'm not hitting SNR correctly
     # amp_var_rng_optns = [(0.5, 1.25), (0.75, 1.15), (0.9, 1.1)]
 
-    if pc_run == 'True':
+    if pc_run:
         with open(config_path + 'hp_arch_config.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
     else:
@@ -1245,7 +1248,9 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
         # Unsafe to user - do no grid search at all
         # if last_done == combos:
             # restart = True
-        print('RESUMING GRID SEARCH AT ITERATION', last_done + 1)
+        
+        if last_done > 0:
+            print('RESUMING GRID SEARCH AT ITERATION', last_done + 1, '\n')
 
     # Format grid search ID for filenames:
     if len(gs_id) > 0:
@@ -1280,7 +1285,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
                                                                     epochs, opt, 
                                                                     patience=early_stop_pat,
                                                                     epsilon=epsilon,
-                                                                    config=arch_config,
+                                                                    config=arch_config, pc_run=pc_run,
                                                                     t_mean=t_mean, t_std=t_std,
                                                                     grid_search_iter=gs_iter,
                                                                     gs_path=gsres_path,
@@ -1304,7 +1309,8 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
                             #grid_results_val[val_losses[-1]] = merge_two_dicts(arch_config, curr_basic_val_loss)
 
                             # WRITE these results to file too
-                            with open(gsres_path + gs_id + 'result_' + str(gs_iter) + '_of_' + str(combos) + '.txt', 'w') as w_fp:
+                            pc_run_str = '' if pc_run else '_noPC'
+                            with open(gsres_path + gs_id + 'result_' + str(gs_iter) + '_of_' + str(combos) + pc_run_str + '.txt', 'w') as w_fp:
                                 w_fp.write(str(val_losses[-1]) + '\n')
                                 w_fp.write('VAL LOSS ^\n')
                                 w_fp.write(str(losses[-1]) + '\n')
@@ -1464,13 +1470,15 @@ def main():
         print('Mode     t               - Train model, then restore brahms with model')
         print('         g               - Perform grid search (default: starts where last left off)')
         print('         r               - Restore brahms with last-trained model')
-        print('PC       True            - Uses HPs for lower GPU-memory consumption (< 4GB)')
-        print('         False           - Uses full HPs for no GPU-memory limit')
+        print('PC       true            - Uses HPs for lower GPU-memory consumption (< 4GB)')
+        print('         false           - Uses HPs for higher GPU-memory limit (PC HPs + nonPC HPs = total for now)')
         print('-f                       - (Optional) Force restart grid search (if in mode)')
         print('gs_id    <single digit>  - (Optional) grid search unique ID for running concurrently')
+        print('\nTIP: Keep IDs different for PC/non-PC runs on same machine')
         sys.exit(1)
 
-    mode, pc_run = sys.argv[1], sys.argv[2]
+    mode = sys.argv[1] 
+    pc_run = True if (sys.argv[2].lower() == 'true') else False
     use_dmged_piano = False
     use_artificial_noise = False
     test_on_synthetic = False
@@ -1484,7 +1492,7 @@ def main():
 
     epsilon = 10 ** (-10)
     # Orig batch size 5, orig loss const 0.05, orig clipval 0.9
-    train_batch_size = 3 if pc_run == 'True' else 5
+    train_batch_size = 3 if pc_run else 5
     # Notes:
     # FROM PO-SEN PAPER - about loss_const
     # Empirically, the value γ is in the range of 0.05∼0.2 in order
@@ -1593,7 +1601,7 @@ def main():
                                 train_feat=train_feat, wdw_size=wdw_size, 
                                 epsilon=epsilon, pad_len=max_sig_len)
 
-            if pc_run == 'True':
+            if pc_run:
                 with open(config_path + 'hp_arch_config.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
             else:
@@ -1601,7 +1609,7 @@ def main():
                 with open(config_path + 'hp_arch_config_nodimreduc.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
 
-            rnn_optns = ['RNN'] if pc_run == 'True' else ['RNN', 'LSTM']
+            rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']
 
             dropout_optns = [(0.0,0.0)]
             arch_config_optns = []   # Add variations of each bare config to official
@@ -1654,7 +1662,7 @@ def main():
                                     batch_size=train_batch_size, 
                                     loss_const=loss_const, epochs=epochs,
                                     optimizer=optimizer, epsilon=epsilon,
-                                    recent_model_path=recent_model_path,
+                                    recent_model_path=recent_model_path, pc_run=pc_run,
                                     config=config, t_mean=train_mean, t_std=train_std)
             
             if sample:
