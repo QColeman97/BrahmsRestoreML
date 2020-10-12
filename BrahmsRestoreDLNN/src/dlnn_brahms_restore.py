@@ -1026,10 +1026,10 @@ def evaluate_source_sep(train_generator, validation_generator,
     #                  epochs=epochs, batch_size=batch_size)
                     #  callbacks=[tensorboard_callback])
     hist = model.fit(train_generator,
-                     steps_per_epoch=(num_train // batch_size),
+                     steps_per_epoch=math.ceil(num_train / batch_size),
                      epochs=epochs,
                      validation_data=validation_generator,
-                     validation_steps=(num_val // batch_size),
+                     validation_steps=math.ceil(num_val / batch_size),
                      callbacks=[EarlyStopping('val_loss', patience=patience, mode='min')])
 
     pc_run_str = '' if pc_run else '_noPC'
@@ -1118,11 +1118,19 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # IMPORTANT FOR BATCH SIZE: Factors of total samples * (1 - val_split) for performance
     #   - total options: 1,3,5,9,15
     # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
-    batch_size_optns = [3] if pc_run else [3, 5, 15]
+    # batch_size_optns = [3] if pc_run else [3, 5, 15]
+
+    # Being careful about batch size effect on mem -> start low
+    batch_size_optns = [2] if pc_run else [3, 5, 9]    # Lowering batch size 3 -> 2 b/c OOM Error on GS iter 15
     epochs_optns = [10, 50, 100]
-    # IMPORTANT LATER: Possible exception - can split up one HP, if we run 2 on PC (must be HP easy on mem) ALL OTHER HPs SAME
-    # loss_const_optns = [0.02, 0.1] if pc_run else [0.2, 0.3]
-    #   - total options 0 - 0.3 by steps of 0.05
+    # loss_const total options 0 - 0.3 by steps of 0.05
+        # FAILED - IMPORTANT LATER: Possible exception - can split up one HP, if we run 2 on PC (must be HP easy on mem) ALL OTHER HPs SAME
+        # CHANGE - DO NOT COMMIT TIL CHANGE IMPL
+        # batch_size_optns = [3]
+        # rnn_optns = ['RNN']
+        # with open(config_path + 'hp_arch_config.json') as hp_file:
+        #     bare_config_optns = json.load(hp_file)['archs']
+        # loss_const_optns = [0.02, 0.1] if pc_run else [0.2, 0.3]
     loss_const_optns = [0.02, 0.15, 0.3]
     optimizer_optns = [(tf.keras.optimizers.RMSprop(), 0, 0.001, 'RMSprop'), 
                       (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
@@ -1258,11 +1266,11 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
 
     # Full grid search loop
     grid_results_val, grid_results, gs_iter = {}, {}, 1
-    for batch_size in batch_size_optns:
-        for epochs in epochs_optns:
-            for loss_const in loss_const_optns:
-                for opt, clip_val, lr, opt_name in optimizer_optns:
-                    for arch_config in arch_config_optns:
+    for epochs in epochs_optns:
+        for loss_const in loss_const_optns:
+            for opt, clip_val, lr, opt_name in optimizer_optns:
+                for arch_config in arch_config_optns:
+                    for batch_size in batch_size_optns:     # Batch size is tested first -> fast OOM-handling iterations
 
                         if restart or (gs_iter > last_done):
                             # print('DEBUG Batch Size in Grid Search:', batch_size)
@@ -1503,7 +1511,7 @@ def main():
     # TRAINING DATA SPECIFIC CONSTANTS (Change when data changes) #
     MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
     TRAIN_MEAN, TRAIN_STD = 3105.658495759619, 11447.146107795601
-    TOTAL_SMPLS = 60 # Performance: Make divisible by batch_size (actual total = 61)
+    TOTAL_SMPLS = 61 # 60 # Performance: Make divisible by batch_size (actual total = 61) ... questionable
 
     # INFER ONLY
     if mode == 'r':
