@@ -7,5 +7,20 @@ __pycache__/
 
 .vs
 
+/BrahmsRestoreNMF/all_notes_ff_wav/
+/BrahmsRestoreNMF/avged_ova_notes/
+/BrahmsRestoreNMF/brahms_partial_wav/
+/BrahmsRestoreNMF/trimmed_notes/
+/BrahmsRestoreNMF/output_incorrect_nmf/
+/BrahmsRestoreNMF/output_reconstructed_wav/
+/BrahmsRestoreNMF/output_restored_wav_v1/
+/BrahmsRestoreNMF/output_restored_wav_v2/
+/BrahmsRestoreNMF/output_test_noise/
+/BrahmsRestoreNMF/output_test_noise_learnnoise/
+/BrahmsRestoreNMF/output_test_other/
+/BrahmsRestoreNMF/output_test_penalty/
+/BrahmsRestoreNMF/output_test_writefix_newbv/
+/BrahmsRestoreNMF/old_test_output/
+
 .vscode
 .idea
