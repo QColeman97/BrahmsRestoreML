@@ -729,6 +729,42 @@ class TimeFreqMasking(Layer):
 
 #     return loss
 
+# BACKUP TO 2 BELOW
+# def custom_loss(self_true, self_pred, other_true, other_pred, loss_const):
+#     def closure(self_true, self_pred):
+#         last_dim = other_pred.shape[1] * other_pred.shape[2]
+#         return (
+#             tf.math.reduce_mean(tf.reshape(self_pred - self_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+#             (loss_const * tf.math.reduce_mean(tf.reshape(self_pred - other_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+#             tf.math.reduce_mean(tf.reshape(other_pred - other_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+#             (loss_const * tf.math.reduce_mean(tf.reshape(other_pred - self_true, shape=(-1, last_dim)) ** 2, axis=-1))
+#         )
+#     return closure(self_true, self_pred)
+
+# TODO: This method should solve OOM errors, but need to convert symbolic model -> imperative model first
+# def piano_loss(noise_true, noise_pred, loss_const):
+#     def closure(piano_true, piano_pred):
+#         last_dim = noise_pred.shape[1] * noise_pred.shape[2]
+#         return (
+#             tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+#             (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+#             tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+#             (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
+#         )
+#     return closure
+
+# def noise_loss(piano_true, piano_pred, loss_const):
+#     def closure(noise_true, noise_pred):
+#         last_dim = piano_pred.shape[1] * piano_pred.shape[2]
+#         return (
+#             tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+#             (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+#             tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+#             (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1))
+#         )
+#     return closure
+
+
 # Prefer native TF API over Keras backend API whenever possible, mostly
 # https://stackoverflow.com/questions/59361689/redundancies-in-tf-keras-backend-and-tensorflow-libraries
 # AND for TF simplicity, dont put loss calc in a function
@@ -957,6 +993,7 @@ def make_model(features, sequences, batch_size, loss_const=0.05,
         
         # Traditional method of extra arg loss in TF 2.0 no longer works -> add_loss()
         # https://www.youtube.com/watch?v=uhzGTijaw8A&t=1965s
+        # TEMP TEST
         last_dim = noise_pred.shape[1] * noise_pred.shape[2]
         disc_loss = (
             tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
@@ -977,6 +1014,13 @@ def make_model(features, sequences, batch_size, loss_const=0.05,
         # - lower learning rate
         # - gradient clip?
         model.compile(optimizer=optimizer)
+        # TODO: This method should solve OOM errors, but need to convert symbolic model -> imperative model first
+        # model.compile(optimizer=optimizer,
+        #               loss={
+        #                   'piano_pred': piano_loss(noise_true, noise_pred, loss_const),
+        #                   'noise_pred': noise_loss(piano_true, piano_pred, loss_const)
+        #               })
+
                     #   loss={
                     #       'piano_pred': 'mse',
                     #       'noise_pred': 'mse'
@@ -1121,7 +1165,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # batch_size_optns = [3] if pc_run else [3, 5, 15]
 
     # Being careful about batch size effect on mem -> start low
-    batch_size_optns = [2] if pc_run else [3, 5, 9]    # Lowering batch size 3 -> 2 b/c OOM Error on GS iter 15
+    batch_size_optns = [1] if pc_run else [3, 5, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
     epochs_optns = [10, 50, 100]
     # loss_const total options 0 - 0.3 by steps of 0.05
         # FAILED - IMPORTANT LATER: Possible exception - can split up one HP, if we run 2 on PC (must be HP easy on mem) ALL OTHER HPs SAME
@@ -1156,11 +1200,16 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     bias_dense_optns = [True, False]
     bidir_optns = [True, False]
     bn_optns = [True, False]            # For Dense only
+    # TEST - dont believe this should matter (got to iter 16 last w/ & 2 batchsize)
+    # rnn_optns = ['RNN', 'LSTM']
     rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']
 
     # Optional - for future when I'm not hitting SNR correctly
     # amp_var_rng_optns = [(0.5, 1.25), (0.75, 1.15), (0.9, 1.1)]
 
+    # TEST - dont beleive this should matter (got to iter 16 last w/ & 2 batchsize)
+    # with open(config_path + 'hp_arch_config_nodimreduc.json') as hp_file:
+    #     bare_config_optns = json.load(hp_file)['archs']
     if pc_run:
         with open(config_path + 'hp_arch_config.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
