@@ -1477,9 +1477,11 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # batch_size_optns = [3] if pc_run else [3, 5, 15]
 
     # Being careful about batch size effect on mem -> start low
-    batch_size_optns = [1] if pc_run else [3, 5, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
-    epochs_optns = [10, 50, 100]
+    batch_size_optns = [1] if pc_run else [3, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
+    # loss_const total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
+    epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
+    # Paper - joint training causes sensitivity to gamma, keep in low range of (0.05 - 0.2)
         # FAILED - IMPORTANT LATER: Possible exception - can split up one HP, if we run 2 on PC (must be HP easy on mem) ALL OTHER HPs SAME
         # CHANGE - DO NOT COMMIT TIL CHANGE IMPL
         # batch_size_optns = [3]
@@ -1487,7 +1489,8 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
         # with open(config_path + 'hp_arch_config.json') as hp_file:
         #     bare_config_optns = json.load(hp_file)['archs']
         # loss_const_optns = [0.02, 0.1] if pc_run else [0.2, 0.3]
-    loss_const_optns = [0.02, 0.15, 0.3]
+    loss_const_optns = [0.02, 0.2]
+    # Remove no clipval? - 1st GS
     optimizer_optns = [(tf.keras.optimizers.RMSprop(), 0, 0.001, 'RMSprop'), 
                       (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
                       (tf.keras.optimizers.Adam(), 0, 0.001, 'Adam'), 
@@ -1505,7 +1508,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
     # If time permits, later grid searches explore learning rate & momentum to fine tune
     # dropout_optns = [(0.0,0.0), (0.2,0.2), (0.2,0.5), (0.5,0.2), (0.5,0.5)]   # For RNN only
-    dropout_optns = [(0.0,0.0), (0.2,0.5), (0.5,0.2), (0.5,0.5)]     # For RNN only
+    dropout_optns = [(0.0,0.0), (0.2,0.2), (0.5,0.5)]     # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
     scale_optns = [True, False]
     rnn_skip_optns = [True, False]
     bias_rnn_optns = [True, False]
@@ -1527,7 +1530,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
             bare_config_optns = json.load(hp_file)['archs']
     else:
         # with open(config_path + 'hp_arch_config_largedim.json') as hp_file:
-        with open(config_path + 'hp_arch_config_nodimreduc.json') as hp_file:
+        with open(config_path + 'hp_arch_config_nodimr_less.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
 
     # Comment-out block below for all-factors version
@@ -1597,6 +1600,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
 
     combos = (len(batch_size_optns) * len(epochs_optns) * len(loss_const_optns) *
               len(optimizer_optns) * len(arch_config_optns))
+    print('\nGS COMBOS:', combos, '\n')
 
     # Start where last left off, if applicable:
     if not restart:
@@ -1738,7 +1742,8 @@ def infer(X, phases, wdw_size, model, loss_const, optimizer,
           n_feat, seq_len, batch_size, output_path, sr, orig_sig_type, 
           config=None, t_mean=None, t_std=None):
     # Must make new model, b/c TF-Masking depends on batch size
-    X = np.expand_dims(X, axis=0)   # Give a samples dimension (1 sample)
+    # TEST: Give one sample only, for model __call__
+    # X = np.expand_dims(X, axis=0)   # Give a samples dimension (1 sample)
     print('X shape to be predicted on:', X.shape)
     print('Inference Model:')
     model = make_model(n_feat, seq_len, batch_size, loss_const, optimizer,
@@ -1871,7 +1876,8 @@ def main():
     # Empirically, the value γ is in the range of 0.05∼0.2 in order
     # to achieve SIR improvements and maintain SAR and SDR.
     loss_const, epochs, val_split = 0.05, 10, 0.25 #(1/3)
-    optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9) # 10
+    # optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9) # 10
+    optimizer = tf.keras.optimizers.RMSprop(clipvalue=5) # 10
 
     # TRAINING DATA SPECIFIC CONSTANTS (Change when data changes) #
     MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
@@ -1979,14 +1985,14 @@ def main():
                     bare_config_optns = json.load(hp_file)['archs']
             else:
                 # with open(config_path + 'hp_arch_config_largedim.json') as hp_file:
-                with open(config_path + 'hp_arch_config_nodimreduc.json') as hp_file:
+                with open(config_path + 'hp_arch_config_nodimr_less.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
 
             rnn_optns = ['RNN'] if pc_run else ['LSTM']
 
             dropout_optns = [(0.0,0.0)]
             arch_config_optns = []   # Add variations of each bare config to official
-            for config in bare_config_optns[37:38]:    # rand base = #71 last
+            for config in bare_config_optns[16:17]:    # rand base = #71 last
                 for scale_optn in [True]:  
                     for rnn_skip_optn in [True]:    # false last
                         for bias_rnn_optn in [False]:
