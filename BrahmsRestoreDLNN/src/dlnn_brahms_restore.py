@@ -524,6 +524,8 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
             # yield [x_train, y1_train, y2_train], y1_train, y2_train
             yield ({'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, 
                    y1, y2)
+            # IF DOESN'T WORK, TRY
+            # yield (x, y1, y2)
 
             # What fit expects
             # {'piano_noise_mixed': X, 'piano_true': y1, 'noise_true': y2}
@@ -775,6 +777,308 @@ class TimeFreqMasking(Layer):
 #     tf.math.reduce_sum(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
 #     (loss_const * tf.math.reduce_sum(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
 # )
+
+
+# class Restore_Model(Model):
+#     def __init__(self, features, sequences, loss_const, optimizer, 
+#                  pre_trained_wgts=None, name='Restore Model', epsilon=10**(-10),
+#                  config=None, t_mean=None, t_std=None):
+#         super(Restore_Model, self).__init__()
+
+#         # input_layer = Input(shape=(sequences, features), dtype='float32', 
+#         #                 name='piano_noise_mixed')
+
+#         if config is not None:
+#             pass
+#         else:
+#             self.rnn1 = SimpleRNN(features // 2, 
+#                                   activation='relu', 
+#                                   return_sequences=True) (input_layer)
+#             self.rnn2 = SimpleRNN(features // 2, 
+#                                   activation='relu', 
+#                                   return_sequences=True) (x)
+#             self.piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+#             self.noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+#         self.piano_pred = TimeFreqMasking(epsilon=epsilon, 
+#                                             name='piano_pred') ([piano_hat, noise_hat, input_layer])
+#         self.noise_pred = TimeFreqMasking(epsilon=epsilon, 
+#                                             name='noise_pred') ([noise_hat, piano_hat, input_layer])
+#         # self.piano_true = Input(shape=(sequences, features), dtype='float32', 
+#         #                         name='piano_true')
+#         # self.noise_true = Input(shape=(sequences, features), dtype='float32', 
+#         #                         name='noise_true')
+#         # model = Model(inputs=[input_layer, piano_true, noise_true],
+#         #               outputs=[piano_pred, noise_pred])
+    
+#     def call(self, inputs):
+#         input_layer, piano_true, noise_true = inputs[0], inputs[1], inputs[2]
+#         x = self.rnn1(input_layer)
+#         x = self.rnn2(x)
+#         piano_hat = self.dense_branch1(x)
+#         noise_hat = self.dense_branch2(x)
+#         piano_pred = self.piano_tf_mask([piano_hat, noise_hat, input_layer])
+#         noise_pred = self.noise_tf_mask([noise_hat, piano_hat, input_layer])
+
+#         return (piano_pred, noise_pred)
+
+
+# def make_imp_model(features, sequences, batch_size, loss_const=0.05, 
+#                    optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.7),
+#                    pre_trained_wgts=None, name='Model', epsilon=10 ** (-10),
+#                    config=None, t_mean=None, t_std=None):
+
+#     # print('DEBUG Batch Size in Make Model:', batch_size)
+#     # Deprecated param in use
+#     # input_layer = Input(batch_shape=(batch_size, sequences, features),
+#     #                     dtype='float32', name='piano_noise_mixed')
+#     # input_layer = Input(shape=(sequences, features), batch_size=batch_size,
+#     #                     dtype='float32', name='piano_noise_mixed')
+#     input_layer = Input(shape=(sequences, features), dtype='float32', 
+#                         name='piano_noise_mixed')
+#     print('Input Layer Type:', type(input_layer))
+#     print('Input Layer:', input_layer)
+#     # tf.print(input_layer) # Errors
+
+#     if config is not None:
+#         print('Curr config for make_model:')    # Debug
+#         print(config)
+#         #['scale'],['rnn_res_cntn'],['bias_rnn'], ['bias_dense'], 
+#         #['rnn_dropout'], ['bidir'], ['bn']
+
+#         # Create the network
+#         num_layers = len(config['layers'])
+#         prev_layer_type = None  # Works b/c all RNN stacks are size > 1
+#         # for i in range(1, num_layers):
+#         for i in range(num_layers):
+#             layer_config = config['layers'][i]
+#             curr_layer_type = layer_config['type']
+
+#             # Standardize option
+#             if config['scale'] and i == 0:
+#             # if i == 0:
+#                 x = Standardize(t_mean, t_std) (input_layer)
+
+#             # Add skip connection if necessary
+#             if (config['rnn_res_cntn'] and prev_layer_type is not None and
+#                   prev_layer_type != 'Dense' and curr_layer_type == 'Dense'):
+#                 x = Concatenate() ([x, input_layer])
+    
+#             if curr_layer_type == 'RNN':
+#                 if config['bidir']:
+#                     x = Bidirectional(SimpleRNN(features // layer_config['nrn_div'], 
+#                             activation=layer_config['act'], 
+#                             use_bias=config['bias_rnn'],
+#                             dropout=config['rnn_dropout'][0],
+#                             recurrent_dropout=config['rnn_dropout'][1],
+#                             # return_sequences=True)) (x)
+#                             return_sequences=True)) (input_layer if (i == 0 and not config['scale']) else x)
+#                 else:
+#                     x = SimpleRNN(features // layer_config['nrn_div'], 
+#                             activation=layer_config['act'], 
+#                             use_bias=config['bias_rnn'],
+#                             dropout=config['rnn_dropout'][0],
+#                             recurrent_dropout=config['rnn_dropout'][1],
+#                             # return_sequences=True) (x)
+#                             return_sequences=True) (input_layer if (i == 0 and not config['scale']) else x)
+
+#             elif curr_layer_type == 'LSTM':
+#                 if config['bidir']:
+#                     x = Bidirectional(LSTM(features // layer_config['nrn_div'], 
+#                             activation=layer_config['act'], 
+#                             use_bias=config['bias_rnn'],
+#                             dropout=config['rnn_dropout'][0],
+#                             recurrent_dropout=config['rnn_dropout'][1],
+#                             # return_sequences=True)) (x)
+#                             return_sequences=True)) (input_layer if (i == 0 and not config['scale']) else x)
+#                 else:
+#                     x = LSTM(features // layer_config['nrn_div'], 
+#                             activation=layer_config['act'], 
+#                             use_bias=config['bias_rnn'],
+#                             dropout=config['rnn_dropout'][0],
+#                             recurrent_dropout=config['rnn_dropout'][1],
+#                             # return_sequences=True) (x)
+#                             return_sequences=True) (input_layer if (i == 0 and not config['scale']) else x)
+#             elif curr_layer_type == 'Dense':
+#                 if i == (num_layers - 1):   # Last layer is fork layer
+#                     # Reverse standardization at end of model if appropriate
+#                     # TEMP - Do the paper un-scale
+#                     if config['scale']:
+#                         piano_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
+#                                                         # activation=None, 
+#                                                         activation=layer_config['act'], 
+#                                                         use_bias=config['bias_dense']), 
+#                                                     name='piano_hat'
+#                                                    ) (x)
+#                         noise_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
+#                                                         # activation=None, 
+#                                                         activation=layer_config['act'], 
+#                                                         use_bias=config['bias_dense']), 
+#                                                     name='noise_hat'
+#                                                    ) (x)
+#                         if config['bn']:
+#                             piano_hat = BatchNormalization() (piano_hat)
+#                             noise_hat = BatchNormalization() (noise_hat)
+                        
+#                         piano_hat = UnStandardize(t_mean, t_std) (piano_hat)
+#                         noise_hat = UnStandardize(t_mean, t_std) (noise_hat)
+
+#                         # Normal activation method for un-stdize TOO SIMILAR to paper version
+#                         # See if this works (or if necessary this order)
+#                         # Apply activations after un-standardizing
+#                         # if layer_config['act'] == 'relu':
+#                         #     piano_hat = tf.keras.activations.relu(piano_hat)
+#                         #     noise_hat = tf.keras.activations.relu(noise_hat)
+                
+#                     # TEMP - Do a normal un-scale
+#                     else:
+#                         piano_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
+#                                                         activation=layer_config['act'], 
+#                                                         use_bias=config['bias_dense']), 
+#                                                     name='piano_hat'
+#                                                    ) (x)
+#                         noise_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
+#                                                         activation=layer_config['act'], 
+#                                                         use_bias=config['bias_dense']),
+#                                                     name='noise_hat'
+#                                                    ) (x)
+#                         if config['bn']:
+#                             piano_hat = BatchNormalization() (piano_hat)
+#                             noise_hat = BatchNormalization() (noise_hat)
+                        
+#                         # TEMP block
+#                         # piano_hat = UnStandardize(t_mean, t_std) (piano_hat)
+#                         # noise_hat = UnStandardize(t_mean, t_std) (noise_hat)
+
+#                 else:
+#                     x = TimeDistributed(Dense(features // layer_config['nrn_div'],
+#                                             activation=layer_config['act'], 
+#                                             use_bias=config['bias_dense']), 
+#                                     #    ) (x)
+#                                        ) (input_layer if (i == 0 and not config['scale']) else x)
+#                     if config['bn']:
+#                         x = BatchNormalization() (x)
+
+#             prev_layer_type = curr_layer_type
+
+#     # Use pre-configurations (default)
+#     else:
+#         x = SimpleRNN(features // 2, 
+#                       activation='relu', 
+#                       return_sequences=True) (input_layer) 
+#         x = SimpleRNN(features // 2, 
+#                   activation='relu',
+#                   return_sequences=True) (x)
+
+#         # x = TimeDistributed(Dense(features // 2, activation='relu')) (x)
+
+#         piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+#         # piano_hat = BatchNormalization() (piano_hat)
+#         noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+#         # noise_hat = BatchNormalization() (noise_hat)
+
+
+#     piano_pred = TimeFreqMasking(epsilon=epsilon, 
+#                                  name='piano_pred') ([piano_hat, noise_hat, input_layer])
+#     noise_pred = TimeFreqMasking(epsilon=epsilon, 
+#                                  name='noise_pred') ([noise_hat, piano_hat, input_layer])
+
+     
+#     # Two additional 'keras funtional API inputs' for the labels
+#     # Depcrecated param in use
+#     # piano_true = Input(batch_shape=(batch_size, sequences, features),
+#     #                    dtype='float32', name='piano_true')
+#     # noise_true = Input(batch_shape=(batch_size, sequences, features),
+#     #                    dtype='float32', name='noise_true')
+#     # piano_true = Input(shape=(sequences, features), batch_size=batch_size,
+#     #                    dtype='float32', name='piano_true')
+#     # noise_true = Input(shape=(sequences, features), batch_size=batch_size,
+#     #                    dtype='float32', name='noise_true')
+#     piano_true = Input(shape=(sequences, features), dtype='float32', 
+#                        name='piano_true')
+#     noise_true = Input(shape=(sequences, features), dtype='float32', 
+#                        name='noise_true')
+    
+#     print('X shape (inside NN):', input_layer.shape,
+#           'y1 shape (inside NN):', piano_true.shape, 
+#           'y2 shape (inside NN):', noise_true.shape)
+
+#     model = Model(inputs=[input_layer, piano_true, noise_true],
+#                   outputs=[piano_pred, noise_pred])
+#                 #   name=name)  # Erroneous when rebuilding model for inference
+
+#     if pre_trained_wgts is not None:
+#         print('Only loading pre-trained weights for prediction')
+#         model.set_weights(pre_trained_wgts)
+
+#     else:
+#         # # Keras debug block
+#         # debug_piano_model = Model(
+#         #     inputs=model.inputs,
+#         #     # inputs=model.layers[3].output,
+#         #     # outputs=[model.layers[0].output] + model.outputs,
+#         #     outputs=[model.layers[2].output, model.layers[3].output, model.layers[7].output],
+#         #     name='Debug Piano Model (rnn2 out -> piano_hat out -> piano_pred out)'
+#         # )
+#         # debug_noise_model = Model(
+#         #     inputs=model.inputs,
+#         #     outputs=[model.layers[2].output, model.layers[4].output, model.layers[8].output],
+#         #     name='Debug Noise Model (rnn2 out -> noise_hat out -> noise_pred out)'
+#         # )
+#         # xs = tf.random.normal((batch_size, sequences, features))
+#         # # print('DEBUG Piano Model Summary:')
+#         # # print(debug_piano_model.summary())
+#         # print('DEBUG Piano Model Run:')
+#         # print(debug_piano_model(xs, training=True))
+#         # # print('DEBUG Noise Model Summary:')
+#         # # print(debug_noise_model.summary())
+#         # print('DEBUG Noise Model Run:')
+#         # print(debug_noise_model(xs, training=True))
+#         # # print('Model Layers:')
+#         # # print([layer.name for layer in model.layers])
+#         # ['piano_noise_mixed', 'simple_rnn_6', 'simple_rnn_7', 'piano_hat', 'noise_hat', 'piano_true', 'noise_true', 'piano_pred', 'noise_pred']
+        
+#         # Traditional method of extra arg loss in TF 2.0 no longer works -> add_loss()
+#         # https://www.youtube.com/watch?v=uhzGTijaw8A&t=1965s
+#         # TEMP TEST
+#         last_dim = noise_pred.shape[1] * noise_pred.shape[2]
+#         disc_loss = (
+#             tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+#             (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+#             tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+#             (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
+#         )
+#         # disc_loss = (
+#         #     tf.math.reduce_sum(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+#         #     (loss_const * tf.math.reduce_sum(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+#         #     tf.math.reduce_sum(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+#         #     (loss_const * tf.math.reduce_sum(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
+#         # )
+#         model.add_loss(disc_loss)
+
+#         # Default learning rate = 0.001
+#         # To fix exploding gradient 
+#         # - lower learning rate
+#         # - gradient clip?
+#         model.compile(optimizer=optimizer)
+#         # TODO: This method should solve OOM errors, but need to convert symbolic model -> imperative model first
+#         # model.compile(optimizer=optimizer,
+#         #               loss={
+#         #                   'piano_pred': piano_loss(noise_true, noise_pred, loss_const),
+#         #                   'noise_pred': noise_loss(piano_true, piano_pred, loss_const)
+#         #               })
+
+#                     #   loss={
+#                     #       'piano_pred': 'mse',
+#                     #       'noise_pred': 'mse'
+#                     #   },
+#                     #   metrics=['accuracy'])
+#                     #   run_eagerly=True) # need param??? to debug
+
+#         # Lambda layer dependent bug - or from custom loss?
+#     # https://github.com/tensorflow/tensorflow/issues/38988
+#     model._layers = [layer for layer in model._layers if not isinstance(layer, dict)]
+
+#     return model
 
 def make_model(features, sequences, batch_size, loss_const=0.05, 
                optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.7),
@@ -1075,6 +1379,13 @@ def evaluate_source_sep(train_generator, validation_generator,
                      validation_data=validation_generator,
                      validation_steps=math.ceil(num_val / batch_size),
                      callbacks=[EarlyStopping('val_loss', patience=patience, mode='min')])
+
+    # # Custom Training Loop for Custom Loss
+    # # Iterate over epochs
+    # for epoch in range(epochs):
+    #     print("Start of epoch %d" % (epoch,))
+
+    #     # Iterate over the batches of the dataset
 
     pc_run_str = '' if pc_run else '_noPC'
     if grid_search_iter is None:
@@ -1435,7 +1746,9 @@ def infer(X, phases, wdw_size, model, loss_const, optimizer,
                        config=config, t_mean=t_mean, t_std=t_std)
     print(model.summary())
 
-    clear_spgm, noise_spgm = model.predict([X, X, X], batch_size=batch_size)
+    # For small amts of input that fit in one batch: __call__ > predict
+    clear_spgm, noise_spgm = model([X, X, X], batch_size=batch_size, training=False)
+    # clear_spgm, noise_spgm = model.predict([X, X, X], batch_size=batch_size)
     # print('RAW PREDICTIONS -- Clear Spgm Shape:', clear_spgm.shape, 
     #       '\nNoise Spgm Shape:', noise_spgm.shape)
     clear_spgm = clear_spgm.reshape(-1, n_feat)
@@ -1534,6 +1847,8 @@ def main():
         print('gs_id    <single digit>  - (Optional) grid search unique ID for running concurrently')
         print('\nTIP: Keep IDs different for PC/non-PC runs on same machine')
         sys.exit(1)
+
+    # TEMP: Train mode does random HPs by default
 
     mode = sys.argv[1] 
     pc_run = True if (sys.argv[2].lower() == 'true') else False
@@ -1667,11 +1982,11 @@ def main():
                 with open(config_path + 'hp_arch_config_nodimreduc.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
 
-            rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']
+            rnn_optns = ['RNN'] if pc_run else ['LSTM']
 
             dropout_optns = [(0.0,0.0)]
             arch_config_optns = []   # Add variations of each bare config to official
-            for config in bare_config_optns[0:1]:    # rand base = #71 last
+            for config in bare_config_optns[37:38]:    # rand base = #71 last
                 for scale_optn in [True]:  
                     for rnn_skip_optn in [True]:    # false last
                         for bias_rnn_optn in [False]:
@@ -1703,8 +2018,8 @@ def main():
             print('CONFIG OPTIONS (TRAIN ARCH):')
             print(arch_config_optns)
 
-            # config = arch_config_optns[0]
-            config = None
+            config = arch_config_optns[0]
+            # config = None
 
             # TEMP - update for each unique dataset
             # train_mean, train_std = get_stats(y1_train_files, y2_train_files, num_train,
