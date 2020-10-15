@@ -1489,12 +1489,11 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
         # with open(config_path + 'hp_arch_config.json') as hp_file:
         #     bare_config_optns = json.load(hp_file)['archs']
         # loss_const_optns = [0.02, 0.1] if pc_run else [0.2, 0.3]
-    loss_const_optns = [0.02, 0.2]
+    loss_const_optns = [0.05, 0.2]
     # Remove no clipval? - 1st GS
-    optimizer_optns = [(tf.keras.optimizers.RMSprop(), 0, 0.001, 'RMSprop'), 
+    optimizer_optns = [
                       (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-                      (tf.keras.optimizers.Adam(), 0, 0.001, 'Adam'), 
-                      (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')#,
+                      (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
                       ]
     # optimizer_optns = [(tf.keras.optimizers.RMSprop(), 0, 0.001, 'RMSprop'), 
     #                   (tf.keras.optimizers.RMSprop(clipvalue=0.25), 0.25, 0.001, 'RMSprop'), 
@@ -1508,16 +1507,16 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
     # If time permits, later grid searches explore learning rate & momentum to fine tune
     # dropout_optns = [(0.0,0.0), (0.2,0.2), (0.2,0.5), (0.5,0.2), (0.5,0.5)]   # For RNN only
-    dropout_optns = [(0.0,0.0), (0.2,0.2), (0.5,0.5)]     # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
+    dropout_optns = [(0.0,0.0), (0.25,0.25)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
     scale_optns = [True, False]
     rnn_skip_optns = [True, False]
-    bias_rnn_optns = [True, False]
-    bias_dense_optns = [True, False]
+    bias_rnn_optns = [True]     # False
+    bias_dense_optns = [True]   # False
     bidir_optns = [True, False]
     bn_optns = [True, False]            # For Dense only
     # TEST - dont believe this should matter (got to iter 16 last w/ & 2 batchsize)
     # rnn_optns = ['RNN', 'LSTM']
-    rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']
+    rnn_optns = ['RNN'] if pc_run else ['LSTM']
 
     # Optional - for future when I'm not hitting SNR correctly
     # amp_var_rng_optns = [(0.5, 1.25), (0.75, 1.15), (0.9, 1.1)]
@@ -1852,7 +1851,6 @@ def main():
         print('\nTIP: Keep IDs different for PC/non-PC runs on same machine')
         sys.exit(1)
 
-    # TEMP: Train mode does random HPs by default
 
     mode = sys.argv[1] 
     pc_run = True if (sys.argv[2].lower() == 'true') else False
@@ -1875,9 +1873,14 @@ def main():
     # Empirically, the value γ is in the range of 0.05∼0.2 in order
     # to achieve SIR improvements and maintain SAR and SDR.
     loss_const, epochs, val_split = 0.05, 10, 0.25 #(1/3)
+<<<<<<< HEAD
     # optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9) # 10
     optimizer = tf.keras.optimizers.RMSprop() # 10
 
+=======
+    optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9) # 10
+    # optimizer = tf.keras.optimizers.RMSprop(clipvalue=10) # 10
+>>>>>>> 3669e7c8a28f48a1d44140f548b9c8605365a278
 
     # TRAINING DATA SPECIFIC CONSTANTS (Change when data changes) #
     MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
