@@ -1742,8 +1742,7 @@ def infer(X, phases, wdw_size, model, loss_const, optimizer,
           n_feat, seq_len, batch_size, output_path, sr, orig_sig_type, 
           config=None, t_mean=None, t_std=None):
     # Must make new model, b/c TF-Masking depends on batch size
-    # TEST: Give one sample only, for model __call__
-    # X = np.expand_dims(X, axis=0)   # Give a samples dimension (1 sample)
+    X = np.expand_dims(X, axis=0)   # Give a samples dimension (1 sample)
     print('X shape to be predicted on:', X.shape)
     print('Inference Model:')
     model = make_model(n_feat, seq_len, batch_size, loss_const, optimizer,
@@ -1751,9 +1750,9 @@ def infer(X, phases, wdw_size, model, loss_const, optimizer,
                        config=config, t_mean=t_mean, t_std=t_std)
     print(model.summary())
 
-    # For small amts of input that fit in one batch: __call__ > predict
-    clear_spgm, noise_spgm = model([X, X, X], batch_size=batch_size, training=False)
-    # clear_spgm, noise_spgm = model.predict([X, X, X], batch_size=batch_size)
+    # For small amts of input that fit in one batch: __call__ > predict - didn't work :/
+    # clear_spgm, noise_spgm = model([X, X, X], batch_size=batch_size, training=False)
+    clear_spgm, noise_spgm = model.predict([X, X, X], batch_size=batch_size)
     # print('RAW PREDICTIONS -- Clear Spgm Shape:', clear_spgm.shape, 
     #       '\nNoise Spgm Shape:', noise_spgm.shape)
     clear_spgm = clear_spgm.reshape(-1, n_feat)
@@ -1877,12 +1876,8 @@ def main():
     # to achieve SIR improvements and maintain SAR and SDR.
     loss_const, epochs, val_split = 0.05, 10, 0.25 #(1/3)
     # optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9) # 10
-<<<<<<< HEAD
-    optimizer = tf.keras.optimizers.RMSprop(clipvalue=10) # 10
+    optimizer = tf.keras.optimizers.RMSprop() # 10
 
-=======
-    optimizer = tf.keras.optimizers.RMSprop(clipvalue=5) # 10
->>>>>>> fa27a05c4be9bb282ef752e46103dd96d32c061d
 
     # TRAINING DATA SPECIFIC CONSTANTS (Change when data changes) #
     MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
@@ -2029,8 +2024,8 @@ def main():
             print('CONFIG OPTIONS (TRAIN ARCH):')
             print(arch_config_optns)
 
-            # config = arch_config_optns[0]
-            config = None
+            config = arch_config_optns[0]
+            # config = None
 
             # TEMP - update for each unique dataset
             # train_mean, train_std = get_stats(y1_train_files, y2_train_files, num_train,
