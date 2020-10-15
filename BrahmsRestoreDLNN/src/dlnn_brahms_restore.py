@@ -1871,7 +1871,9 @@ def main():
     # Empirically, the value γ is in the range of 0.05∼0.2 in order
     # to achieve SIR improvements and maintain SAR and SDR.
     loss_const, epochs, val_split = 0.05, 10, 0.25 #(1/3)
-    optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9) # 10
+    # optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9) # 10
+    optimizer = tf.keras.optimizers.RMSprop(clipvalue=10) # 10
+
 
     # TRAINING DATA SPECIFIC CONSTANTS (Change when data changes) #
     MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
@@ -2018,8 +2020,8 @@ def main():
             print('CONFIG OPTIONS (TRAIN ARCH):')
             print(arch_config_optns)
 
-            config = arch_config_optns[0]
-            # config = None
+            # config = arch_config_optns[0]
+            config = None
 
             # TEMP - update for each unique dataset
             # train_mean, train_std = get_stats(y1_train_files, y2_train_files, num_train,
