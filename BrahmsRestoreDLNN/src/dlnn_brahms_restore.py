@@ -1555,7 +1555,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
                                         if rnn_optn == 'LSTM':
                                             for i, layer in enumerate(config['layers']):
                                                 if layer['type'] == 'RNN':
-                                                    curr_config['layers'][i]['type'] == rnn_optn
+                                                    curr_config['layers'][i]['type'] = rnn_optn
                                         # Append updated config
                                         arch_config_optns.append(curr_config)       
     
