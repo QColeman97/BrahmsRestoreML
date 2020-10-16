@@ -1603,21 +1603,32 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
 
     # Start where last left off, if applicable:
     if not restart:
+        gs_iters_so_far = []
         # Search through grid search output directory
         base_dir = os.getcwd()
         os.chdir(gsres_path)
-        if len(gs_id) > 0:    
-            gs_results_so_far = [int(f_name[9]) for f_name in os.listdir(os.getcwd()) if 
-                                (f_name.endswith('txt') and f_name[0].isdigit() and f_name[0] == gs_id)]
+        if len(gs_id) > 0:
+            gs_result_files = [fname for f_name in os.listdir(os.getcwd()) if 
+                               (f_name.endswith('txt') and f_name[0].isdigit() and f_name[0] == gs_id)]
+
+            for fname in gs_result_files:
+                gs_iter = [int(token) for token in gs_result_files.split('_') if token.isdigit()][1]  
+                gs_iters_so_far.append(gs_iter)
+
         else:
-            gs_results_so_far = [int(f_name[7]) for f_name in os.listdir(os.getcwd()) if 
-                                (f_name.endswith('txt') and f_name[0] == 'r')]
+            gs_result_files = [fname for f_name in os.listdir(os.getcwd()) if 
+                               (f_name.endswith('txt') and f_name[0] == 'r')]
+
+            for fname in gs_result_files:
+                gs_iter = [int(token) for token in gs_result_files.split('_') if token.isdigit()][0]  
+                gs_iters_so_far.append(gs_iter)
+
         os.chdir(base_dir)
         # Know the last done job, if any jobs were done
-        gs_results_so_far.sort(reverse=True)
-        last_done = gs_results_so_far[0] if (len(gs_results_so_far) > 0) else 0
+        gs_iters_so_far.sort(reverse=True)
+        last_done = gs_iters_so_far[0] if (len(gs_iters_so_far) > 0) else 0
 
-        # Unsafe to user - do no grid search at all
+        # Unsafe to user - do no grid search at all instead
         # if last_done == combos:
             # restart = True
         
