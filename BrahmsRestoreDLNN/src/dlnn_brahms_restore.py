@@ -1990,12 +1990,12 @@ def main():
             dropout_optns = [(0.0,0.0)]
             arch_config_optns = []   # Add variations of each bare config to official
             for config in bare_config_optns[16:17]:    # rand base = #71 last
-                for scale_optn in [True]:  
+                for scale_optn in [False]:  
                     for rnn_skip_optn in [True]:    # false last
-                        for bias_rnn_optn in [False]:
+                        for bias_rnn_optn in [True]:
                             for bias_dense_optn in [True]:
                                 for dropout_optn in dropout_optns:      # For RNN only
-                                    for bidir_optn in [True]:
+                                    for bidir_optn in [False]:
                                         for bn_optn in [False]:   # For Dense only # true last
                                             for rnn_optn in rnn_optns:
                                                 # Important: skip bad output cases
