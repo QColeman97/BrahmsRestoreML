@@ -70,6 +70,8 @@ SPGM_BRAHMS_RATIO = 0.08
 #    z.update(y)
 #    return z
 
+# TEST - call() input for imp model
+# global_phases1, global_phases2, global_phases3 = None, None, None
 
 # DSP FUNCTIONS:
 def plot_matrix(matrix, name, ylabel, ratio=0.08):
@@ -95,7 +97,7 @@ def plot_matrix(matrix, name, ylabel, ratio=0.08):
         plt.ylim(num_comp, 0.0)   # Crop an axis (to ~double the piano frequency max)
         ax.set_aspect(ratio)    # Set a visually nice ratio
     # plt.show()
-    plt.savefig(name + '.png')
+    plt.savefig('../' + name + '.png')
 
 # SIGNAL -> SPECTROGRAM
 def signal_to_pos_fft(sgmt, wdw_size, ova=False, debug_flag=False):
@@ -374,6 +376,7 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
         # Get index to start each batch: [0, batch_size, 2*batch_size, ..., max multiple of batch_size <= num_samples]
         # print('In the TRAIN generator loop') if (num_samples == 45) else print('In the VAL generator loop')
         for offset in range(0, num_samples, batch_size):
+            # print('OFFSET:', offset)
             # print('Starting batch', (offset + batch_size) / batch_size, 'out of', num_samples / batch_size)
             # Get the samples you'll use in this batch
             # batch_samples = x_files[offset:offset+batch_size]
@@ -390,6 +393,7 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
             # For each example
             # for i, batch_sample in enumerate(batch_samples):
             for i in range(len(batch_labels1)):
+                # print('I:', i)
                 # print('Making training sample', (i+1), 'out of', len(batch_labels1))
                 # Load mixed source (x) and source labels (y1, y2)
                 # pn_filepath = batch_sample
@@ -479,12 +483,26 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
                 noise_label_sig = np.pad(noise_label_sig, (0,deficit))
                 # print('We\'re just sigs!')
 
+                # noise_piano_spgm, np_phase
                 noise_piano_spgm, _ = make_spectrogram(noise_piano_sig, wdw_size, epsilon, 
                                                 ova=True, debug=False)#[0].astype('float32').T
                 piano_label_spgm, _ = make_spectrogram(piano_label_sig, wdw_size, epsilon,
                                                 ova=True, debug=False)
                 noise_label_spgm, _ = make_spectrogram(noise_label_sig, wdw_size, epsilon, 
                                                 ova=True, debug=False)
+
+                # if offset == 0 and i == 0:
+                #     global_phases1 = np_phase
+                #     print('GLOBAL PHASES 1:', global_phases1.shape)
+                #     np_phase.tofile('1')
+                # elif offset == 0 and i == 1:
+                #     global_phases2 = np_phase
+                #     print('GLOBAL PHASES 2:', global_phases2.shape)
+                #     np_phase.tofile('2')
+                # elif offset == 0 and i == 2:
+                #     global_phases3 = np_phase
+                #     print('GLOBAL PHASES 3:', global_phases3.shape)
+                #     np_phase.tofile('3')
 
                 # if i == 0:
                 #     print('Mixed Sig:', noise_piano_sig[1000:1010])
@@ -527,6 +545,7 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
             # yield ({'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, 
             #        y1, y2)
             # IF DOESN'T WORK, TRY
+            print('IN GENERATOR YEILDING SHAPE:', (x.shape, y1.shape, y2.shape))
             yield (x, y1, y2)
 
             # What fit expects
@@ -538,19 +557,19 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
 def get_stats(y1_filenames, y2_filenames, num_samples, train_seq, train_feat, 
               wdw_size, epsilon, pad_len, src_amp_low=0.75, src_amp_high=1.15):
     
-    # samples = np.empty((num_samples, train_seq, train_feat))
-    piano_samples = np.empty((num_samples, train_seq, train_feat))
-    # noise_samples = np.empty((num_samples, train_seq, train_feat))
-    aug_piano_samples = np.empty((num_samples, train_seq, train_feat))
-    # aug_noise_samples = np.empty((num_samples, train_seq, train_feat))
+    samples = np.empty((num_samples, train_seq, train_feat))
+    # piano_samples = np.empty((num_samples, train_seq, train_feat))
+    # # noise_samples = np.empty((num_samples, train_seq, train_feat))
+    # aug_piano_samples = np.empty((num_samples, train_seq, train_feat))
+    # # aug_noise_samples = np.empty((num_samples, train_seq, train_feat))
     for i in range(num_samples):
         _, piano_label_sig = wavfile.read(y1_filenames[i])
         _, noise_label_sig = wavfile.read(y2_filenames[i])
 
-        print('Piano Sig Type:')
-        print(piano_label_sig.dtype)
-        print(piano_label_sig)
-        print('Done')
+        # print('Piano Sig Type:')
+        # print(piano_label_sig.dtype)
+        # print(piano_label_sig)
+        # print('Done')
 
         # pl_orig_type, nl_orig_type = piano_label_sig.dtype, noise_label_sig.dtype 
         piano_label_sig, noise_label_sig = piano_label_sig.astype('float64'), noise_label_sig.astype('float64')
@@ -563,57 +582,73 @@ def get_stats(y1_filenames, y2_filenames, num_samples, train_seq, train_feat,
             # noise_label_sig = np.array([((x[0] + x[1]) / 2) for x in noise_label_sig.astype('float32')]).astype(n_type)
             noise_label_sig = np.average(noise_label_sig, axis=-1)
 
-        # Pad up here now to support earlier tests
-        deficit = pad_len - len(piano_label_sig)
-        piano_label_sig = np.pad(piano_label_sig, (0,deficit))
-        # noise_label_sig = np.pad(noise_label_sig, (0,deficit))
+
+        avg_src_sum = (np.sum(piano_label_sig) + np.sum(noise_label_sig)) / 2
+        src_percent_1 = random.randrange(int((src_amp_low*100) // 2), int((src_amp_high*100) // 2)) / 100
+        src_percent_2 = 1 - src_percent_1
+        piano_src_is_1 = bool(random.getrandbits(1))
+        if piano_src_is_1:
+            piano_label_sig *= src_percent_1
+            noise_label_sig *= src_percent_2
+        else:
+            piano_label_sig *= src_percent_2
+            noise_label_sig *= src_percent_1
+
+        noise_piano_sig = piano_label_sig + noise_label_sig
+        noise_piano_sig *= (avg_src_sum / np.sum(noise_piano_sig))     
+
+
+        # # Pad up here now to support earlier tests
+        # deficit = pad_len - len(piano_label_sig)
+        # piano_label_sig = np.pad(piano_label_sig, (0,deficit))
+        # # noise_label_sig = np.pad(noise_label_sig, (0,deficit))
         
-        piano_spgm, _ = make_spectrogram(piano_label_sig, wdw_size, epsilon, 
-                                                ova=True, debug=False)
-        # noise_spgm, _ = make_spectrogram(noise_label_sig, wdw_size, epsilon, 
-                                                # ova=True, debug=False)
+        # piano_spgm, _ = make_spectrogram(piano_label_sig, wdw_size, epsilon, 
+        #                                         ova=True, debug=False)
+        # # noise_spgm, _ = make_spectrogram(noise_label_sig, wdw_size, epsilon, 
+        #                                         # ova=True, debug=False)
 
-        # VISUAL TEST
-        # print('PIANO SPGM #', i)
-        # for i in range(train_seq):
-        #     print(piano_spgm[i])
-        # print('DONE')
+        # # VISUAL TEST
+        # # print('PIANO SPGM #', i)
+        # # for i in range(train_seq):
+        # #     print(piano_spgm[i])
+        # # print('DONE')
 
-        piano_samples[i] = piano_spgm
-        # noise_samples[i] = noise_spgm
+        # piano_samples[i] = piano_spgm
+        # # noise_samples[i] = noise_spgm
 
-        piano_amp_factor = random.uniform(src_amp_low, src_amp_high)
-        noise_amp_factor = random.uniform(src_amp_low, src_amp_high)
-        piano_label_sig *= piano_amp_factor
-        noise_label_sig *= noise_amp_factor
+        # piano_amp_factor = random.uniform(src_amp_low, src_amp_high)
+        # noise_amp_factor = random.uniform(src_amp_low, src_amp_high)
+        # piano_label_sig *= piano_amp_factor
+        # noise_label_sig *= noise_amp_factor
 
-        aug_piano_spgm, _ = make_spectrogram(piano_label_sig, wdw_size, epsilon, 
-                                                ova=True, debug=False)
-        # aug_noise_spgm, _ = make_spectrogram(noise_label_sig, wdw_size, epsilon, 
-                                                # ova=True, debug=False)
-        aug_piano_samples[i] = aug_piano_spgm
-        # aug_noise_samples[i] = aug_noise_spgm
+        # aug_piano_spgm, _ = make_spectrogram(piano_label_sig, wdw_size, epsilon, 
+        #                                         ova=True, debug=False)
+        # # aug_noise_spgm, _ = make_spectrogram(noise_label_sig, wdw_size, epsilon, 
+        #                                         # ova=True, debug=False)
+        # aug_piano_samples[i] = aug_piano_spgm
+        # # aug_noise_samples[i] = aug_noise_spgm
 
         # noise_piano_sig = piano_label_sig + noise_label_sig
-        # # deficit = pad_len - len(noise_piano_sig)
-        # # noise_piano_sig = np.pad(noise_piano_sig, (0,deficit))
+        deficit = pad_len - len(noise_piano_sig)
+        noise_piano_sig = np.pad(noise_piano_sig, (0,deficit))
 
-        # noise_piano_spgm, _ = make_spectrogram(noise_piano_sig, wdw_size, epsilon, 
-        #                                         ova=True, debug=False)
-        # samples[i] = noise_piano_spgm
+        noise_piano_spgm, np_phase = make_spectrogram(noise_piano_sig, wdw_size, epsilon, 
+                                                ova=True, debug=False)
+        samples[i] = noise_piano_spgm
 
-    # print('A different test: the average sum of piano and noise labels')
-    # # print('Avg sum of piano sources:', np.mean(np.sum(piano_samples, axis=-1)))
-    # print('Avg sum of noise sources:', np.mean(np.sum(noise_samples, axis=-1)))
-    # # print('Avg sum of aug piano sources:', np.mean(np.sum(aug_piano_samples, axis=-1)))
-    # print('Avg sum of aug noise sources:', np.mean(np.sum(aug_noise_samples, axis=-1)))
-    print('A different test: the average val of piano and noise labels')
-    print('Avg of piano sources:', np.mean(piano_samples))
-    # print('Avg of noise sources:', np.mean(noise_samples))
-    print('Avg of aug piano sources:', np.mean(aug_piano_samples))
-    # print('Avg of aug noise sources:', np.mean(aug_noise_samples))
+    # # print('A different test: the average sum of piano and noise labels')
+    # # # print('Avg sum of piano sources:', np.mean(np.sum(piano_samples, axis=-1)))
+    # # print('Avg sum of noise sources:', np.mean(np.sum(noise_samples, axis=-1)))
+    # # # print('Avg sum of aug piano sources:', np.mean(np.sum(aug_piano_samples, axis=-1)))
+    # # print('Avg sum of aug noise sources:', np.mean(np.sum(aug_noise_samples, axis=-1)))
+    # print('A different test: the average val of piano and noise labels')
+    # print('Avg of piano sources:', np.mean(piano_samples))
+    # # print('Avg of noise sources:', np.mean(noise_samples))
+    # print('Avg of aug piano sources:', np.mean(aug_piano_samples))
+    # # print('Avg of aug noise sources:', np.mean(aug_noise_samples))
     
-    # return np.mean(samples), np.std(samples)
+    return np.mean(samples), np.std(samples)
 
 
 
@@ -781,7 +816,7 @@ class TimeFreqMasking(Layer):
 # )
 
 # Loss function for subclassed model
-def custom_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
+def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
     return (
         tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
@@ -791,54 +826,106 @@ def custom_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
     )
 
 
-class Restoration_Model(Model):
-    def __init__(self, features, loss_const, name='Restoration Model', 
-                 epsilon=10**(-10), config=None, t_mean=None, t_std=None):
-        super(Restore_Model, self).__init__()
-        self.config = config
-        self.loss_const = loss_const
-        self.name = name
-        if self.config is not None:
-            pass
-        else:
-            self.rnn1 = SimpleRNN(features // 2, 
-                                  activation='relu', 
-                                  return_sequences=True)
-            self.rnn2 = SimpleRNN(features // 2, 
-                                  activation='relu', 
-                                  return_sequences=True)
-            self.dense_branch1 = TimeDistributed(Dense(features), name='piano_hat')
-            self.dense_branch2 = TimeDistributed(Dense(features), name='noise_hat')
-        self.piano_tf_mask = TimeFreqMasking(epsilon=epsilon, name='piano_pred')
-        self.noise_tf_mask = TimeFreqMasking(epsilon=epsilon, name='noise_pred')
+# class Restoration_Model(Model):
+#     def __init__(self, features, loss_const, name='Restoration Model', 
+#                  epsilon=10**(-10), config=None, t_mean=None, t_std=None, **kwargs):
+#         super(Restoration_Model, self).__init__(name=name, **kwargs)
+#         self.config = config
+#         self.loss_const = loss_const
+#         self._name = name
+#         if self.config is not None:
+#             pass
+#         else:
+#             self.rnn1 = SimpleRNN(features // 2, 
+#                                   activation='relu', 
+#                                   return_sequences=True)
+#             self.rnn2 = SimpleRNN(features // 2, 
+#                                   activation='relu', 
+#                                   return_sequences=True)
+#             self.dense_branch1 = TimeDistributed(Dense(features), name='piano_hat')
+#             self.dense_branch2 = TimeDistributed(Dense(features), name='noise_hat')
+#         self.piano_tf_mask = TimeFreqMasking(epsilon=epsilon, name='piano_pred')
+#         self.noise_tf_mask = TimeFreqMasking(epsilon=epsilon, name='noise_pred')
  
 
+#     def call(self, inputs):
+#         # piano_noise_mix, p_true, n_true = inputs[0], inputs[1], inputs[2]
+#         # print('SHAPE OF INCOMING INPUTS (CALL):', inputs.shape)
+#         # global_phases1, global_phases2, global_phases3 = np.fromfile('1').reshape((1847, 2049)), np.fromfile('2').reshape((1847, 2049)), np.fromfile('3').reshape((1847, 2049))
+#         # print('TEST - WRITE THESE TO WAV -', global_phases1.shape, global_phases2.shape, global_phases3.shape)
+#         # synthetic_sig = make_synthetic_signal(inputs[0].numpy(), global_phases1, PIANO_WDW_SIZE, 
+#         #                                       'int16', ova=True, debug=False)
+#         # wavfile.write('1.wav', 44100, synthetic_sig)
+#         # synthetic_sig = make_synthetic_signal(inputs[1].numpy(), global_phases2, PIANO_WDW_SIZE, 
+#         #                                       'int16', ova=True, debug=False)
+#         # wavfile.write('2.wav', 44100, synthetic_sig)
+#         # synthetic_sig = make_synthetic_signal(inputs[2].numpy(), global_phases3, PIANO_WDW_SIZE, 
+#         #                                       'int16', ova=True, debug=False)
+#         # wavfile.write('3.wav', 44100, synthetic_sig)
+#         # print('SHAPE OF X INPUT (CALL):', piano_noise_mix.shape)
+#         if self.config is not None:
+#             pass
+#         else:
+#             # x = self.rnn1(piano_noise_mix)
+#             x = self.rnn1(inputs)
+#             x = self.rnn2(x)
+#             piano_hat = self.dense_branch1(x)   # source 1 branch
+#             noise_hat = self.dense_branch2(x)   # source 2 branch
+#         piano_pred = self.piano_tf_mask([piano_hat, noise_hat, inputs])
+#         noise_pred = self.noise_tf_mask([noise_hat, piano_hat, inputs])
+#         # piano_pred = self.piano_tf_mask([piano_hat, noise_hat, piano_noise_mix])
+#         # noise_pred = self.noise_tf_mask([noise_hat, piano_hat, piano_noise_mix])
+
+#         return (piano_pred, noise_pred)
+
+
+    # def train_step(self, data):
+    #     # Unpack data - what generator yeilds
+    #     # {'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, y1, y2 = data
+    #     x, piano_true, noise_true = data
+
+    #     print('SHAPE OF X INPUT (TRAIN_STEP):', x.shape)
+    #     with tf.GradientTape() as tape:
+    #         # y_pred = self(x, training=True) # Forward pass
+    #         piano_pred, noise_pred = self((x, piano_true, noise_true), training=True)   # Forward pass
+    #         # Compute the loss value
+    #         # loss = self.compiled_loss(y, y_pred, regularization_losses=self.losses)
+    #         loss = self.compiled_loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
+
+    #     # Compute gradients
+    #     trainable_vars = self.trainable_variables
+    #     gradients = tape.gradient(loss, trainable_vars)
+    #     # Update weights
+    #     self.optimizer.apply_gradients(zip(gradients, trainable_vars))
+    #     # Update metrics (includes the metric that tracks the loss)
+    #     # self.compiled_metrics.update_state(y, y_pred)
+    #     # Uncomment if error here (no metrics)
+    #     # self.compiled_metrics.update_state(piano_true, noise_true, piano_pred, noise_pred)
+    #     # Return a dict mapping metric names to current value
+    #     return {m.name: m.result() for m in self.metrics}
+
+class Restoration_Model(Model):
+    def __init__(self, model, loss_const):
+        super(Restoration_Model, self).__init__()
+        self.model = model
+        self.loss_const = loss_const
+
     def call(self, inputs):
-        piano_noise_mix, _, _ = inputs[0], inputs[1], inputs[2]
-        if self.config is not None:
-            pass
-        else:
-            x = self.rnn1(input_layer)
-            x = self.rnn2(x)
-            piano_hat = self.dense_branch1(x)   # source 1 branch
-            noise_hat = self.dense_branch2(x)   # source 2 branch
-        piano_pred = self.piano_tf_mask([piano_hat, noise_hat, piano_noise_mix])
-        noise_pred = self.noise_tf_mask([noise_hat, piano_hat, piano_noise_mix])
-
-        return (piano_pred, noise_pred)
-
+        print('IN CALL (INPUTS SHAPE):', inputs.shape)
+        return self.model(inputs)
 
     def train_step(self, data):
         # Unpack data - what generator yeilds
-        # {'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, y1, y2 = data
         x, piano_true, noise_true = data
 
+        print('SHAPE OF X INPUT (TRAIN_STEP):', x.shape)
+        print('SHAPE OF DATA INPUT (TRAIN_STEP):', data.shape)
         with tf.GradientTape() as tape:
             # y_pred = self(x, training=True) # Forward pass
-            piano_pred, noise_pred = self((x, piano_true, noise_true), training=True)   # Forward pass
+            piano_pred, noise_pred = self.model((x, piano_true, noise_true), training=True) # Forward pass
             # Compute the loss value
             # loss = self.compiled_loss(y, y_pred, regularization_losses=self.losses)
-            loss = self.compiled_loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
+            loss = self.compiled_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const=self.loss_const)
 
         # Compute gradients
         trainable_vars = self.trainable_variables
@@ -847,18 +934,24 @@ class Restoration_Model(Model):
         self.optimizer.apply_gradients(zip(gradients, trainable_vars))
         # Update metrics (includes the metric that tracks the loss)
         # self.compiled_metrics.update_state(y, y_pred)
-        self.compiled_metrics.update_state(piano_true, noise_true, piano_pred, noise_pred)
+        # Uncomment if error here (no metrics)
+        # self.compiled_metrics.update_state(piano_true, noise_true, piano_pred, noise_pred)
         # Return a dict mapping metric names to current value
         return {m.name: m.result() for m in self.metrics}
 
 
-def make_imp_model(features, loss_const=0.05, 
+def make_imp_model(features, sequences, loss_const=0.05, 
                    optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.7),
-                   pre_trained_wgts=None, name='Model', epsilon=10 ** (-10),
+                   pre_trained_wgts=None, name='Restoration Model', epsilon=10 ** (-10),
                    config=None, t_mean=None, t_std=None):
     
-    model = Restoration_Model(features, loss_const, name=name, epsilon=epsilon, 
-                              config=config, t_mean=t_mean, t_std=t_std)
+    # model = Restoration_Model(features, loss_const, name=name, epsilon=epsilon, 
+    #                           config=config, t_mean=t_mean, t_std=t_std)
+    # NEW TRY
+    model = Restoration_Model(make_model(features, sequences, loss_const, optimizer, 
+                                         name='Training Model', epsilon=epsilon, config=config,
+                                         t_mean=t_mean, t_std=t_std, for_imp=True),
+                              loss_const=loss_const)
 
     if pre_trained_wgts is not None:
         print('Only loading pre-trained weights for prediction')
@@ -874,10 +967,10 @@ def make_imp_model(features, loss_const=0.05,
     return model
 
 
-def make_model(features, sequences, batch_size, loss_const=0.05, 
+def make_model(features, sequences, loss_const=0.05, 
                optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.7),
                pre_trained_wgts=None, name='Model', epsilon=10 ** (-10),
-               config=None, t_mean=None, t_std=None):
+               config=None, t_mean=None, t_std=None, for_imp=False):
 
     # print('DEBUG Batch Size in Make Model:', batch_size)
     # Deprecated param in use
@@ -1057,74 +1150,75 @@ def make_model(features, sequences, batch_size, loss_const=0.05,
     model = Model(inputs=[input_layer, piano_true, noise_true],
                   outputs=[piano_pred, noise_pred])
                 #   name=name)  # Erroneous when rebuilding model for inference
+    
+    if not for_imp:
+        if pre_trained_wgts is not None:
+            print('Only loading pre-trained weights for prediction')
+            model.set_weights(pre_trained_wgts)
 
-    if pre_trained_wgts is not None:
-        print('Only loading pre-trained weights for prediction')
-        model.set_weights(pre_trained_wgts)
+        else:
+            # # Keras debug block
+            # debug_piano_model = Model(
+            #     inputs=model.inputs,
+            #     # inputs=model.layers[3].output,
+            #     # outputs=[model.layers[0].output] + model.outputs,
+            #     outputs=[model.layers[2].output, model.layers[3].output, model.layers[7].output],
+            #     name='Debug Piano Model (rnn2 out -> piano_hat out -> piano_pred out)'
+            # )
+            # debug_noise_model = Model(
+            #     inputs=model.inputs,
+            #     outputs=[model.layers[2].output, model.layers[4].output, model.layers[8].output],
+            #     name='Debug Noise Model (rnn2 out -> noise_hat out -> noise_pred out)'
+            # )
+            # xs = tf.random.normal((batch_size, sequences, features))
+            # # print('DEBUG Piano Model Summary:')
+            # # print(debug_piano_model.summary())
+            # print('DEBUG Piano Model Run:')
+            # print(debug_piano_model(xs, training=True))
+            # # print('DEBUG Noise Model Summary:')
+            # # print(debug_noise_model.summary())
+            # print('DEBUG Noise Model Run:')
+            # print(debug_noise_model(xs, training=True))
+            # # print('Model Layers:')
+            # # print([layer.name for layer in model.layers])
+            # ['piano_noise_mixed', 'simple_rnn_6', 'simple_rnn_7', 'piano_hat', 'noise_hat', 'piano_true', 'noise_true', 'piano_pred', 'noise_pred']
+            
+            # Traditional method of extra arg loss in TF 2.0 no longer works -> add_loss()
+            # https://www.youtube.com/watch?v=uhzGTijaw8A&t=1965s
+            # TEMP TEST
+            last_dim = noise_pred.shape[1] * noise_pred.shape[2]
+            disc_loss = (
+                tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+                (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+                tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+                (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
+            )
+            # disc_loss = (
+            #     tf.math.reduce_sum(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+            #     (loss_const * tf.math.reduce_sum(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+            #     tf.math.reduce_sum(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+            #     (loss_const * tf.math.reduce_sum(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
+            # )
+            model.add_loss(disc_loss)
 
-    else:
-        # # Keras debug block
-        # debug_piano_model = Model(
-        #     inputs=model.inputs,
-        #     # inputs=model.layers[3].output,
-        #     # outputs=[model.layers[0].output] + model.outputs,
-        #     outputs=[model.layers[2].output, model.layers[3].output, model.layers[7].output],
-        #     name='Debug Piano Model (rnn2 out -> piano_hat out -> piano_pred out)'
-        # )
-        # debug_noise_model = Model(
-        #     inputs=model.inputs,
-        #     outputs=[model.layers[2].output, model.layers[4].output, model.layers[8].output],
-        #     name='Debug Noise Model (rnn2 out -> noise_hat out -> noise_pred out)'
-        # )
-        # xs = tf.random.normal((batch_size, sequences, features))
-        # # print('DEBUG Piano Model Summary:')
-        # # print(debug_piano_model.summary())
-        # print('DEBUG Piano Model Run:')
-        # print(debug_piano_model(xs, training=True))
-        # # print('DEBUG Noise Model Summary:')
-        # # print(debug_noise_model.summary())
-        # print('DEBUG Noise Model Run:')
-        # print(debug_noise_model(xs, training=True))
-        # # print('Model Layers:')
-        # # print([layer.name for layer in model.layers])
-        # ['piano_noise_mixed', 'simple_rnn_6', 'simple_rnn_7', 'piano_hat', 'noise_hat', 'piano_true', 'noise_true', 'piano_pred', 'noise_pred']
-        
-        # Traditional method of extra arg loss in TF 2.0 no longer works -> add_loss()
-        # https://www.youtube.com/watch?v=uhzGTijaw8A&t=1965s
-        # TEMP TEST
-        last_dim = noise_pred.shape[1] * noise_pred.shape[2]
-        disc_loss = (
-            tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-            (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-            tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-            (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
-        )
-        # disc_loss = (
-        #     tf.math.reduce_sum(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-        #     (loss_const * tf.math.reduce_sum(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-        #     tf.math.reduce_sum(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-        #     (loss_const * tf.math.reduce_sum(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
-        # )
-        model.add_loss(disc_loss)
+            # Default learning rate = 0.001
+            # To fix exploding gradient 
+            # - lower learning rate
+            # - gradient clip?
+            model.compile(optimizer=optimizer)
+            # TODO: This method should solve OOM errors, but need to convert symbolic model -> imperative model first
+            # model.compile(optimizer=optimizer,
+            #               loss={
+            #                   'piano_pred': piano_loss(noise_true, noise_pred, loss_const),
+            #                   'noise_pred': noise_loss(piano_true, piano_pred, loss_const)
+            #               })
 
-        # Default learning rate = 0.001
-        # To fix exploding gradient 
-        # - lower learning rate
-        # - gradient clip?
-        model.compile(optimizer=optimizer)
-        # TODO: This method should solve OOM errors, but need to convert symbolic model -> imperative model first
-        # model.compile(optimizer=optimizer,
-        #               loss={
-        #                   'piano_pred': piano_loss(noise_true, noise_pred, loss_const),
-        #                   'noise_pred': noise_loss(piano_true, piano_pred, loss_const)
-        #               })
-
-                    #   loss={
-                    #       'piano_pred': 'mse',
-                    #       'noise_pred': 'mse'
-                    #   },
-                    #   metrics=['accuracy'])
-                    #   run_eagerly=True) # need param??? to debug
+                        #   loss={
+                        #       'piano_pred': 'mse',
+                        #       'noise_pred': 'mse'
+                        #   },
+                        #   metrics=['accuracy'])
+                        #   run_eagerly=True) # need param??? to debug
 
         # Lambda layer dependent bug - or from custom loss?
     # https://github.com/tensorflow/tensorflow/issues/38988
@@ -1145,12 +1239,15 @@ def evaluate_source_sep(train_generator, validation_generator,
     # print('X shape:', X.shape)
     print('Making model...')
     # print('DEBUG Batch Size in Eval Src Sep:', batch_size)
-    model = make_imp_model(n_feat, loss_const=loss_const, optimizer=optimizer,
+    model = make_imp_model(n_feat, n_seq, loss_const=loss_const, optimizer=optimizer,
                            epsilon=epsilon, config=config, t_mean=t_mean, t_std=t_std)
-    # model = make_model(n_feat, n_seq, batch_size, loss_const, optimizer, 
+    # model = make_model(n_feat, n_seq, loss_const, optimizer, 
     #                     name='Training Model', epsilon=epsilon, config=config,
     #                    t_mean=t_mean, t_std=t_std)
-    print(model.summary())
+    
+    # For imperative model, build before summary BUT fixes batch size
+    # print(model.summary())
+
     # Not necessary for HPC (can't run on HPC)
     # tf.keras.utils.plot_model(model, 
     #                        (gs_path + 'model' + str(grid_search_iter) + 'of' + str(combos) + '.png'
@@ -1175,7 +1272,7 @@ def evaluate_source_sep(train_generator, validation_generator,
                      validation_data=validation_generator,
                      validation_steps=math.ceil(num_val / batch_size),
                      callbacks=[EarlyStopping('val_loss', patience=patience, mode='min')])
-
+    print(model.summary())
     # # Custom Training Loop for Custom Loss
     # # Iterate over epochs
     # for epoch in range(epochs):
@@ -1203,7 +1300,7 @@ def evaluate_source_sep(train_generator, validation_generator,
         plt.ylabel('Loss')
         plt.legend()
         # plt.show()
-        plt.savefig('train_val_loss_chart' + pc_run_str + '.png')
+        plt.savefig('../train_val_loss_chart' + pc_run_str + '.png')
     # Consider if too much storage use, when model runs faster w/ OOM fix
     else:
         epoch_r = range(1, len(hist.history['loss'])+1)
@@ -1552,7 +1649,7 @@ def infer(X, phases, wdw_size, model, loss_const, optimizer,
     X = np.expand_dims(X, axis=0)   # Give a samples dimension (1 sample)
     print('X shape to be predicted on:', X.shape)
     print('Inference Model:')
-    # model = make_model(n_feat, seq_len, batch_size, loss_const, optimizer,
+    # model = make_model(n_feat, seq_len, loss_const, optimizer,
     #                    pre_trained_wgts=model.get_weights(), name='Inference Model',
     #                    config=config, t_mean=t_mean, t_std=t_std)
     print(model.summary())
@@ -1686,20 +1783,22 @@ def main():
 
     # TRAINING DATA SPECIFIC CONSTANTS (Change when data changes) #
     MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
-    TRAIN_MEAN, TRAIN_STD = 3105.658495759619, 11447.146107795601
+    TRAIN_MEAN, TRAIN_STD = 1728.2116672701493, 6450.4985228518635
     TOTAL_SMPLS = 61 # 60 # Performance: Make divisible by batch_size (actual total = 61) ... questionable
 
     # INFER ONLY
     if mode == 'r':
-        try:
-            model = tf.keras.models.load_model(recent_model_path)
-        except:
-            print('ERROR: No SaveModel to load from')
-        else:
-            print(model.summary())
-            restore_audio_file(infer_output_path, model, wdw_size, epsilon,
-                            loss_const, optimizer, brahms_path,
-                            t_mean=TRAIN_MEAN, t_std=TRAIN_STD)
+        pass
+        # TODO: Work around imperative model (make model again)
+        # try:
+        #     model = tf.keras.models.load_model(recent_model_path)
+        # except:
+        #     print('ERROR: No SaveModel to load from')
+        # else:
+        #     print(model.summary())
+        #     restore_audio_file(infer_output_path, model, wdw_size, epsilon,
+        #                     loss_const, optimizer, brahms_path,
+        #                     t_mean=TRAIN_MEAN, t_std=TRAIN_STD)
     else:
         # Load in train/validation data
         piano_label_filepath_prefix = ((data_path + 'final_piano_data/psource')
@@ -1829,16 +1928,16 @@ def main():
             print('CONFIG OPTIONS (TRAIN ARCH):')
             print(arch_config_optns)
 
-            config = arch_config_optns[0]
-            # config = None
+            # config = arch_config_optns[0]
+            config = None
 
             # TEMP - update for each unique dataset
             # train_mean, train_std = get_stats(y1_train_files, y2_train_files, num_train,
-            #                                   train_seq=n_seq, train_feat=n_feat, 
+            #                                   train_seq=train_seq, train_feat=train_feat, 
             #                                   wdw_size=wdw_size, epsilon=epsilon, 
             #                                   pad_len=max_sig_len)
-            # print('REMEMBER Train Mean:', train_mean, 'Train Std:', train_std)
-            # train_mean, train_std = 3105.658495759619, 11447.146107795601
+            # print('REMEMBER Train Mean:', train_mean, 'Train Std:', train_std, '\n')
+            # Train Mean: 1728.2116672701493 Train Std: 6450.4985228518635 - 10/18/20
             train_mean, train_std = TRAIN_MEAN, TRAIN_STD
 
             model, _, _ = evaluate_source_sep(train_generator, validation_generator, num_train, num_val,
@@ -1911,11 +2010,11 @@ def main():
             # TEMP - update for each unique dataset
             # num_train, num_val = len(y1_train_files), len(y1_val_files)
             # train_mean, train_std = get_stats(y1_train_files, y2_train_files, num_train,
-            #                                   train_seq=n_seq, train_feat=n_feat, 
+            #                                   train_seq=train_seq, train_feat=train_feat, 
             #                                   wdw_size=wdw_size, epsilon=epsilon, 
             #                                   pad_len=max_sig_len)
-            # print('REMEMBER Train Mean:', train_mean, 'Train Std:', train_std)
-            # train_mean, train_std = 3105.658495759619, 11447.146107795601
+            # print('REMEMBER Train Mean:', train_mean, 'Train Std:', train_std, '\n')
+            # Train Mean: 1728.2116672701493 Train Std: 6450.4985228518635 - 10/18/20
             train_mean, train_std = TRAIN_MEAN, TRAIN_STD
 
             grid_res, grid_res_val = grid_search(y1_train_files, y2_train_files,
