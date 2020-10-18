@@ -1502,19 +1502,19 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
         base_dir = os.getcwd()
         os.chdir(gsres_path)
         if len(gs_id) > 0:
-            gs_result_files = [fname for f_name in os.listdir(os.getcwd()) if 
+            gs_result_files = [f_name for f_name in os.listdir(os.getcwd()) if 
                                (f_name.endswith('txt') and f_name[0].isdigit() and f_name[0] == gs_id)]
 
-            for fname in gs_result_files:
-                gs_iter = [int(token) for token in gs_result_files.split('_') if token.isdigit()][1]  
+            for f_name in gs_result_files:
+                gs_iter = [int(token) for token in f_name.split('_') if token.isdigit()][1]  
                 gs_iters_so_far.append(gs_iter)
 
         else:
-            gs_result_files = [fname for f_name in os.listdir(os.getcwd()) if 
+            gs_result_files = [f_name for f_name in os.listdir(os.getcwd()) if 
                                (f_name.endswith('txt') and f_name[0] == 'r')]
 
-            for fname in gs_result_files:
-                gs_iter = [int(token) for token in gs_result_files.split('_') if token.isdigit()][0]  
+            for f_name in gs_result_files:
+                gs_iter = [int(token) for token in f_name.split('_') if token.isdigit()][0]  
                 gs_iters_so_far.append(gs_iter)
 
         os.chdir(base_dir)
