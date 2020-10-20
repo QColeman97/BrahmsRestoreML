@@ -1448,11 +1448,11 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # with open(config_path + 'hp_arch_config_nodimreduc.json') as hp_file:
     #     bare_config_optns = json.load(hp_file)['archs']
     if pc_run:
-        with open(config_path + 'hp_arch_config.json') as hp_file:
+        with open(config_path + 'hp_arch_config_final.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
     else:
         # with open(config_path + 'hp_arch_config_largedim.json') as hp_file:
-        with open(config_path + 'hp_arch_config_nodimr_less.json') as hp_file:
+        with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
 
     # Comment-out block below for all-factors version
@@ -1780,7 +1780,7 @@ def main():
         print('         r               - Restore brahms with last-trained model')
         print('PC       true            - Uses HPs for lower GPU-memory consumption (< 4GB)')
         print('         false           - Uses HPs for higher GPU-memory limit (PC HPs + nonPC HPs = total for now)')
-        print('-f                       - (Optional) Force restart grid search (if in mode)')
+        print('-f                       - (Optional) Force restart grid search (grid search mode) OR force random HPs (train mode)')
         print('gs_id    <single digit>  - (Optional) grid search unique ID for running concurrently')
         print('\nTIP: Keep IDs different for PC/non-PC runs on same machine')
         sys.exit(1)
@@ -1801,14 +1801,15 @@ def main():
 
     epsilon = 10 ** (-10)
     # Orig batch size 5, orig loss const 0.05, orig clipval 0.9
-    train_batch_size = 3 if pc_run else 5
+    # train_batch_size = 3 if pc_run else 5
+    # PC TEST
+    train_batch_size = 5 if pc_run else 5
     # Notes:
     # FROM PO-SEN PAPER - about loss_const
     # Empirically, the value γ is in the range of 0.05∼0.2 in order
     # to achieve SIR improvements and maintain SAR and SDR.
     loss_const, epochs, val_split = 0.05, 10, 0.25 #(1/3)
-    # optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9) # 10
-    optimizer = tf.keras.optimizers.RMSprop(clipvalue=10) # Random HP
+    optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9)
 
     # TRAINING DATA SPECIFIC CONSTANTS (Change when data changes) #
     MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
@@ -1834,9 +1835,18 @@ def main():
             if use_dmged_piano else (data_path + 'final_piano_data/psource'))
         noise_label_filepath_prefix = ((data_path + 'final_noise_data/nsource')
             if use_artificial_noise else (data_path + 'final_noise_data/nsource'))
-        
+
         # TRAIN & INFER
         if mode == 't':
+            random_hps = False
+            if len(sys.argv) == 4:
+                if sys.argv[3] == '-f':
+                    random_hps = True
+                    print('TRAINING TO USE RANDOM (NON-EMPIRICALLY-OPTIMAL) HP\'S')
+
+            if random_hps:
+                optimizer = tf.keras.optimizers.Adam(clipvalue=10) # Random HP
+
             # Define which files to grab for training. Shuffle regardless.
             # (Currently sample is to test on 1 synthetic sample (not Brahms))
             sample = test_on_synthetic
@@ -1913,26 +1923,29 @@ def main():
                                 train_feat=train_feat, wdw_size=wdw_size, 
                                 epsilon=epsilon, pad_len=max_sig_len)
 
+            # TEST PC
             if pc_run:
-                with open(config_path + 'hp_arch_config.json') as hp_file:
+                with open(config_path + 'hp_arch_config_final.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
             else:
                 # with open(config_path + 'hp_arch_config_largedim.json') as hp_file:
-                with open(config_path + 'hp_arch_config_nodimr_less.json') as hp_file:
+                with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
 
-            rnn_optns = ['RNN'] if pc_run else ['LSTM']
+            # rnn_optns = ['RNN'] if pc_run else ['LSTM']
+            # TEST PC
+            rnn_optns = ['LSTM'] if pc_run else ['LSTM']
 
             dropout_optns = [(0.0,0.0)]
             arch_config_optns = []   # Add variations of each bare config to official
             for config in bare_config_optns[3:4]:    # rand base = #71 last
-                for scale_optn in [False]:  
+                for scale_optn in [True]:  
                     for rnn_skip_optn in [True]:    # false last
                         for bias_rnn_optn in [True]:
                             for bias_dense_optn in [True]:
                                 for dropout_optn in dropout_optns:      # For RNN only
                                     for bidir_optn in [False]:
-                                        for bn_optn in [False]:   # For Dense only # true last
+                                        for bn_optn in [True]:   # For Dense only # true last
                                             for rnn_optn in rnn_optns:
                                                 # Important: skip bad output cases
                                                 if bias_rnn_optn == False and bias_dense_optn == False:
@@ -1953,12 +1966,11 @@ def main():
                                                             curr_config['layers'][i]['type'] = rnn_optn
                                                 # Append updated config
                                                 arch_config_optns.append(curr_config) 
+            if random_hps:
+                print('CONFIG OPTIONS (TRAIN ARCH) FOR USE:')
+                print(arch_config_optns)
 
-            print('CONFIG OPTIONS (TRAIN ARCH):')
-            print(arch_config_optns)
-
-            config = arch_config_optns[0]
-            # config = None
+            config = arch_config_optns[0] if random_hps else None
 
             # TEMP - update for each unique dataset
             # train_mean, train_std = get_stats(y1_train_files, y2_train_files, num_train,
