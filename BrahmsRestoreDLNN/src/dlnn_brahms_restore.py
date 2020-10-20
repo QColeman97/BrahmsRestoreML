@@ -1400,7 +1400,9 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # batch_size_optns = [3] if pc_run else [3, 5, 15]
 
     # Being careful about batch size effect on mem -> start low
-    batch_size_optns = [1] if pc_run else [3, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
+    # batch_size_optns = [1] if pc_run else [3, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
+    # TEST PC
+    batch_size_optns = [15] if pc_run else [3, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
     # loss_const total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
@@ -1439,7 +1441,9 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     bn_optns = [True, False]            # For Dense only
     # TEST - dont believe this should matter (got to iter 16 last w/ & 2 batchsize)
     # rnn_optns = ['RNN', 'LSTM']
-    rnn_optns = ['RNN'] if pc_run else ['RNN']  # F35 sesh crashed doing dropouts on LSTM
+    # rnn_optns = ['RNN'] if pc_run else ['LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
+    # TEST PC
+    rnn_optns = ['LSTM'] if pc_run else ['LSTM']  # F35 sesh crashed doing dropouts on LSTM
 
     # Optional - for future when I'm not hitting SNR correctly
     # amp_var_rng_optns = [(0.5, 1.25), (0.75, 1.15), (0.9, 1.1)]
@@ -1447,6 +1451,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # TEST - dont beleive this should matter (got to iter 16 last w/ & 2 batchsize)
     # with open(config_path + 'hp_arch_config_nodimreduc.json') as hp_file:
     #     bare_config_optns = json.load(hp_file)['archs']
+    # TEST PC
     if pc_run:
         with open(config_path + 'hp_arch_config_final.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
@@ -1801,9 +1806,9 @@ def main():
 
     epsilon = 10 ** (-10)
     # Orig batch size 5, orig loss const 0.05, orig clipval 0.9
-    # train_batch_size = 3 if pc_run else 5
+    train_batch_size = 3 if pc_run else 5
     # PC TEST
-    train_batch_size = 5 if pc_run else 5
+    # train_batch_size = 5 if pc_run else 5
     # Notes:
     # FROM PO-SEN PAPER - about loss_const
     # Empirically, the value γ is in the range of 0.05∼0.2 in order
