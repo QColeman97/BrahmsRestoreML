@@ -31,6 +31,10 @@ import os
 import sys
 # from copy import deepcopy
 
+# To enable custom loss w/ model.fit()
+# tf.compat.v1.disable_eager_execution()
+# Causes internal error -> do custom training loop :(
+
 # TODO: See if both processes allow mem growth, is it faster or does GPU just work less hard?
 #       if faster, keep both proc using mem growth
 # For run-out-of-memory error
@@ -56,7 +60,7 @@ print("GPUs Available: ", gpus)
 #   except RuntimeError as e:
 #     # Virtual devices must be set before GPUs have been initialized
 #     print(e)
-# np.set_printoptions(precision=3)    # Change if needed
+np.set_printoptions(precision=3)    # Change if needed
 
 # CONSTANTS:
 STD_SR_HZ = 44100
@@ -546,8 +550,6 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
             #        y1, y2)
             # IF DOESN'T WORK, TRY
             # print('IN GENERATOR YEILDING SHAPE:', (x.shape, y1.shape, y2.shape))
-            
-            # TODO: For custom train loop, yield a DatasetBatch?
             yield (x, y1, y2)
 
             # What fit expects
@@ -770,6 +772,18 @@ class TimeFreqMasking(Layer):
 
 #     return loss
 
+# LATEST LOSS
+def custom_loss(other_true, other_pred, loss_const):
+    def closure(self_true, self_pred):
+        last_dim = other_pred.shape[1] * other_pred.shape[2]
+        return (
+            tf.math.reduce_mean(tf.reshape(self_pred - self_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+            (loss_const * tf.math.reduce_mean(tf.reshape(self_pred - other_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+            tf.math.reduce_mean(tf.reshape(other_pred - other_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+            (loss_const * tf.math.reduce_mean(tf.reshape(other_pred - self_true, shape=(-1, last_dim)) ** 2, axis=-1))
+        )
+    return closure
+
 # BACKUP TO 2 BELOW
 # def custom_loss(self_true, self_pred, other_true, other_pred, loss_const):
 #     def closure(self_true, self_pred):
@@ -910,84 +924,84 @@ def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_con
 
 
 
-# class RestorationModel2(Model):
-#     def __init__(self, model, loss_const):#, training=True):
-#         super(RestorationModel2, self).__init__()
-#         self.model = model
-#         self.loss_const = loss_const
-#         # self.training = training
+class RestorationModel2(Model):
+    def __init__(self, model, loss_const):#, training=True):
+        super(RestorationModel2, self).__init__()
+        self.model = model
+        self.loss_const = loss_const
+        # self.training = training
 
-#     # def __call__(self, inputs):
-#     def call(self, inputs):
-#         # print('IN CALL (INPUTS SHAPE):', inputs.shape)
-#         return self.model(inputs)
+    # def __call__(self, inputs):
+    def call(self, inputs):
+        # print('IN CALL (INPUTS SHAPE):', inputs.shape)
+        return self.model(inputs)
 
-#     def compile(self, optimizer, loss):
-#         super(RestorationModel2, self).compile()
-#         self.optimizer = optimizer
-#         self.loss = loss
+    def compile(self, optimizer, loss):
+        super(RestorationModel2, self).compile()
+        self.optimizer = optimizer
+        self.loss = loss
 
-#     def train_step(self, data):
-#         # Unpack data - what generator yeilds
-#         x, piano_true, noise_true = data
+    def train_step(self, data):
+        # Unpack data - what generator yeilds
+        x, piano_true, noise_true = data
 
-#         # print('SHAPE OF X INPUT (TRAIN_STEP):', x.shape)
-#         # print('SHAPE OF PIANO_TRUE INPUT (TRAIN_STEP):', piano_true.shape)
-#         # print('SHAPE OF NOISE_TRUE INPUT (TRAIN_STEP):', noise_true.shape)
-#         with tf.GradientTape() as tape:
-#             # y_pred = self(x, training=True) # Forward pass
-#             piano_pred, noise_pred = self.model((x, piano_true, noise_true), training=True) # Forward pass
-#             # Compute the loss value
-#             # loss = self.compiled_loss(y, y_pred, regularization_losses=self.losses)
-#             # loss = self.compiled_loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
-#             loss = self.loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
+        # print('SHAPE OF X INPUT (TRAIN_STEP):', x.shape)
+        # print('SHAPE OF PIANO_TRUE INPUT (TRAIN_STEP):', piano_true.shape)
+        # print('SHAPE OF NOISE_TRUE INPUT (TRAIN_STEP):', noise_true.shape)
+        with tf.GradientTape() as tape:
+            # y_pred = self(x, training=True) # Forward pass
+            piano_pred, noise_pred = self.model((x, piano_true, noise_true), training=True) # Forward pass
+            # Compute the loss value
+            # loss = self.compiled_loss(y, y_pred, regularization_losses=self.losses)
+            # loss = self.compiled_loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
+            loss = self.loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
 
-#         # Compute gradients
-#         # trainable_vars = self.trainable_variables # TODO: Do YouTube video way?
-#         trainable_vars = self.model.trainable_variables
-#         gradients = tape.gradient(loss, trainable_vars)
-#         # Update weights
-#         self.optimizer.apply_gradients(zip(gradients, trainable_vars))
-#         # Update metrics (includes the metric that tracks the loss)
-#         # self.compiled_metrics.update_state(y, y_pred)
-#         # Uncomment if error here (no metrics)
-#         # self.compiled_metrics.update_state(piano_true, noise_true, piano_pred, noise_pred)
-#         # Return a dict mapping metric names to current value
-#         # return {m.name: m.result() for m in self.metrics}
-#         return {'loss': loss}
+        # Compute gradients
+        # trainable_vars = self.trainable_variables # TODO: Do YouTube video way?
+        trainable_vars = self.model.trainable_variables
+        gradients = tape.gradient(loss, trainable_vars)
+        # Update weights
+        self.optimizer.apply_gradients(zip(gradients, trainable_vars))
+        # Update metrics (includes the metric that tracks the loss)
+        # self.compiled_metrics.update_state(y, y_pred)
+        # Uncomment if error here (no metrics)
+        # self.compiled_metrics.update_state(piano_true, noise_true, piano_pred, noise_pred)
+        # Return a dict mapping metric names to current value
+        # return {m.name: m.result() for m in self.metrics}
+        return {'loss': loss}
 
-#     def test_step(self, data):
-#         x, piano_true, noise_true = data
+    def test_step(self, data):
+        x, piano_true, noise_true = data
 
-#         piano_pred, noise_pred = self.model((x, piano_true, noise_true), training=False)
-#         loss = self.loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
+        piano_pred, noise_pred = self.model((x, piano_true, noise_true), training=False)
+        loss = self.loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
         
-#         return {'loss': loss}
+        return {'loss': loss}
 
 
-# def make_imp_model(features, sequences, loss_const=0.05, 
-#                    optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.7),
-#                    pre_trained_wgts=None, name='Restoration Model', epsilon=10 ** (-10),
-#                    config=None, t_mean=None, t_std=None):
+def make_imp_model(features, sequences, loss_const=0.05, 
+                   optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.7),
+                   pre_trained_wgts=None, name='Restoration Model', epsilon=10 ** (-10),
+                   config=None, t_mean=None, t_std=None):
     
-#     # model = RestorationModel(features, loss_const, name=name, epsilon=epsilon, 
-#     #                           config=config, t_mean=t_mean, t_std=t_std)
-#     # No name version :(
-#     # model = RestorationModel(features, loss_const, epsilon=epsilon, 
-#     #                           config=config, t_mean=t_mean, t_std=t_std)
-#     # NEW Semi-imperative model
-#     model = RestorationModel2(make_model(features, sequences, loss_const, optimizer=optimizer, 
-#                                          name='Training Model', epsilon=epsilon, config=config,
-#                                          t_mean=t_mean, t_std=t_std, for_imp=True),
-#                               loss_const=loss_const)
+    # model = RestorationModel(features, loss_const, name=name, epsilon=epsilon, 
+    #                           config=config, t_mean=t_mean, t_std=t_std)
+    # No name version :(
+    # model = RestorationModel(features, loss_const, epsilon=epsilon, 
+    #                           config=config, t_mean=t_mean, t_std=t_std)
+    # NEW Semi-imperative model
+    model = RestorationModel2(make_model(features, sequences, loss_const, optimizer=optimizer, 
+                                         name='Training Model', epsilon=epsilon, config=config,
+                                         t_mean=t_mean, t_std=t_std, for_imp=True),
+                              loss_const=loss_const)
 
-#     if pre_trained_wgts is not None:
-#         print('Only loading pre-trained weights for prediction')
-#         model.set_weights(pre_trained_wgts)
-#     else:
-#         model.compile(optimizer=optimizer, loss=discriminative_loss)
+    if pre_trained_wgts is not None:
+        print('Only loading pre-trained weights for prediction')
+        model.set_weights(pre_trained_wgts)
+    else:
+        model.compile(optimizer=optimizer, loss=discriminative_loss)
 
-#     return model
+    return model
 
 
 def make_model(features, sequences, loss_const=0.05, training=True,
@@ -1209,29 +1223,35 @@ def make_model(features, sequences, loss_const=0.05, training=True,
             # # print([layer.name for layer in model.layers])
             # ['piano_noise_mixed', 'simple_rnn_6', 'simple_rnn_7', 'piano_hat', 'noise_hat', 'piano_true', 'noise_true', 'piano_pred', 'noise_pred']
             
-            # Traditional method of extra arg loss in TF 2.0 no longer works -> add_loss()
-            # https://www.youtube.com/watch?v=uhzGTijaw8A&t=1965s
-            # TEMP TEST
-            last_dim = noise_pred.shape[1] * noise_pred.shape[2]
-            disc_loss = (
-                tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-                (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-                tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-                (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
-            )
+            # # Traditional method of extra arg loss in TF 2.0 no longer works -> add_loss()
+            # # https://www.youtube.com/watch?v=uhzGTijaw8A&t=1965s
+            # # TEMP TEST
+            # last_dim = noise_pred.shape[1] * noise_pred.shape[2]
             # disc_loss = (
-            #     tf.math.reduce_sum(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-            #     (loss_const * tf.math.reduce_sum(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-            #     tf.math.reduce_sum(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-            #     (loss_const * tf.math.reduce_sum(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
+            #     tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+            #     (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+            #     tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+            #     (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
             # )
-            model.add_loss(disc_loss)
+            # # disc_loss = (
+            # #     tf.math.reduce_sum(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+            # #     (loss_const * tf.math.reduce_sum(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+            # #     tf.math.reduce_sum(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+            # #     (loss_const * tf.math.reduce_sum(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
+            # # )
+            # model.add_loss(disc_loss)
 
             # Default learning rate = 0.001
             # To fix exploding gradient 
             # - lower learning rate
             # - gradient clip?
-            model.compile(optimizer=optimizer)
+            # model.compile(optimizer=optimizer)
+            model.compile(optimizer=optimizer,
+                          loss={
+                              'piano_pred': custom_loss(noise_true, noise_pred, loss_const),
+                              'noise_pred': custom_loss(piano_true, piano_pred, loss_const)
+                          })
+
             # TODO: This method should solve OOM errors, but need to convert symbolic model -> imperative model first
             # model.compile(optimizer=optimizer,
             #               loss={
@@ -1253,141 +1273,6 @@ def make_model(features, sequences, loss_const=0.05, training=True,
     return model
 
 
-def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
-                    config=None, t_mean=None, t_std=None):
-
-    input_layer = Input(shape=(sequences, features), dtype='float32', 
-                        name='piano_noise_mixed')
-
-    if config is not None:
-        num_layers = len(config['layers'])
-        prev_layer_type = None  # Works b/c all RNN stacks are size > 1
-        for i in range(num_layers):
-            layer_config = config['layers'][i]
-            curr_layer_type = layer_config['type']
-
-            # Standardize option
-            if config['scale'] and i == 0:
-                x = Standardize(t_mean, t_std) (input_layer)
-
-            # Add skip connection if necessary
-            if (config['rnn_res_cntn'] and prev_layer_type is not None and
-                  prev_layer_type != 'Dense' and curr_layer_type == 'Dense'):
-                x = Concatenate() ([x, input_layer])
-    
-            if curr_layer_type == 'RNN':
-                if config['bidir']:
-                    x = Bidirectional(SimpleRNN(features // layer_config['nrn_div'], 
-                            activation=layer_config['act'], 
-                            use_bias=config['bias_rnn'],
-                            dropout=config['rnn_dropout'][0],
-                            recurrent_dropout=config['rnn_dropout'][1],
-                            return_sequences=True)) (input_layer if (i == 0 and not config['scale']) else x)
-                else:
-                    x = SimpleRNN(features // layer_config['nrn_div'], 
-                            activation=layer_config['act'], 
-                            use_bias=config['bias_rnn'],
-                            dropout=config['rnn_dropout'][0],
-                            recurrent_dropout=config['rnn_dropout'][1],
-                            return_sequences=True) (input_layer if (i == 0 and not config['scale']) else x)
-
-            elif curr_layer_type == 'LSTM':
-                if config['bidir']:
-                    x = Bidirectional(LSTM(features // layer_config['nrn_div'], 
-                            activation=layer_config['act'], 
-                            use_bias=config['bias_rnn'],
-                            dropout=config['rnn_dropout'][0],
-                            recurrent_dropout=config['rnn_dropout'][1],
-                            return_sequences=True)) (input_layer if (i == 0 and not config['scale']) else x)
-                else:
-                    x = LSTM(features // layer_config['nrn_div'], 
-                            activation=layer_config['act'], 
-                            use_bias=config['bias_rnn'],
-                            dropout=config['rnn_dropout'][0],
-                            recurrent_dropout=config['rnn_dropout'][1],
-                            return_sequences=True) (input_layer if (i == 0 and not config['scale']) else x)
-            elif curr_layer_type == 'Dense':
-                if i == (num_layers - 1):   # Last layer is fork layer
-                    # Reverse standardization at end of model if appropriate
-                    if config['scale']:
-                        piano_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                                        activation=layer_config['act'], 
-                                                        use_bias=config['bias_dense']), 
-                                                    name='piano_hat'
-                                                   ) (x)
-                        noise_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                                        activation=layer_config['act'], 
-                                                        use_bias=config['bias_dense']), 
-                                                    name='noise_hat'
-                                                   ) (x)
-                        if config['bn']:
-                            piano_hat = BatchNormalization() (piano_hat)
-                            noise_hat = BatchNormalization() (noise_hat)
-                        
-                        piano_hat = UnStandardize(t_mean, t_std) (piano_hat)
-                        noise_hat = UnStandardize(t_mean, t_std) (noise_hat)
-                
-                    else:
-                        piano_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                                        activation=layer_config['act'], 
-                                                        use_bias=config['bias_dense']), 
-                                                    name='piano_hat'
-                                                   ) (x)
-                        noise_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                                        activation=layer_config['act'], 
-                                                        use_bias=config['bias_dense']),
-                                                    name='noise_hat'
-                                                   ) (x)
-                        if config['bn']:
-                            piano_hat = BatchNormalization() (piano_hat)
-                            noise_hat = BatchNormalization() (noise_hat)
-
-                else:
-                    x = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                            activation=layer_config['act'], 
-                                            use_bias=config['bias_dense']), 
-                                       ) (input_layer if (i == 0 and not config['scale']) else x)
-                    if config['bn']:
-                        x = BatchNormalization() (x)
-
-            prev_layer_type = curr_layer_type
-
-    # Use pre-configurations (default)
-    else:
-        x = SimpleRNN(features // 2, 
-                      activation='relu', 
-                      return_sequences=True) (input_layer) 
-        x = SimpleRNN(features // 2, 
-                  activation='relu',
-                  return_sequences=True) (x)
-        piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
-        noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
-    piano_pred = TimeFreqMasking(epsilon=epsilon, 
-                                 name='piano_pred') ([piano_hat, noise_hat, input_layer])
-    noise_pred = TimeFreqMasking(epsilon=epsilon, 
-                                 name='noise_pred') ([noise_hat, piano_hat, input_layer])
-
-    model = Model(inputs=input_layer, outputs=[piano_pred, noise_pred])
-    
-    return model
-
-
-@tf.function
-def train_step(x, y1, y2, model, loss_const, optimizer):
-    with tf.GradientTape() as tape:
-        logits1, logits2 = model(x, training=True)
-        loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
-    grads = tape.gradient(loss, model.trainable_weights)
-    optimizer.apply_gradients(zip(grads, model.trainable_weights))
-    return loss
-
-@tf.function
-def test_step(x, y1, y2, model, loss_const):
-    val_logits1, val_logits2 = model(x, training=False)
-    loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
-    return loss
-
-
 
 # MODEL TRAIN & EVAL FUNCTION
 def evaluate_source_sep(train_generator, validation_generator,
@@ -1405,63 +1290,15 @@ def evaluate_source_sep(train_generator, validation_generator,
     #                        epsilon=epsilon, config=config, t_mean=t_mean, t_std=t_std)
     # For imperative model, build before summary BUT fixes batch size
     # ORIGINAL
-    # model = make_model(n_feat, n_seq, loss_const, optimizer, 
-    #                     name='Training Model', epsilon=epsilon, config=config,
-    #                    t_mean=t_mean, t_std=t_std)
-
-    # print('\nTEST GENERAOTR')
-    # for iters, x in enumerate(train_generator):
-    #     print('Generator yielded:', (x[0].shape, x[1].shape, x[2].shape))
-    #     print('Generator yielded batch', iters + 1, 'out of', math.ceil(num_train // batch_size), '\n')
-    #     if 
-
+    model = make_model(n_feat, n_seq, loss_const, optimizer, 
+                        name='Training Model', epsilon=epsilon, config=config,
+                       t_mean=t_mean, t_std=t_std)
     # TRAINING LOOP FROM SCRATCH
-    model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
-                            config=config, t_mean=t_mean, t_std=t_std)
+    # model = make_model(n_feat, n_seq, loss_const, optimizer, 
+    #                    name='Training Model', epsilon=epsilon, config=config,
+    #                    t_mean=t_mean, t_std=t_std, for_imp=True)
     print(model.summary())
 
-    print('Going into training now...')
-    history = {'loss': [], 'val_loss': []}
-    for epoch in range(epochs):
-        print('EPOCH:', epoch + 1)
-
-        # Training
-        # Iterate over the batches of the dataset
-        train_steps_per_epoch=math.ceil(num_train / batch_size)
-        for step, (x_batch_train, y1_batch_train, y2_batch_train) in enumerate(train_generator):
-            loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train,
-                                     model, loss_const, optimizer)
-            loss_value = tf.math.reduce_mean(loss_tensor).numpy()
-            
-            readable_step = step + 1
-            # Log every batch
-            if step == 0:
-                print('Training execution (steps):', end = " ")
-            print('(' + str(readable_step) + ')', end="")
-
-            if readable_step == train_steps_per_epoch:
-                break
-
-        print(' - epoch loss:', loss_value)
-        history['loss'].append(loss_value)
-
-        # Validation
-        val_steps_per_epoch=math.ceil(num_val / batch_size)
-        for step, (x_batch_val, y1_batch_val, y2_batch_val) in enumerate(validation_generator):
-            loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val,
-                                    model, loss_const)
-            loss_value = tf.math.reduce_mean(loss_tensor).numpy()
-
-            readable_step = step + 1
-            if step == 0:
-                print('Validate execution (steps):', end = " ")
-            print('(' + str(readable_step) + ')', end="")
-            if readable_step == val_steps_per_epoch:
-                break
-
-        print(' - epoch val. loss:', loss_value, '\n')        
-        history['val_loss'].append(loss_value)
-    
     # Not necessary for HPC (can't run on HPC)
     # tf.keras.utils.plot_model(model, 
     #                        (gs_path + 'model' + str(grid_search_iter) + 'of' + str(combos) + '.png'
@@ -1473,39 +1310,42 @@ def evaluate_source_sep(train_generator, validation_generator,
     # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
     # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir)
 
-    # print('Going into training now...')
-    # # print('Shape of data about to be fit:', X.shape, y1.shape, y2.shape)
-    # # hist = model.fit({'piano_noise_mixed': X, 'piano_true': y1, 'noise_true': y2},
-    # #                  {'piano_pred': y1, 'noise_pred': y2},
-    # #                  validation_split=val_split,
-    # #                  epochs=epochs, batch_size=batch_size)
-    #                 #  callbacks=[tensorboard_callback])
-    # hist = model.fit(train_generator,
-    #                  steps_per_epoch=math.ceil(num_train / batch_size),
-    #                  epochs=epochs,
-    #                  validation_data=validation_generator,
-    #                  validation_steps=math.ceil(num_val / batch_size),
-    #                  callbacks=[EarlyStopping('val_loss', patience=patience, mode='min')])
-  
- 
+    print('Going into training now...')
+    # print('Shape of data about to be fit:', X.shape, y1.shape, y2.shape)
+    # hist = model.fit({'piano_noise_mixed': X, 'piano_true': y1, 'noise_true': y2},
+    #                  {'piano_pred': y1, 'noise_pred': y2},
+    #                  validation_split=val_split,
+    #                  epochs=epochs, batch_size=batch_size)
+                    #  callbacks=[tensorboard_callback])
+    hist = model.fit(train_generator,
+                     steps_per_epoch=math.ceil(num_train / batch_size),
+                     epochs=epochs,
+                     validation_data=validation_generator,
+                     validation_steps=math.ceil(num_val / batch_size),
+                     callbacks=[EarlyStopping('val_loss', patience=patience, mode='min')])
+    print(model.summary())
+    # # Custom Training Loop for Custom Loss
+    # # Iterate over epochs
+    # for epoch in range(epochs):
+    #     print("Start of epoch %d" % (epoch,))
+
+    #     # Iterate over the batches of the dataset
+
     pc_run_str = '' if pc_run else '_noPC'
     if grid_search_iter is None:
         #  Can't for imperative models
-        model.save(recent_model_path)
+        # model.save(recent_model_path)
 
         # print('History Dictionary Keys:', hist.history.keys())
         # 'val_loss', 'val_piano_pred_loss', 'val_noise_pred_loss',
         # 'loss', 'piano_pred_loss', 'noise_pred_loss'
 
-        # print('Val Loss:\n', hist.history['val_loss'])
-        # print('Loss:\n', hist.history['loss'])
-        # CUSTOM TRAIN LOOP CHANGES FOR BOTH BLOCKS HERE
-        print('Val Loss:\n', history['val_loss'])
-        print('Loss:\n', history['loss'])
+        print('Val Loss:\n', hist.history['val_loss'])
+        print('Loss:\n', hist.history['loss'])
 
-        epoch_r = range(1, len(history['loss'])+1)
-        plt.plot(epoch_r, history['val_loss'], 'b', label = 'Validation Loss')
-        plt.plot(epoch_r, history['loss'], 'bo', label = 'Training Loss')
+        epoch_r = range(1, len(hist.history['loss'])+1)
+        plt.plot(epoch_r, hist.history['val_loss'], 'b', label = 'Validation Loss')
+        plt.plot(epoch_r, hist.history['loss'], 'bo', label = 'Training Loss')
         plt.title('Training & Validation Loss')
         plt.xlabel('Epochs')
         plt.ylabel('Loss')
@@ -1514,9 +1354,9 @@ def evaluate_source_sep(train_generator, validation_generator,
         plt.savefig('../train_val_loss_chart' + pc_run_str + '.png')
     # Consider if too much storage use, when model runs faster w/ OOM fix
     else:
-        epoch_r = range(1, len(history['loss'])+1)
-        plt.plot(epoch_r, history['val_loss'], 'b', label = 'Validation Loss')
-        plt.plot(epoch_r, history['loss'], 'bo', label = 'Training Loss')
+        epoch_r = range(1, len(hist.history['loss'])+1)
+        plt.plot(epoch_r, hist.history['val_loss'], 'b', label = 'Validation Loss')
+        plt.plot(epoch_r, hist.history['loss'], 'bo', label = 'Training Loss')
         plt.title('Training & Validation Loss')
         plt.xlabel('Epochs')
         plt.ylabel('Loss')
@@ -1527,105 +1367,7 @@ def evaluate_source_sep(train_generator, validation_generator,
         plt.savefig(gs_path + gs_id + 'train_val_loss_chart_' + 
                     str(grid_search_iter) + 'of' + str(combos) + pc_run_str + '.png')
 
-    return model, history['loss'], history['val_loss']
-
-
-
-
-# # MODEL TRAIN & EVAL FUNCTION
-# def evaluate_source_sep(train_generator, validation_generator,
-#                         num_train, num_val, n_feat, n_seq, batch_size, 
-#                         loss_const, epochs=20, 
-#                         optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.75),
-#                         patience=10, epsilon=10 ** (-10), config=None, recent_model_path=None, pc_run=False,
-#                         t_mean=None, t_std=None, grid_search_iter=None, gs_path=None, combos=None, gs_id=''):
-#     # print('X shape:', X.shape, 'y1 shape:', y1.shape, 'y2 shape:', y2.shape)
-#     # print('X shape:', X.shape)
-#     print('Making model...')
-#     # print('DEBUG Batch Size in Eval Src Sep:', batch_size)
-#     # IMPERATIVE MODEL - Customize Fit
-#     model = make_imp_model(n_feat, n_seq, loss_const=loss_const, optimizer=optimizer,
-#                            epsilon=epsilon, config=config, t_mean=t_mean, t_std=t_std)
-#     # For imperative model, build before summary BUT fixes batch size
-#     # ORIGINAL
-#     # model = make_model(n_feat, n_seq, loss_const, optimizer, 
-#     #                     name='Training Model', epsilon=epsilon, config=config,
-#     #                    t_mean=t_mean, t_std=t_std)
-#     # TRAINING LOOP FROM SCRATCH
-#     # model = make_model(n_feat, n_seq, loss_const, optimizer, 
-#     #                    name='Training Model', epsilon=epsilon, config=config,
-#     #                    t_mean=t_mean, t_std=t_std, for_imp=True)
-#     # print(model.summary())
-
-#     # Not necessary for HPC (can't run on HPC)
-#     # tf.keras.utils.plot_model(model, 
-#     #                        (gs_path + 'model' + str(grid_search_iter) + 'of' + str(combos) + '.png'
-#     #                        if grid_search_iter is not None else
-#     #                        'dlnn_keras_model.png'), 
-#     #                        show_shapes=True)
-
-#     # log_dir = '/content/drive/My Drive/Quinn Coleman - Thesis/logs/fit/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-#     # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-#     # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir)
-
-#     print('Going into training now...')
-#     # print('Shape of data about to be fit:', X.shape, y1.shape, y2.shape)
-#     # hist = model.fit({'piano_noise_mixed': X, 'piano_true': y1, 'noise_true': y2},
-#     #                  {'piano_pred': y1, 'noise_pred': y2},
-#     #                  validation_split=val_split,
-#     #                  epochs=epochs, batch_size=batch_size)
-#                     #  callbacks=[tensorboard_callback])
-#     hist = model.fit(train_generator,
-#                      steps_per_epoch=math.ceil(num_train / batch_size),
-#                      epochs=epochs,
-#                      validation_data=validation_generator,
-#                      validation_steps=math.ceil(num_val / batch_size),
-#                      callbacks=[EarlyStopping('val_loss', patience=patience, mode='min')])
-#     print(model.summary())
-#     # # Custom Training Loop for Custom Loss
-#     # # Iterate over epochs
-#     # for epoch in range(epochs):
-#     #     print("Start of epoch %d" % (epoch,))
-
-#     #     # Iterate over the batches of the dataset
-
-#     pc_run_str = '' if pc_run else '_noPC'
-#     if grid_search_iter is None:
-#         #  Can't for imperative models
-#         # model.save(recent_model_path)
-
-#         # print('History Dictionary Keys:', hist.history.keys())
-#         # 'val_loss', 'val_piano_pred_loss', 'val_noise_pred_loss',
-#         # 'loss', 'piano_pred_loss', 'noise_pred_loss'
-
-#         print('Val Loss:\n', hist.history['val_loss'])
-#         print('Loss:\n', hist.history['loss'])
-
-#         epoch_r = range(1, len(hist.history['loss'])+1)
-#         plt.plot(epoch_r, hist.history['val_loss'], 'b', label = 'Validation Loss')
-#         plt.plot(epoch_r, hist.history['loss'], 'bo', label = 'Training Loss')
-#         plt.title('Training & Validation Loss')
-#         plt.xlabel('Epochs')
-#         plt.ylabel('Loss')
-#         plt.legend()
-#         # plt.show()
-#         plt.savefig('../train_val_loss_chart' + pc_run_str + '.png')
-#     # Consider if too much storage use, when model runs faster w/ OOM fix
-#     else:
-#         epoch_r = range(1, len(hist.history['loss'])+1)
-#         plt.plot(epoch_r, hist.history['val_loss'], 'b', label = 'Validation Loss')
-#         plt.plot(epoch_r, hist.history['loss'], 'bo', label = 'Training Loss')
-#         plt.title('Training & Validation Loss')
-#         plt.xlabel('Epochs')
-#         plt.ylabel('Loss')
-#         plt.legend()
-#         # plt.show()
-#         if len(gs_id) > 0:
-#             gs_id += '_'
-#         plt.savefig(gs_path + gs_id + 'train_val_loss_chart_' + 
-#                     str(grid_search_iter) + 'of' + str(combos) + pc_run_str + '.png')
-
-#     return model, hist.history['loss'], hist.history['val_loss']
+    return model, hist.history['loss'], hist.history['val_loss']
 
 
 
@@ -1955,17 +1697,17 @@ def analyze_grid_search_results(grid_res, grid_res_val):
 
 
 # MODEL INFERENCE FUNCTION
-def infer(X, phases, wdw_size, model, #loss_const, optimizer, seq_len, 
-          n_feat, batch_size, output_path, sr, orig_sig_type):
-        #   config=None, t_mean=None, t_std=None):
+def infer(X, phases, wdw_size, model, loss_const, optimizer, 
+          n_feat, seq_len, batch_size, output_path, sr, orig_sig_type, 
+          config=None, t_mean=None, t_std=None):
     # Must make new model, b/c TF-Masking depends on batch size
     X = np.expand_dims(X, axis=0)   # Give a samples dimension (1 sample)
     print('X shape to be predicted on:', X.shape)
-    # print('Inference Model:')
+    print('Inference Model:')
     # model = make_model(n_feat, seq_len, loss_const, optimizer,
     #                    pre_trained_wgts=model.get_weights(), name='Inference Model',
     #                    config=config, t_mean=t_mean, t_std=t_std)
-    # print(model.summary())
+    print(model.summary())
 
     # For small amts of input that fit in one batch: __call__ > predict - didn't work :/
     # clear_spgm, noise_spgm = model([X, X, X], batch_size=batch_size, training=False)
@@ -1996,9 +1738,9 @@ def infer(X, phases, wdw_size, model, #loss_const, optimizer, seq_len,
 
 
 # BRAHMS RESTORATION FUNCTION (USES INFERENCE)
-def restore_audio_file(output_path, model, wdw_size, epsilon, #loss_const, optimizer,
-                       test_filepath=None, test_sig=None, test_sr=None):#, 
-                       #config=None, t_mean=None, t_std=None):
+def restore_audio_file(output_path, model, wdw_size, epsilon, loss_const, 
+                       optimizer, test_filepath=None, test_sig=None, test_sr=None, 
+                       config=None, t_mean=None, t_std=None):
     if test_filepath:
         # Load in testing data - only use sr of test
         print('Restoring audio of file:', test_filepath)
@@ -2040,11 +1782,11 @@ def restore_audio_file(output_path, model, wdw_size, epsilon, #loss_const, optim
 
     print('Test Spgm contents (timestep 1000):\n', test_spgm[1000])
 
-    infer(test_spgm, test_phases, wdw_size, model, #loss_const=loss_const,
-        # optimizer=optimizer, seq_len=test_seq, 
-        n_feat=test_feat, batch_size=test_batch_size, 
-        output_path=output_path, sr=test_sr, orig_sig_type=test_sig_type)#,
-        # config=config, t_mean=t_mean, t_std=t_std)
+    infer(test_spgm, test_phases, wdw_size, model, loss_const=loss_const,
+        optimizer=optimizer,
+        n_feat=test_feat, seq_len=test_seq, batch_size=test_batch_size, 
+        output_path=output_path, sr=test_sr, orig_sig_type=test_sig_type,
+        config=config, t_mean=t_mean, t_std=t_std)
 
 # https://machinelearningmastery.com/use-different-batch-sizes-training-predicting-python-keras/
 # Only want to predict one batch = 1 song, solutions:
@@ -2102,16 +1844,17 @@ def main():
 
     # INFER ONLY
     if mode == 'r':
-        try:
-            model = tf.keras.models.load_model(recent_model_path)
-        except:
-            print('ERROR: No SaveModel to load from')
-        else:
-            print(model.summary())
-            restore_audio_file(infer_output_path, model, wdw_size, epsilon,
-                            # loss_const, optimizer, 
-                            brahms_path)#,
-                            # t_mean=TRAIN_MEAN, t_std=TRAIN_STD)
+        pass
+        # TODO: Work around imperative model (make model again)
+        # try:
+        #     model = tf.keras.models.load_model(recent_model_path)
+        # except:
+        #     print('ERROR: No SaveModel to load from')
+        # else:
+        #     print(model.summary())
+        #     restore_audio_file(infer_output_path, model, wdw_size, epsilon,
+        #                     loss_const, optimizer, brahms_path,
+        #                     t_mean=TRAIN_MEAN, t_std=TRAIN_STD)
     else:
         # Load in train/validation data
         piano_label_filepath_prefix = ((data_path + 'final_piano_data/psource')
@@ -2275,15 +2018,13 @@ def main():
             
             if sample:
                 restore_audio_file(infer_output_path, model, wdw_size, epsilon, 
-                                # loss_const, optimizer, 
-                                test_filepath=None, 
-                                test_sig=test_sig, test_sr=test_sr)#,
-                                # config=config, t_mean=train_mean, t_std=train_std)
+                                loss_const, optimizer, test_filepath=None, 
+                                test_sig=test_sig, test_sr=test_sr,
+                                config=config, t_mean=train_mean, t_std=train_std)
             else:
                 restore_audio_file(infer_output_path, model, wdw_size, epsilon,
-                                # loss_const, optimizer, 
-                                test_filepath=brahms_path)#,
-                                # config=config, t_mean=train_mean, t_std=train_std)
+                                loss_const, optimizer, brahms_path,
+                                config=config, t_mean=train_mean, t_std=train_std)
 
         # GRID SEARCH
         elif mode == 'g':
