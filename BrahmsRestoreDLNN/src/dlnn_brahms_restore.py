@@ -1401,8 +1401,8 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
 
     # Being careful about batch size effect on mem -> start low
     # batch_size_optns = [1] if pc_run else [3, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
-    # TEST PC
-    batch_size_optns = [15] if pc_run else [3, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
+    # FOR PC: Runs longer, so 1 less batch size option is good for ~2 weeks runtime
+    batch_size_optns = [3] if pc_run else [3, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
     # loss_const total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
@@ -1441,9 +1441,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     bn_optns = [True, False]            # For Dense only
     # TEST - dont believe this should matter (got to iter 16 last w/ & 2 batchsize)
     # rnn_optns = ['RNN', 'LSTM']
-    # rnn_optns = ['RNN'] if pc_run else ['LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
-    # TEST PC
-    rnn_optns = ['LSTM'] if pc_run else ['LSTM']  # F35 sesh crashed doing dropouts on LSTM
+    rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
 
     # Optional - for future when I'm not hitting SNR correctly
     # amp_var_rng_optns = [(0.5, 1.25), (0.75, 1.15), (0.9, 1.1)]
@@ -1451,8 +1449,9 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # TEST - dont beleive this should matter (got to iter 16 last w/ & 2 batchsize)
     # with open(config_path + 'hp_arch_config_nodimreduc.json') as hp_file:
     #     bare_config_optns = json.load(hp_file)['archs']
-    # TEST PC
     if pc_run:
+        # TEST PC
+        # with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
         with open(config_path + 'hp_arch_config_final.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
     else:
@@ -1847,7 +1846,7 @@ def main():
             if len(sys.argv) == 4:
                 if sys.argv[3] == '-f':
                     random_hps = True
-                    print('TRAINING TO USE RANDOM (NON-EMPIRICALLY-OPTIMAL) HP\'S')
+                    print('\nTRAINING TO USE RANDOM (NON-EMPIRICALLY-OPTIMAL) HP\'S\n')
 
             if random_hps:
                 optimizer = tf.keras.optimizers.Adam(clipvalue=10) # Random HP
@@ -1928,8 +1927,9 @@ def main():
                                 train_feat=train_feat, wdw_size=wdw_size, 
                                 epsilon=epsilon, pad_len=max_sig_len)
 
-            # TEST PC
             if pc_run:
+                # TEST PC
+                # with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
                 with open(config_path + 'hp_arch_config_final.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
             else:
@@ -1937,9 +1937,9 @@ def main():
                 with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
 
-            # rnn_optns = ['RNN'] if pc_run else ['LSTM']
+            rnn_optns = ['RNN'] if pc_run else ['LSTM']
             # TEST PC
-            rnn_optns = ['LSTM'] if pc_run else ['LSTM']
+            # rnn_optns = ['LSTM'] if pc_run else ['LSTM']
 
             dropout_optns = [(0.0,0.0)]
             arch_config_optns = []   # Add variations of each bare config to official
@@ -2014,15 +2014,15 @@ def main():
             if len(sys.argv) == 4:
                 if sys.argv[3] == '-f':
                     restart = True
-                    print('GRID SEARCH TO FORCE RESTART')
+                    print('\nGRID SEARCH TO FORCE RESTART\n')
                 elif sys.argv[3].isdigit() and len(sys.argv[3]) == 1:
                     gs_id = sys.argv[3]
-                    print('GRID SEARCH ID:', gs_id)
+                    print('GRID SEARCH ID:', gs_id, '\n')
 
             if len(sys.argv) == 5:
                 if sys.argv[4].isdigit() and len(sys.argv[4]) == 1:
                     gs_id = sys.argv[4]
-                    print('GRID SEARCH ID:', gs_id)
+                    print('GRID SEARCH ID:', gs_id, '\n')
             
             early_stop_pat = 5
             # Define which files to grab for training. Shuffle regardless.
