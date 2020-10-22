@@ -38,6 +38,8 @@ import sys
 gpus = tf.config.list_physical_devices('GPU')
 print("Num GPUs Available: ", len(gpus))
 print("GPUs Available: ", gpus)
+
+mirrored_strategy = tf.distribute.MirroredStrategy()
 # TEST - 2 GS's at same time? SUCCESS!!!
 # BUT, set_memory_growth has perf disadvantages (slower) - give main GS full power
 # tf.config.experimental.set_memory_growth(gpus[0], True)
@@ -1372,6 +1374,7 @@ def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
     return model
 
 
+
 @tf.function
 def train_step(x, y1, y2, model, loss_const, optimizer):
     with tf.GradientTape() as tape:
@@ -1386,6 +1389,34 @@ def test_step(x, y1, y2, model, loss_const):
     val_logits1, val_logits2 = model(x, training=False)
     loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
     return loss
+
+def train_step_for_dist(x, y1, y2, model, loss_const, optimizer):
+    with tf.GradientTape() as tape:
+        logits1, logits2 = model(x, training=True)
+        per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+        loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
+    grads = tape.gradient(loss, model.trainable_weights)
+    optimizer.apply_gradients(zip(grads, model.trainable_weights))
+    return loss
+
+def test_step_for_dist(x, y1, y2, model, loss_const):
+    val_logits1, val_logits2 = model(x, training=False)
+    per_example_loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
+    return tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
+
+@tf.function
+def distributed_train_step(x, y1, y2, model, loss_const, optimizer):
+    per_replica_losses = mirrored_strategy.run(train_step_for_dist, 
+                                               args=(x, y1, y2, model, loss_const, optimizer))
+    return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
+                                    axis=None)
+
+@tf.function
+def distributed_test_step(x, y1, y2, model, loss_const):
+    per_replica_losses = mirrored_strategy.run(test_step_for_dist, 
+                                               args=(x, y1, y2, model, loss_const))
+    return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
+                                    axis=None)
 
 
 
@@ -1416,8 +1447,14 @@ def evaluate_source_sep(train_generator, validation_generator,
     #     if 
 
     # TRAINING LOOP FROM SCRATCH
-    model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
-                            config=config, t_mean=t_mean, t_std=t_std)
+    if pc_run:
+        model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
+                                config=config, t_mean=t_mean, t_std=t_std)
+    else:
+        with mirrored_strategy.scope():
+            model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
+                                    config=config, t_mean=t_mean, t_std=t_std)
+            optimizer = optimizer
     print(model.summary())
 
     print('Going into training now...')
@@ -1425,43 +1462,92 @@ def evaluate_source_sep(train_generator, validation_generator,
     for epoch in range(epochs):
         print('EPOCH:', epoch + 1)
 
-        # Training
-        # Iterate over the batches of the dataset
         train_steps_per_epoch=math.ceil(num_train / batch_size)
-        for step, (x_batch_train, y1_batch_train, y2_batch_train) in enumerate(train_generator):
-            loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train,
-                                     model, loss_const, optimizer)
-            loss_value = tf.math.reduce_mean(loss_tensor).numpy()
-            
-            readable_step = step + 1
-            # Log every batch
-            if step == 0:
-                print('Training execution (steps):', end = " ")
-            print('(' + str(readable_step) + ')', end="")
-
-            if readable_step == train_steps_per_epoch:
-                break
-
-        print(' - epoch loss:', loss_value)
-        history['loss'].append(loss_value)
-
-        # Validation
         val_steps_per_epoch=math.ceil(num_val / batch_size)
-        for step, (x_batch_val, y1_batch_val, y2_batch_val) in enumerate(validation_generator):
-            loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val,
-                                    model, loss_const)
-            loss_value = tf.math.reduce_mean(loss_tensor).numpy()
+        if pc_run:
+            # Training
+            # Iterate over the batches of the dataset
+            for step, (x_batch_train, y1_batch_train, y2_batch_train) in enumerate(train_generator):
+                loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train,
+                                         model, loss_const, optimizer)
+                loss_value = tf.math.reduce_mean(loss_tensor).numpy()
+                
+                readable_step = step + 1
+                # Log every batch
+                if step == 0:
+                    print('Training execution (steps):', end = " ")
+                print('(' + str(readable_step) + ')', end="")
 
-            readable_step = step + 1
-            if step == 0:
-                print('Validate execution (steps):', end = " ")
-            print('(' + str(readable_step) + ')', end="")
-            if readable_step == val_steps_per_epoch:
-                break
+                if readable_step == train_steps_per_epoch:
+                    break
 
-        print(' - epoch val. loss:', loss_value, '\n')        
-        history['val_loss'].append(loss_value)
+            print(' - epoch loss:', loss_value)
+            history['loss'].append(loss_value)
+
+            # Validation
+            for step, (x_batch_val, y1_batch_val, y2_batch_val) in enumerate(validation_generator):
+                loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val,
+                                        model, loss_const)
+                loss_value = tf.math.reduce_mean(loss_tensor).numpy()
+
+                readable_step = step + 1
+                if step == 0:
+                    print('Validate execution (steps):', end = " ")
+                print('(' + str(readable_step) + ')', end="")
+                if readable_step == val_steps_per_epoch:
+                    break
+
+            print(' - epoch val. loss:', loss_value)        
+            history['val_loss'].append(loss_value)
     
+        else:
+            # Assume better to give worker less batches than too many?
+            batch_size_per_replica = batch_size // 2
+            global_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
+
+            train_dataset = tf.data.Dataset.from_generator(
+                train_generator, output_types=(tf.float32), output_shapes=tf.TensorShape([None, n_seq, n_feat]))
+            # Cross fingers for this line
+            train_dataset = train_dataset.batch(global_batch_size)
+            dist_train_dataset = mirrored_strategy.experimental_distribute_dataset(train_dataset)
+            iterator = iter(dist_train_dataset)
+            for step in range(train_steps_per_epoch):
+                x_batch_train, y1_batch_train, y2_batch_train = next(iterator)
+                loss_value = distributed_train_step(x_batch_train, y1_batch_train, y2_batch_train,
+                                                    model, loss_const, optimizer)
+
+                readable_step = step + 1
+                # Log every batch
+                if step == 0:
+                    print('Training execution (steps):', end = " ")
+                print('(' + str(readable_step) + ')', end="")
+
+                if readable_step == train_steps_per_epoch:
+                    break
+
+            print(' - epoch loss:', loss_value)
+            history['loss'].append(loss_value)
+
+            val_dataset = tf.data.Dataset.from_generator(
+                validation_generator, output_types=(tf.float32), output_shapes=tf.TensorShape([None, n_seq, n_feat]))
+            # Cross fingers for this line
+            val_dataset = val_dataset.batch(global_batch_size)
+            dist_val_dataset = mirrored_strategy.experimental_distribute_dataset(val_dataset)
+            iterator = iter(dist_val_dataset)
+            for step in range(train_steps_per_epoch):
+                x_batch_val, y1_batch_val, y2_batch_val = next(iterator)
+                loss_value = distributed_test_step(x_batch_val, y1_batch_val, y2_batch_val,
+                                                   model, loss_const)
+
+                readable_step = step + 1
+                if step == 0:
+                    print('Validate execution (steps):', end = " ")
+                print('(' + str(readable_step) + ')', end="")
+                if readable_step == val_steps_per_epoch:
+                    break
+
+            print(' - epoch val. loss:', loss_value)        
+            history['val_loss'].append(loss_value)
     # Not necessary for HPC (can't run on HPC)
     # tf.keras.utils.plot_model(model, 
     #                        (gs_path + 'model' + str(grid_search_iter) + 'of' + str(combos) + '.png'
