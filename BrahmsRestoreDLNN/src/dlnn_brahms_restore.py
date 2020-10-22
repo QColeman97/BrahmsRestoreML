@@ -1418,6 +1418,12 @@ def distributed_test_step(x, y1, y2, model, loss_const):
     return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
                                     axis=None)
 
+def make_gen_callable(_gen):
+    def gen():
+        for x,y,z in _gen:
+            yield x,y,z
+    return gen
+
 
 
 # MODEL TRAIN & EVAL FUNCTION
@@ -1506,7 +1512,9 @@ def evaluate_source_sep(train_generator, validation_generator,
             global_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
 
             train_dataset = tf.data.Dataset.from_generator(
-                train_generator, output_types=(tf.float32), output_shapes=tf.TensorShape([None, n_seq, n_feat]))
+                make_gen_callable(train_generator), output_types=(tf.float32), 
+                output_shapes=tf.TensorShape([None, n_seq, n_feat])
+            )
             # Cross fingers for this line
             train_dataset = train_dataset.batch(global_batch_size)
             dist_train_dataset = mirrored_strategy.experimental_distribute_dataset(train_dataset)
@@ -1529,7 +1537,9 @@ def evaluate_source_sep(train_generator, validation_generator,
             history['loss'].append(loss_value)
 
             val_dataset = tf.data.Dataset.from_generator(
-                validation_generator, output_types=(tf.float32), output_shapes=tf.TensorShape([None, n_seq, n_feat]))
+                make_gen_callable(validation_generator), output_types=(tf.float32), 
+                output_shapes=tf.TensorShape([None, n_seq, n_feat])
+            )
             # Cross fingers for this line
             val_dataset = val_dataset.batch(global_batch_size)
             dist_val_dataset = mirrored_strategy.experimental_distribute_dataset(val_dataset)
