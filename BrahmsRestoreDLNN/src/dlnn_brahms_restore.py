@@ -1390,31 +1390,39 @@ def test_step(x, y1, y2, model, loss_const):
     loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
     return loss
 
-def train_step_for_dist(x, y1, y2, model, loss_const, optimizer):
+# def train_step_for_dist(x, y1, y2, model, loss_const, optimizer):
+def train_step_for_dist(inputs, model, loss_const, optimizer, dist_bs):
+    x, y1, y2 = inputs
     with tf.GradientTape() as tape:
         logits1, logits2 = model(x, training=True)
         per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
-        loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
+        loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=dist_bs)
     grads = tape.gradient(loss, model.trainable_weights)
     optimizer.apply_gradients(zip(grads, model.trainable_weights))
     return loss
 
-def test_step_for_dist(x, y1, y2, model, loss_const):
+# def test_step_for_dist(x, y1, y2, model, loss_const):
+def test_step_for_dist(inputs, model, loss_const, dist_bs):
+    x, y1, y2 = inputs
     val_logits1, val_logits2 = model(x, training=False)
     per_example_loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
-    return tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
+    return tf.nn.compute_average_loss(per_example_loss, global_batch_size=dist_bs)
 
+# @tf.function
+# def distributed_train_step(x, y1, y2, model, loss_const, optimizer):
 @tf.function
-def distributed_train_step(x, y1, y2, model, loss_const, optimizer):
+def distributed_train_step(dist_inputs, model, loss_const, optimizer, dist_bs):
     per_replica_losses = mirrored_strategy.run(train_step_for_dist, 
-                                               args=(x, y1, y2, model, loss_const, optimizer))
+                                               args=(dist_inputs, model, loss_const, optimizer, dist_bs))
     return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
                                     axis=None)
 
+# @tf.function
+# def distributed_test_step(x, y1, y2, model, loss_const):
 @tf.function
-def distributed_test_step(x, y1, y2, model, loss_const):
+def distributed_test_step(dist_inputs, model, loss_const, dist_bs):
     per_replica_losses = mirrored_strategy.run(test_step_for_dist, 
-                                               args=(x, y1, y2, model, loss_const))
+                                               args=(dist_inputs, model, loss_const, dist_bs))
     return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
                                     axis=None)
 
@@ -1520,9 +1528,10 @@ def evaluate_source_sep(train_generator, validation_generator,
             dist_train_dataset = mirrored_strategy.experimental_distribute_dataset(train_dataset)
             iterator = iter(dist_train_dataset)
             for step in range(train_steps_per_epoch):
-                x_batch_train, y1_batch_train, y2_batch_train = next(iterator)
-                loss_value = distributed_train_step(x_batch_train, y1_batch_train, y2_batch_train,
-                                                    model, loss_const, optimizer)
+                # x_batch_train, y1_batch_train, y2_batch_train = next(iterator)
+                # loss_value = distributed_train_step(x_batch_train, y1_batch_train, y2_batch_train,
+                #                                     model, loss_const, optimizer)
+                loss_value = distributed_train_step(next(iterator), model, loss_const, optimizer, global_batch_size)
 
                 readable_step = step + 1
                 # Log every batch
@@ -1545,9 +1554,11 @@ def evaluate_source_sep(train_generator, validation_generator,
             dist_val_dataset = mirrored_strategy.experimental_distribute_dataset(val_dataset)
             iterator = iter(dist_val_dataset)
             for step in range(train_steps_per_epoch):
-                x_batch_val, y1_batch_val, y2_batch_val = next(iterator)
-                loss_value = distributed_test_step(x_batch_val, y1_batch_val, y2_batch_val,
-                                                   model, loss_const)
+                # x_batch_val, y1_batch_val, y2_batch_val = next(iterator)
+                # loss_value = distributed_test_step(x_batch_val, y1_batch_val, y2_batch_val,
+                #                                    model, loss_const)
+
+                loss_value = distributed_test_step(next(iterator), model, loss_const, global_batch_size)
 
                 readable_step = step + 1
                 if step == 0:
