@@ -1513,7 +1513,7 @@ def evaluate_source_sep(train_generator, validation_generator,
 
             train_dataset = tf.data.Dataset.from_generator(
                 make_gen_callable(train_generator), output_types=(tf.float32), 
-                output_shapes=tf.TensorShape([None, n_seq, n_feat])
+                output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
             )
             # Cross fingers for this line
             train_dataset = train_dataset.batch(global_batch_size)
@@ -1538,7 +1538,7 @@ def evaluate_source_sep(train_generator, validation_generator,
 
             val_dataset = tf.data.Dataset.from_generator(
                 make_gen_callable(validation_generator), output_types=(tf.float32), 
-                output_shapes=tf.TensorShape([None, n_seq, n_feat])
+                output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
             )
             # Cross fingers for this line
             val_dataset = val_dataset.batch(global_batch_size)
