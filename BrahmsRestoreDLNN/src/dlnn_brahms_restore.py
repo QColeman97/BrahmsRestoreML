@@ -1531,12 +1531,12 @@ def evaluate_source_sep(train_generator, validation_generator,
                 # x_batch_train, y1_batch_train, y2_batch_train = next(iterator)
                 # loss_value = distributed_train_step(x_batch_train, y1_batch_train, y2_batch_train,
                 #                                     model, loss_const, optimizer)
-                
+                # loss_value = distributed_train_step(next(iterator), model, loss_const, optimizer, global_batch_size)
+
                 debug = next(iterator)
-                print('next(iterator):', debug, 'TYPE:', type(debug))
-                print('SHAPE:', debug.shape) 
+                print('next(iterator):', debug.values(), 'TYPE:', type(debug.values()))
                 
-                loss_value = distributed_train_step(next(iterator), model, loss_const, optimizer, global_batch_size)
+                loss_value = distributed_train_step(debug, model, loss_const, optimizer, global_batch_size)
 
                 readable_step = step + 1
                 # Log every batch
