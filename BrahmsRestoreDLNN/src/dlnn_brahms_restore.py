@@ -2315,8 +2315,8 @@ def main():
 
             if pc_run:
                 # TEST PC
-                # with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
-                with open(config_path + 'hp_arch_config_final.json') as hp_file:
+                with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+                # with open(config_path + 'hp_arch_config_final.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
             else:
                 # with open(config_path + 'hp_arch_config_largedim.json') as hp_file:
