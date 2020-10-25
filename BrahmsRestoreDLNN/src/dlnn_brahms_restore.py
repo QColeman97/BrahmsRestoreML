@@ -40,6 +40,7 @@ print("Num GPUs Available: ", len(gpus))
 print("GPUs Available: ", gpus)
 
 mirrored_strategy = tf.distribute.MirroredStrategy()
+print("Num GPUs Available (according to mirrored strategy): ", mirrored_strategy.num_replicas_in_sync, "\n")
 # TEST - 2 GS's at same time? SUCCESS!!!
 # BUT, set_memory_growth has perf disadvantages (slower) - give main GS full power
 # tf.config.experimental.set_memory_growth(gpus[0], True)
@@ -1390,41 +1391,41 @@ def test_step(x, y1, y2, model, loss_const):
     loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
     return loss
 
-# def train_step_for_dist(x, y1, y2, model, loss_const, optimizer):
-def train_step_for_dist(inputs, model, loss_const, optimizer, dist_bs):
-    x, y1, y2 = inputs
-    with tf.GradientTape() as tape:
-        logits1, logits2 = model(x, training=True)
-        per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
-        loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=dist_bs)
-    grads = tape.gradient(loss, model.trainable_weights)
-    optimizer.apply_gradients(zip(grads, model.trainable_weights))
-    return loss
+# # def train_step_for_dist(x, y1, y2, model, loss_const, optimizer):
+# def train_step_for_dist(inputs, model, loss_const, optimizer, dist_bs):
+#     x, y1, y2 = inputs
+#     with tf.GradientTape() as tape:
+#         logits1, logits2 = model(x, training=True)
+#         per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+#         loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=dist_bs)
+#     grads = tape.gradient(loss, model.trainable_weights)
+#     optimizer.apply_gradients(zip(grads, model.trainable_weights))
+#     return loss
 
-# def test_step_for_dist(x, y1, y2, model, loss_const):
-def test_step_for_dist(inputs, model, loss_const, dist_bs):
-    x, y1, y2 = inputs
-    val_logits1, val_logits2 = model(x, training=False)
-    per_example_loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
-    return tf.nn.compute_average_loss(per_example_loss, global_batch_size=dist_bs)
+# # def test_step_for_dist(x, y1, y2, model, loss_const):
+# def test_step_for_dist(inputs, model, loss_const, dist_bs):
+#     x, y1, y2 = inputs
+#     val_logits1, val_logits2 = model(x, training=False)
+#     per_example_loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
+#     return tf.nn.compute_average_loss(per_example_loss, global_batch_size=dist_bs)
 
+# # @tf.function
+# # def distributed_train_step(x, y1, y2, model, loss_const, optimizer):
 # @tf.function
-# def distributed_train_step(x, y1, y2, model, loss_const, optimizer):
-@tf.function
-def distributed_train_step(dist_inputs, model, loss_const, optimizer, dist_bs):
-    per_replica_losses = mirrored_strategy.run(train_step_for_dist, 
-                                               args=(dist_inputs, model, loss_const, optimizer, dist_bs))
-    return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
-                                    axis=None)
+# def distributed_train_step(dist_inputs, model, loss_const, optimizer, dist_bs):
+#     per_replica_losses = mirrored_strategy.run(train_step_for_dist, 
+#                                                args=(dist_inputs, model, loss_const, optimizer, dist_bs))
+#     return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
+#                                     axis=None)
 
+# # @tf.function
+# # def distributed_test_step(x, y1, y2, model, loss_const):
 # @tf.function
-# def distributed_test_step(x, y1, y2, model, loss_const):
-@tf.function
-def distributed_test_step(dist_inputs, model, loss_const, dist_bs):
-    per_replica_losses = mirrored_strategy.run(test_step_for_dist, 
-                                               args=(dist_inputs, model, loss_const, dist_bs))
-    return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
-                                    axis=None)
+# def distributed_test_step(dist_inputs, model, loss_const, dist_bs):
+#     per_replica_losses = mirrored_strategy.run(test_step_for_dist, 
+#                                                args=(dist_inputs, model, loss_const, dist_bs))
+#     return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
+#                                     axis=None)
 
 def make_gen_callable(_gen):
     def gen():
@@ -1515,6 +1516,38 @@ def evaluate_source_sep(train_generator, validation_generator,
             history['val_loss'].append(loss_value)
     
         else:
+            # Put functions inside scope
+            def train_step_for_dist(inputs):
+                x, y1, y2 = inputs
+                with tf.GradientTape() as tape:
+                    logits1, logits2 = model(x, training=True)
+                    per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+                    loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
+                grads = tape.gradient(loss, model.trainable_weights)
+                optimizer.apply_gradients(zip(grads, model.trainable_weights))
+                return loss
+
+            def test_step_for_dist(inputs):
+                x, y1, y2 = inputs
+                val_logits1, val_logits2 = model(x, training=False)
+                per_example_loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
+                return tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
+
+            @tf.function
+            def distributed_train_step(dist_inputs):
+                per_replica_losses = mirrored_strategy.run(train_step_for_dist, 
+                                                        args=(dist_inputs))
+                return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
+                                                axis=None)
+
+            @tf.function
+            def distributed_test_step(dist_inputs):
+                per_replica_losses = mirrored_strategy.run(test_step_for_dist, 
+                                                        args=(dist_inputs))
+                return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
+                                                axis=None)
+
+
             # Assume better to give worker less batches than too many?
             batch_size_per_replica = batch_size // 2
             global_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
@@ -1533,10 +1566,11 @@ def evaluate_source_sep(train_generator, validation_generator,
                 #                                     model, loss_const, optimizer)
                 # loss_value = distributed_train_step(next(iterator), model, loss_const, optimizer, global_batch_size)
 
-                debug = next(iterator)
-                print('next(iterator):', debug._values, 'TYPE:', type(debug._values))
+                # debug = next(iterator)
+                # print('next(iterator):', debug._values[0].shape, 'TYPE:', type(debug._values[0]), 
+                # 'next thing:', debug._values[1].shape, 'TYPE:', type(debug._values[1]), 'LEN:', len(debug._values))
                 
-                loss_value = distributed_train_step(debug, model, loss_const, optimizer, global_batch_size)
+                loss_value = distributed_train_step(next(iterator))
 
                 readable_step = step + 1
                 # Log every batch
@@ -1563,7 +1597,8 @@ def evaluate_source_sep(train_generator, validation_generator,
                 # loss_value = distributed_test_step(x_batch_val, y1_batch_val, y2_batch_val,
                 #                                    model, loss_const)
 
-                loss_value = distributed_test_step(next(iterator), model, loss_const, global_batch_size)
+                # loss_value = distributed_test_step(next(iterator), model, loss_const, global_batch_size)
+                loss_value = distributed_test_step(next(iterator))
 
                 readable_step = step + 1
                 if step == 0:
