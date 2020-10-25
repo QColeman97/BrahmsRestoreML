@@ -1534,7 +1534,7 @@ def evaluate_source_sep(train_generator, validation_generator,
                 # loss_value = distributed_train_step(next(iterator), model, loss_const, optimizer, global_batch_size)
 
                 debug = next(iterator)
-                print('next(iterator):', debug.values(), 'TYPE:', type(debug.values()))
+                print('next(iterator):', debug._values, 'TYPE:', type(debug._values)
                 
                 loss_value = distributed_train_step(debug, model, loss_const, optimizer, global_batch_size)
 
