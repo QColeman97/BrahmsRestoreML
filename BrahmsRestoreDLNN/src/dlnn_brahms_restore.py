@@ -1829,7 +1829,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # Being careful about batch size effect on mem -> start low
     # batch_size_optns = [1] if pc_run else [3, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
     # FOR PC: Runs longer, so 1 less batch size option is good for ~2 weeks runtime
-    batch_size_optns = [3] if pc_run else [3, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
+    batch_size_optns = [3] if pc_run else [4, 10]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
     # loss_const total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
@@ -2232,7 +2232,7 @@ def main():
 
     epsilon = 10 ** (-10)
     # Orig batch size 5, orig loss const 0.05, orig clipval 0.9
-    train_batch_size = 3 if pc_run else 5
+    train_batch_size = 3 if pc_run else 6   # Batchsize is even to dist on 2 GPUs
     # PC TEST
     # train_batch_size = 5 if pc_run else 5
     # Notes:
