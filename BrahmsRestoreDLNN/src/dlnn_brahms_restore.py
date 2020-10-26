@@ -821,13 +821,22 @@ class TimeFreqMasking(Layer):
 # )
 
 # Loss function for subclassed model
+# def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
+#     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
+#     return (
+#         tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+#         (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+#         tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+#         (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1))
+#     )
+# FIX - only return one value = less memory taken
 def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
     return (
-        tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-        (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-        tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-        (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1))
+        tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2) - 
+        (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2)) +
+        tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2) -
+        (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2))
     )
 
 
@@ -1439,7 +1448,7 @@ def make_gen_callable(_gen):
 def evaluate_source_sep(train_generator, validation_generator,
                         num_train, num_val, n_feat, n_seq, batch_size, 
                         loss_const, epochs=20, 
-                        optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.75),
+                        opt=tf.keras.optimizers.RMSprop(clipvalue=0.75),
                         patience=10, epsilon=10 ** (-10), config=None, recent_model_path=None, pc_run=False,
                         t_mean=None, t_std=None, grid_search_iter=None, gs_path=None, combos=None, gs_id=''):
     # print('X shape:', X.shape, 'y1 shape:', y1.shape, 'y2 shape:', y2.shape)
@@ -1465,11 +1474,12 @@ def evaluate_source_sep(train_generator, validation_generator,
     if pc_run:
         model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
                                 config=config, t_mean=t_mean, t_std=t_std)
+        optimizer = opt
     else:
         with mirrored_strategy.scope():
             model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
                                     config=config, t_mean=t_mean, t_std=t_std)
-            optimizer = optimizer
+            optimizer = opt
     print(model.summary())
 
     print('Going into training now...')
@@ -1566,14 +1576,15 @@ def evaluate_source_sep(train_generator, validation_generator,
                                                 axis=None)
 
             # TRAIN DATASET FROM GENERATOR
+            # From docs: batch size must be equal to global batch size (refactor earlier if needed)
             train_dataset = tf.data.Dataset.from_generator(
                 make_gen_callable(train_generator), output_types=(tf.float32), 
-                output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+                output_shapes=tf.TensorShape([global_batch_size, None, n_seq, n_feat])  # Batch dim used to be 3 - fix!?
             )
             # TRAIN LOOP
             total_loss, num_batches = 0.0, 0
             # Cross fingers for this line
-            train_dataset = train_dataset.batch(global_batch_size)
+            # train_dataset = train_dataset.batch(global_batch_size)
             dist_train_dataset = mirrored_strategy.experimental_distribute_dataset(train_dataset)
             train_iter = iter(dist_train_dataset)
             for step in range(train_steps_per_epoch):
@@ -1607,12 +1618,12 @@ def evaluate_source_sep(train_generator, validation_generator,
             # VALIDATION DATASET FROM GENERATOR
             val_dataset = tf.data.Dataset.from_generator(
                 make_gen_callable(validation_generator), output_types=(tf.float32), 
-                output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+                output_shapes=tf.TensorShape([global_batch_size, None, n_seq, n_feat])    # Batch dim used to be 3 - fix!?
             )
             # VALIDATION LOOP
             total_loss, num_batches = 0.0, 0
             # Cross fingers for this line
-            val_dataset = val_dataset.batch(global_batch_size)
+            # val_dataset = val_dataset.batch(global_batch_size)
             dist_val_dataset = mirrored_strategy.experimental_distribute_dataset(val_dataset)
             val_iter = iter(dist_val_dataset)
             for step in range(train_steps_per_epoch):
@@ -2259,7 +2270,7 @@ def main():
 
     epsilon = 10 ** (-10)
     # Orig batch size 5, orig loss const 0.05, orig clipval 0.9
-    train_batch_size = 3 if pc_run else 2   # Batchsize is even to dist on 2 GPUs
+    train_batch_size = 3 if pc_run else 4   # Batchsize is even to dist on 2 GPUs
     # PC TEST
     # train_batch_size = 5 if pc_run else 5
     # Notes:
@@ -2456,7 +2467,7 @@ def main():
                                     n_feat=train_feat, n_seq=train_seq, 
                                     batch_size=train_batch_size, 
                                     loss_const=loss_const, epochs=epochs,
-                                    optimizer=optimizer, epsilon=epsilon,
+                                    opt=optimizer, epsilon=epsilon,
                                     recent_model_path=recent_model_path, pc_run=pc_run,
                                     config=config, t_mean=train_mean, t_std=train_std)
             

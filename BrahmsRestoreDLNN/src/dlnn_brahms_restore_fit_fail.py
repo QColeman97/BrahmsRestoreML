@@ -835,92 +835,92 @@ def custom_loss(other_true, other_pred, loss_const):
 def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
     return (
-        tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-        (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-        tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-        (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1))
+        tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2) - 
+        (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2)) +
+        tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2) -
+        (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2))
     )
 
 
 
-# class RestorationModel(Model):
-#     def __init__(self, features, loss_const, name='Restoration Model', 
-#                  epsilon=10**(-10), config=None, t_mean=None, t_std=None, **kwargs):
-#         super(RestorationModel, self).__init__(name=name, **kwargs)
-#         # super(RestorationModel, self).__init__()
-#         self.config = config
-#         self.loss_const = loss_const
-#         # self._name = name
-#         if self.config is not None:
-#             pass
-#         else:
-#             self.rnn1 = SimpleRNN(features // 2, 
-#                                   activation='relu', 
-#                                   return_sequences=True)
-#             self.rnn2 = SimpleRNN(features // 2, 
-#                                   activation='relu', 
-#                                   return_sequences=True)
-#             self.dense_branch1 = TimeDistributed(Dense(features), name='piano_hat')
-#             self.dense_branch2 = TimeDistributed(Dense(features), name='noise_hat')
-#         self.piano_tf_mask = TimeFreqMasking(epsilon=epsilon, name='piano_pred')
-#         self.noise_tf_mask = TimeFreqMasking(epsilon=epsilon, name='noise_pred')
+class RestorationModel(Model):
+    def __init__(self, features, loss_const, name='Restoration Model', 
+                 epsilon=10**(-10), config=None, t_mean=None, t_std=None, **kwargs):
+        super(RestorationModel, self).__init__(name=name, **kwargs)
+        # super(RestorationModel, self).__init__()
+        self.config = config
+        self.loss_const = loss_const
+        # self._name = name
+        if self.config is not None:
+            pass
+        else:
+            self.rnn1 = SimpleRNN(features // 2, 
+                                  activation='relu', 
+                                  return_sequences=True)
+            self.rnn2 = SimpleRNN(features // 2, 
+                                  activation='relu', 
+                                  return_sequences=True)
+            self.dense_branch1 = TimeDistributed(Dense(features), name='piano_hat')
+            self.dense_branch2 = TimeDistributed(Dense(features), name='noise_hat')
+        self.piano_tf_mask = TimeFreqMasking(epsilon=epsilon, name='piano_pred')
+        self.noise_tf_mask = TimeFreqMasking(epsilon=epsilon, name='noise_pred')
  
 
-#     def call(self, inputs):
-#         # piano_noise_mix, p_true, n_true = inputs[0], inputs[1], inputs[2]
-#         # print('SHAPE OF INCOMING INPUTS (CALL):', inputs.shape)
-#         # global_phases1, global_phases2, global_phases3 = np.fromfile('1').reshape((1847, 2049)), np.fromfile('2').reshape((1847, 2049)), np.fromfile('3').reshape((1847, 2049))
-#         # print('TEST - WRITE THESE TO WAV -', global_phases1.shape, global_phases2.shape, global_phases3.shape)
-#         # synthetic_sig = make_synthetic_signal(inputs[0].numpy(), global_phases1, PIANO_WDW_SIZE, 
-#         #                                       'int16', ova=True, debug=False)
-#         # wavfile.write('1.wav', 44100, synthetic_sig)
-#         # synthetic_sig = make_synthetic_signal(inputs[1].numpy(), global_phases2, PIANO_WDW_SIZE, 
-#         #                                       'int16', ova=True, debug=False)
-#         # wavfile.write('2.wav', 44100, synthetic_sig)
-#         # synthetic_sig = make_synthetic_signal(inputs[2].numpy(), global_phases3, PIANO_WDW_SIZE, 
-#         #                                       'int16', ova=True, debug=False)
-#         # wavfile.write('3.wav', 44100, synthetic_sig)
-#         # print('SHAPE OF X INPUT (CALL):', piano_noise_mix.shape)
-#         if self.config is not None:
-#             pass
-#         else:
-#             # x = self.rnn1(piano_noise_mix)
-#             x = self.rnn1(inputs)
-#             x = self.rnn2(x)
-#             piano_hat = self.dense_branch1(x)   # source 1 branch
-#             noise_hat = self.dense_branch2(x)   # source 2 branch
-#         piano_pred = self.piano_tf_mask([piano_hat, noise_hat, inputs])
-#         noise_pred = self.noise_tf_mask([noise_hat, piano_hat, inputs])
-#         # piano_pred = self.piano_tf_mask([piano_hat, noise_hat, piano_noise_mix])
-#         # noise_pred = self.noise_tf_mask([noise_hat, piano_hat, piano_noise_mix])
+    def call(self, inputs):
+        # piano_noise_mix, p_true, n_true = inputs[0], inputs[1], inputs[2]
+        # print('SHAPE OF INCOMING INPUTS (CALL):', inputs.shape)
+        # global_phases1, global_phases2, global_phases3 = np.fromfile('1').reshape((1847, 2049)), np.fromfile('2').reshape((1847, 2049)), np.fromfile('3').reshape((1847, 2049))
+        # print('TEST - WRITE THESE TO WAV -', global_phases1.shape, global_phases2.shape, global_phases3.shape)
+        # synthetic_sig = make_synthetic_signal(inputs[0].numpy(), global_phases1, PIANO_WDW_SIZE, 
+        #                                       'int16', ova=True, debug=False)
+        # wavfile.write('1.wav', 44100, synthetic_sig)
+        # synthetic_sig = make_synthetic_signal(inputs[1].numpy(), global_phases2, PIANO_WDW_SIZE, 
+        #                                       'int16', ova=True, debug=False)
+        # wavfile.write('2.wav', 44100, synthetic_sig)
+        # synthetic_sig = make_synthetic_signal(inputs[2].numpy(), global_phases3, PIANO_WDW_SIZE, 
+        #                                       'int16', ova=True, debug=False)
+        # wavfile.write('3.wav', 44100, synthetic_sig)
+        # print('SHAPE OF X INPUT (CALL):', piano_noise_mix.shape)
+        if self.config is not None:
+            pass
+        else:
+            # x = self.rnn1(piano_noise_mix)
+            x = self.rnn1(inputs)
+            x = self.rnn2(x)
+            piano_hat = self.dense_branch1(x)   # source 1 branch
+            noise_hat = self.dense_branch2(x)   # source 2 branch
+        piano_pred = self.piano_tf_mask([piano_hat, noise_hat, inputs])
+        noise_pred = self.noise_tf_mask([noise_hat, piano_hat, inputs])
+        # piano_pred = self.piano_tf_mask([piano_hat, noise_hat, piano_noise_mix])
+        # noise_pred = self.noise_tf_mask([noise_hat, piano_hat, piano_noise_mix])
 
-#         return (piano_pred, noise_pred)
+        return (piano_pred, noise_pred)
 
 
-#     def train_step(self, data):
-#         # Unpack data - what generator yeilds
-#         # {'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, y1, y2 = data
-#         x, piano_true, noise_true = data
+    def train_step(self, data):
+        # Unpack data - what generator yeilds
+        # {'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, y1, y2 = data
+        x, piano_true, noise_true = data
 
-#         # print('SHAPE OF X INPUT (TRAIN_STEP):', x.shape)
-#         with tf.GradientTape() as tape:
-#             # y_pred = self(x, training=True) # Forward pass
-#             piano_pred, noise_pred = self((x, piano_true, noise_true), training=True)   # Forward pass
-#             # Compute the loss value
-#             # loss = self.compiled_loss(y, y_pred, regularization_losses=self.losses)
-#             loss = self.compiled_loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
+        # print('SHAPE OF X INPUT (TRAIN_STEP):', x.shape)
+        with tf.GradientTape() as tape:
+            # y_pred = self(x, training=True) # Forward pass
+            piano_pred, noise_pred = self((x, piano_true, noise_true), training=True)   # Forward pass
+            # Compute the loss value
+            # loss = self.compiled_loss(y, y_pred, regularization_losses=self.losses)
+            loss = self.compiled_loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
 
-#         # Compute gradients
-#         trainable_vars = self.trainable_variables
-#         gradients = tape.gradient(loss, trainable_vars)
-#         # Update weights
-#         self.optimizer.apply_gradients(zip(gradients, trainable_vars))
-#         # Update metrics (includes the metric that tracks the loss)
-#         # self.compiled_metrics.update_state(y, y_pred)
-#         # Uncomment if error here (no metrics)
-#         # self.compiled_metrics.update_state(piano_true, noise_true, piano_pred, noise_pred)
-#         # Return a dict mapping metric names to current value
-#         return {m.name: m.result() for m in self.metrics}
+        # Compute gradients
+        trainable_vars = self.trainable_variables
+        gradients = tape.gradient(loss, trainable_vars)
+        # Update weights
+        self.optimizer.apply_gradients(zip(gradients, trainable_vars))
+        # Update metrics (includes the metric that tracks the loss)
+        # self.compiled_metrics.update_state(y, y_pred)
+        # Uncomment if error here (no metrics)
+        # self.compiled_metrics.update_state(piano_true, noise_true, piano_pred, noise_pred)
+        # Return a dict mapping metric names to current value
+        return {m.name: m.result() for m in self.metrics}
 
 
 
@@ -1286,13 +1286,13 @@ def evaluate_source_sep(train_generator, validation_generator,
     print('Making model...')
     # print('DEBUG Batch Size in Eval Src Sep:', batch_size)
     # IMPERATIVE MODEL - Customize Fit
-    # model = make_imp_model(n_feat, n_seq, loss_const=loss_const, optimizer=optimizer,
-    #                        epsilon=epsilon, config=config, t_mean=t_mean, t_std=t_std)
+    model = make_imp_model(n_feat, n_seq, loss_const=loss_const, optimizer=optimizer,
+                           epsilon=epsilon, config=config, t_mean=t_mean, t_std=t_std)
     # For imperative model, build before summary BUT fixes batch size
     # ORIGINAL
-    model = make_model(n_feat, n_seq, loss_const, optimizer, 
-                        name='Training Model', epsilon=epsilon, config=config,
-                       t_mean=t_mean, t_std=t_std)
+    # model = make_model(n_feat, n_seq, loss_const, optimizer, 
+    #                     name='Training Model', epsilon=epsilon, config=config,
+    #                    t_mean=t_mean, t_std=t_std)
     # TRAINING LOOP FROM SCRATCH
     # model = make_model(n_feat, n_seq, loss_const, optimizer, 
     #                    name='Training Model', epsilon=epsilon, config=config,
