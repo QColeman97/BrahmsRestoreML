@@ -2259,7 +2259,7 @@ def main():
 
     epsilon = 10 ** (-10)
     # Orig batch size 5, orig loss const 0.05, orig clipval 0.9
-    train_batch_size = 3 if pc_run else 6   # Batchsize is even to dist on 2 GPUs
+    train_batch_size = 3 if pc_run else 2   # Batchsize is even to dist on 2 GPUs
     # PC TEST
     # train_batch_size = 5 if pc_run else 5
     # Notes:
@@ -2291,6 +2291,7 @@ def main():
             try:
                 tf.config.experimental.set_memory_growth(gpus[0], True)
                 tf.config.experimental.set_memory_growth(gpus[1], True)
+                print('\nSet mem growth for both GPUs\n')
             except:
                 print('ERROR: Couldn\'t set memory growth for both gpus')
 
