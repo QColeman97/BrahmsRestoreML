@@ -1532,15 +1532,17 @@ def evaluate_source_sep(train_generator, validation_generator,
             history['val_loss'].append(avg_val_loss)
     
         else:
+            # From docs: batch size must be equal to global batch size (refactor earlier if needed)
             # Assume better to give worker less batches than too many? - give even num
-            batch_size_per_replica = batch_size // 2
-            global_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
+            # batch_size_per_replica = batch_size // 2
+            # global_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
             
             with mirrored_strategy.scope():
                 def compute_loss(y1, y2, logits1, logits2, loss_const):
                     per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
                     return tf.nn.compute_average_loss(per_example_loss, 
-                                                      global_batch_size=global_batch_size)
+                                                      global_batch_size=batch_size)
+                                                      # global_batch_size=global_batch_size)
 
             # Put functions inside scope
             def train_step_for_dist(inputs):
@@ -1576,10 +1578,9 @@ def evaluate_source_sep(train_generator, validation_generator,
                                                 axis=None)
 
             # TRAIN DATASET FROM GENERATOR
-            # From docs: batch size must be equal to global batch size (refactor earlier if needed)
             train_dataset = tf.data.Dataset.from_generator(
                 make_gen_callable(train_generator), output_types=(tf.float32), 
-                output_shapes=tf.TensorShape([global_batch_size, None, n_seq, n_feat])  # Batch dim used to be 3 - fix!?
+                output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
             )
             # TRAIN LOOP
             total_loss, num_batches = 0.0, 0
@@ -1618,7 +1619,7 @@ def evaluate_source_sep(train_generator, validation_generator,
             # VALIDATION DATASET FROM GENERATOR
             val_dataset = tf.data.Dataset.from_generator(
                 make_gen_callable(validation_generator), output_types=(tf.float32), 
-                output_shapes=tf.TensorShape([global_batch_size, None, n_seq, n_feat])    # Batch dim used to be 3 - fix!?
+                output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
             )
             # VALIDATION LOOP
             total_loss, num_batches = 0.0, 0
@@ -2040,6 +2041,12 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
                     for batch_size in batch_size_optns:     # Batch size is tested first -> fast OOM-handling iterations
 
                         if restart or (gs_iter > last_done):
+
+                            if not pc_run:
+                                og_batch_size = batch_size
+                                batch_size_per_replica = batch_size // 2
+                                batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
+
                             # print('DEBUG Batch Size in Grid Search:', batch_size)
                             train_generator = my_generator(y1_train_files, y2_train_files, 
                                     num_train,
@@ -2066,6 +2073,9 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
                                                                     gs_path=gsres_path,
                                                                     combos=combos)
                             
+                            if not pc_run:
+                                batch_size = og_batch_size
+
                             # Do multiple runs of eval_src_sep to avg over randomness?
                             curr_basic_loss = {'batch_size': batch_size, 
                                                 'epochs': epochs, 'gamma': loss_const,
@@ -2391,6 +2401,12 @@ def main():
             #                                     ova=True, debug=False)[0].astype('float32').T
             # TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = dummy_train_spgm.shape
             train_seq, train_feat = TRAIN_SEQ_LEN, TRAIN_FEAT_LEN
+
+            # Dist training needs a "global_batch_size"
+            if not pc_run:
+                batch_size_per_replica = train_batch_size // 2
+                train_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
+
             print('Train Input Stats:')
             print('N Feat:', train_feat, 'Seq Len:', train_seq, 'Batch Size:', train_batch_size)
 
