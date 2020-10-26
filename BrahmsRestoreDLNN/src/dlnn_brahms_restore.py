@@ -2390,9 +2390,9 @@ def main():
                 with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
 
-            rnn_optns = ['RNN'] if pc_run else ['LSTM']
+            # rnn_optns = ['RNN'] if pc_run else ['LSTM']
             # TEST PC
-            # rnn_optns = ['LSTM'] if pc_run else ['LSTM']
+            rnn_optns = ['LSTM'] if pc_run else ['LSTM']
 
             dropout_optns = [(0.0,0.0)]
             arch_config_optns = []   # Add variations of each bare config to official
