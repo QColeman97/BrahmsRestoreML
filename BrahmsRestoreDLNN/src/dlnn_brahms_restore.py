@@ -1480,13 +1480,15 @@ def evaluate_source_sep(train_generator, validation_generator,
         train_steps_per_epoch=math.ceil(num_train / batch_size)
         val_steps_per_epoch=math.ceil(num_val / batch_size)
         if pc_run:
-            # Training
-            # Iterate over the batches of the dataset
+            # TRAIN LOOP
+            total_loss, num_batches = 0.0, 0
             for step, (x_batch_train, y1_batch_train, y2_batch_train) in enumerate(train_generator):
                 loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train,
                                          model, loss_const, optimizer)
-                loss_value = tf.math.reduce_mean(loss_tensor).numpy()
-                
+                # loss_value = tf.math.reduce_mean(loss_tensor).numpy()
+                total_loss += tf.math.reduce_mean(loss_tensor).numpy()
+                num_batches += 1
+
                 readable_step = step + 1
                 # Log every batch
                 if step == 0:
@@ -1495,15 +1497,18 @@ def evaluate_source_sep(train_generator, validation_generator,
 
                 if readable_step == train_steps_per_epoch:
                     break
+            
+            avg_train_loss = total_loss / num_batches
+            print(' - epoch loss:', avg_train_loss)
+            history['loss'].append(avg_train_loss)
 
-            print(' - epoch loss:', loss_value)
-            history['loss'].append(loss_value)
-
-            # Validation
+            # VALIDATION LOOP
+            total_loss, num_batches = 0.0, 0
             for step, (x_batch_val, y1_batch_val, y2_batch_val) in enumerate(validation_generator):
                 loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val,
                                         model, loss_const)
-                loss_value = tf.math.reduce_mean(loss_tensor).numpy()
+                total_loss += tf.math.reduce_mean(loss_tensor).numpy()
+                num_batches += 1
 
                 readable_step = step + 1
                 if step == 0:
@@ -1511,9 +1516,10 @@ def evaluate_source_sep(train_generator, validation_generator,
                 print('(' + str(readable_step) + ')', end="")
                 if readable_step == val_steps_per_epoch:
                     break
-
-            print(' - epoch val. loss:', loss_value)        
-            history['val_loss'].append(loss_value)
+            
+            avg_val_loss = total_loss / num_batches
+            print(' - epoch val. loss:', avg_val_loss)        
+            history['val_loss'].append(avg_val_loss)
     
         else:
             # Assume better to give worker less batches than too many? - give even num
