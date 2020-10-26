@@ -1516,13 +1516,24 @@ def evaluate_source_sep(train_generator, validation_generator,
             history['val_loss'].append(loss_value)
     
         else:
+            # Assume better to give worker less batches than too many? - give even num
+            batch_size_per_replica = batch_size // 2
+            global_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
+            
+            with mirrored_strategy.scope():
+                def compute_loss(y1, y2, logits1, logits2, loss_const):
+                    per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+                    return tf.nn.compute_average_loss(per_example_loss, 
+                                                      global_batch_size=global_batch_size)
+
             # Put functions inside scope
             def train_step_for_dist(inputs):
                 x, y1, y2 = inputs
                 with tf.GradientTape() as tape:
                     logits1, logits2 = model(x, training=True)
-                    per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
-                    loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
+                    # per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+                    # loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
+                    loss = compute_loss(y1, y2, logits1, logits2, loss_const)
                 grads = tape.gradient(loss, model.trainable_weights)
                 optimizer.apply_gradients(zip(grads, model.trainable_weights))
                 return loss
@@ -1530,36 +1541,35 @@ def evaluate_source_sep(train_generator, validation_generator,
             def test_step_for_dist(inputs):
                 x, y1, y2 = inputs
                 val_logits1, val_logits2 = model(x, training=False)
-                per_example_loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
-                return tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
+                # per_example_loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
+                # return tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
+                return compute_loss(y1, y2, val_logits1, val_logits2, loss_const)
 
             @tf.function
             def distributed_train_step(dist_inputs):
                 per_replica_losses = mirrored_strategy.run(train_step_for_dist, 
-                                                        args=(dist_inputs))
+                                                           args=(dist_inputs,))
                 return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
                                                 axis=None)
 
             @tf.function
             def distributed_test_step(dist_inputs):
                 per_replica_losses = mirrored_strategy.run(test_step_for_dist, 
-                                                        args=(dist_inputs))
+                                                           args=(dist_inputs,))
                 return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
                                                 axis=None)
 
-
-            # Assume better to give worker less batches than too many?
-            batch_size_per_replica = batch_size // 2
-            global_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
-
+            # TRAIN DATASET FROM GENERATOR
             train_dataset = tf.data.Dataset.from_generator(
                 make_gen_callable(train_generator), output_types=(tf.float32), 
                 output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
             )
+            # TRAIN LOOP
+            total_loss, num_batches = 0.0, 0
             # Cross fingers for this line
             train_dataset = train_dataset.batch(global_batch_size)
             dist_train_dataset = mirrored_strategy.experimental_distribute_dataset(train_dataset)
-            iterator = iter(dist_train_dataset)
+            train_iter = iter(dist_train_dataset)
             for step in range(train_steps_per_epoch):
                 # x_batch_train, y1_batch_train, y2_batch_train = next(iterator)
                 # loss_value = distributed_train_step(x_batch_train, y1_batch_train, y2_batch_train,
@@ -1570,7 +1580,9 @@ def evaluate_source_sep(train_generator, validation_generator,
                 # print('next(iterator):', debug._values[0].shape, 'TYPE:', type(debug._values[0]), 
                 # 'next thing:', debug._values[1].shape, 'TYPE:', type(debug._values[1]), 'LEN:', len(debug._values))
                 
-                loss_value = distributed_train_step(next(iterator))
+                # loss_value = distributed_train_step(next(iterator))
+                total_loss += distributed_train_step(next(train_iter))
+                num_batches += 1
 
                 readable_step = step + 1
                 # Log every batch
@@ -1580,25 +1592,32 @@ def evaluate_source_sep(train_generator, validation_generator,
 
                 if readable_step == train_steps_per_epoch:
                     break
+            
+            avg_train_loss = total_loss / num_batches
 
-            print(' - epoch loss:', loss_value)
-            history['loss'].append(loss_value)
+            print(' - epoch loss:', avg_train_loss)
+            history['loss'].append(avg_train_loss)
 
+            # VALIDATION DATASET FROM GENERATOR
             val_dataset = tf.data.Dataset.from_generator(
                 make_gen_callable(validation_generator), output_types=(tf.float32), 
                 output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
             )
+            # VALIDATION LOOP
+            total_loss, num_batches = 0.0, 0
             # Cross fingers for this line
             val_dataset = val_dataset.batch(global_batch_size)
             dist_val_dataset = mirrored_strategy.experimental_distribute_dataset(val_dataset)
-            iterator = iter(dist_val_dataset)
+            val_iter = iter(dist_val_dataset)
             for step in range(train_steps_per_epoch):
                 # x_batch_val, y1_batch_val, y2_batch_val = next(iterator)
                 # loss_value = distributed_test_step(x_batch_val, y1_batch_val, y2_batch_val,
                 #                                    model, loss_const)
 
                 # loss_value = distributed_test_step(next(iterator), model, loss_const, global_batch_size)
-                loss_value = distributed_test_step(next(iterator))
+                # loss_value = distributed_test_step(next(iterator))
+                total_loss = distributed_test_step(next(val_iter))
+                num_batches += 1
 
                 readable_step = step + 1
                 if step == 0:
@@ -1607,8 +1626,10 @@ def evaluate_source_sep(train_generator, validation_generator,
                 if readable_step == val_steps_per_epoch:
                     break
 
-            print(' - epoch val. loss:', loss_value)        
-            history['val_loss'].append(loss_value)
+            avg_val_loss = total_loss / num_batches
+
+            print(' - epoch val. loss:', avg_val_loss)        
+            history['val_loss'].append(avg_val_loss)
     # Not necessary for HPC (can't run on HPC)
     # tf.keras.utils.plot_model(model, 
     #                        (gs_path + 'model' + str(grid_search_iter) + 'of' + str(combos) + '.png'
