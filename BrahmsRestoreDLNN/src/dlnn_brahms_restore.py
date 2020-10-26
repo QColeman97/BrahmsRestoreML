@@ -2287,6 +2287,13 @@ def main():
                             brahms_path)#,
                             # t_mean=TRAIN_MEAN, t_std=TRAIN_STD)
     else:
+        if not pc_run:
+            try:
+                tf.config.experimental.set_memory_growth(gpus[0], True)
+                tf.config.experimental.set_memory_growth(gpus[1], True)
+            except:
+                print('ERROR: Couldn\'t set memory growth for both gpus')
+
         # Load in train/validation data
         piano_label_filepath_prefix = ((data_path + 'final_piano_data/psource')
             if use_dmged_piano else (data_path + 'final_piano_data/psource'))
@@ -2392,7 +2399,7 @@ def main():
 
             # rnn_optns = ['RNN'] if pc_run else ['LSTM']
             # TEST PC
-            rnn_optns = ['LSTM'] if pc_run else ['RNN']
+            rnn_optns = ['LSTM'] if pc_run else ['LSTM']
 
             dropout_optns = [(0.0,0.0)]
             arch_config_optns = []   # Add variations of each bare config to official
