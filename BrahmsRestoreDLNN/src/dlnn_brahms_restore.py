@@ -2290,10 +2290,15 @@ def main():
         if not pc_run:
             try:
                 tf.config.experimental.set_memory_growth(gpus[0], True)
-                tf.config.experimental.set_memory_growth(gpus[1], True)
-                print('\nSet mem growth for both GPUs\n')
+                print('Set mem growth for GPU 1')
             except:
-                print('ERROR: Couldn\'t set memory growth for both gpus')
+                print('ERROR: Couldn\'t set memory growth for GPU 1')
+
+            try:
+                tf.config.experimental.set_memory_growth(gpus[1], True)
+                print('Set mem growth for GPU 2')
+            except:
+                print('ERROR: Couldn\'t set memory growth for GPU 2')
 
         # Load in train/validation data
         piano_label_filepath_prefix = ((data_path + 'final_piano_data/psource')
