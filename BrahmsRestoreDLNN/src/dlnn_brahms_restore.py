@@ -2392,7 +2392,7 @@ def main():
 
             # rnn_optns = ['RNN'] if pc_run else ['LSTM']
             # TEST PC
-            rnn_optns = ['LSTM'] if pc_run else ['LSTM']
+            rnn_optns = ['LSTM'] if pc_run else ['RNN']
 
             dropout_optns = [(0.0,0.0)]
             arch_config_optns = []   # Add variations of each bare config to official
