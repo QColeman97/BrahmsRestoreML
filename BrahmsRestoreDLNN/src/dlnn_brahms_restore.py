@@ -1951,7 +1951,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     bn_optns = [True, False]            # For Dense only
     # TEST - dont believe this should matter (got to iter 16 last w/ & 2 batchsize)
     # rnn_optns = ['RNN', 'LSTM']
-    rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
+    rnn_optns = ['RNN'] if pc_run else ['LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
 
     # Optional - for future when I'm not hitting SNR correctly
     # amp_var_rng_optns = [(0.5, 1.25), (0.75, 1.15), (0.9, 1.1)]
