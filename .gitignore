@@ -7,8 +7,7 @@ __pycache__/
 /BrahmsRestoreDLNN/src/subclass_model_example.py
 /BrahmsRestoreDLNN/src/custom_train_loop_example.py
 /BrahmsRestoreDLNN/src/install_and_run.py
-/BrahmsRestoreDLNN/src/dlnn_brahms_restore_clean_v1.py
-/BrahmsRestoreDLNN/src/dlnn_brahms_restore_clean_v2.py
+/BrahmsRestoreDLNN/src/dlnn_brahms_restore_fit_fail_old.py
 
 .vs
 
