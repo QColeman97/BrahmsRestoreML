@@ -955,8 +955,8 @@ class RestorationModel2(Model):
             loss = self.loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
 
         # Compute gradients
-        # trainable_vars = self.trainable_variables # TODO: Do YouTube video way?
-        trainable_vars = self.model.trainable_variables
+        trainable_vars = self.trainable_variables # TODO: Do YouTube video way?
+        # trainable_vars = self.model.trainable_variables
         gradients = tape.gradient(loss, trainable_vars)
         # Update weights
         self.optimizer.apply_gradients(zip(gradients, trainable_vars))
@@ -2334,7 +2334,9 @@ def main():
     # Empirically, the value γ is in the range of 0.05∼0.2 in order
     # to achieve SIR improvements and maintain SAR and SDR.
     loss_const, epochs, val_split = 0.05, 10, 0.25 #(1/3)
-    optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9)
+    # optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9)
+    optimizer = tf.keras.optimizers.Adam(clipvalue=0.1)
+    loss_const = 0.05
 
     # TRAINING DATA SPECIFIC CONSTANTS (Change when data changes) #
     MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
@@ -2381,9 +2383,6 @@ def main():
                 if sys.argv[3] == '-f':
                     random_hps = True
                     print('\nTRAINING TO USE RANDOM (NON-EMPIRICALLY-OPTIMAL) HP\'S\n')
-
-            if random_hps:
-                optimizer = tf.keras.optimizers.Adam(clipvalue=10) # Random HP
 
             # Define which files to grab for training. Shuffle regardless.
             # (Currently sample is to test on 1 synthetic sample (not Brahms))
@@ -2477,20 +2476,57 @@ def main():
                 with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
 
-            rnn_optns = ['RNN'] if pc_run else ['LSTM']
-            # TEST PC
-            # rnn_optns = ['LSTM'] if pc_run else ['LSTM']
+            # rnn_optns = ['RNN'] if pc_run else ['LSTM']
+            # # TEST PC
+            # # rnn_optns = ['LSTM'] if pc_run else ['LSTM']
+
+            # dropout_optns = [(0.0,0.0)]
+            # arch_config_optns = []   # Add variations of each bare config to official
+            # for config in bare_config_optns[3:4]:  #[3:4]:    # rand base = #71 last
+            #     for scale_optn in [True]:  
+            #         for rnn_skip_optn in [True]:    # false last
+            #             for bias_rnn_optn in [True]:
+            #                 for bias_dense_optn in [True]:
+            #                     for dropout_optn in dropout_optns:      # For RNN only
+            #                         for bidir_optn in [False]:
+            #                             for bn_optn in [True]:   # For Dense only # true last
+            #                                 for rnn_optn in rnn_optns:
+            #                                     # Important: skip bad output cases
+            #                                     if bias_rnn_optn == False and bias_dense_optn == False:
+            #                                         continue
+
+            #                                     # Make a unique copy for each factor combo
+            #                                     curr_config = config.copy()
+            #                                     curr_config['scale'] = scale_optn
+            #                                     curr_config['rnn_res_cntn'] = rnn_skip_optn
+            #                                     curr_config['bias_rnn'] = bias_rnn_optn
+            #                                     curr_config['bias_dense'] = bias_dense_optn
+            #                                     curr_config['rnn_dropout'] = dropout_optn
+            #                                     curr_config['bidir'] = bidir_optn
+            #                                     curr_config['bn'] = bn_optn
+            #                                     if rnn_optn == 'LSTM':
+            #                                         for i, layer in enumerate(config['layers']):
+            #                                             if layer['type'] == 'RNN':
+            #                                                 curr_config['layers'][i]['type'] = rnn_optn
+            #                                     # Append updated config
+            #                                     arch_config_optns.append(curr_config) 
+            
+            # if random_hps:
+            #     optimizer = tf.keras.optimizers.Adam(clipvalue=0.9) # Random HP
+
+            # DEBUG - normal HPs, RNN -> LSTM
+            rnn_optns = ['LSTM']
 
             dropout_optns = [(0.0,0.0)]
             arch_config_optns = []   # Add variations of each bare config to official
-            for config in bare_config_optns[3:4]:    # rand base = #71 last
-                for scale_optn in [True]:  
-                    for rnn_skip_optn in [True]:    # false last
+            for config in bare_config_optns[0:1]:  #[3:4]:    # rand base = #71 last
+                for scale_optn in [False]:  
+                    for rnn_skip_optn in [False]:    # false last
                         for bias_rnn_optn in [True]:
                             for bias_dense_optn in [True]:
                                 for dropout_optn in dropout_optns:      # For RNN only
                                     for bidir_optn in [False]:
-                                        for bn_optn in [True]:   # For Dense only # true last
+                                        for bn_optn in [False]:   # For Dense only # true last
                                             for rnn_optn in rnn_optns:
                                                 # Important: skip bad output cases
                                                 if bias_rnn_optn == False and bias_dense_optn == False:
@@ -2511,6 +2547,7 @@ def main():
                                                             curr_config['layers'][i]['type'] = rnn_optn
                                                 # Append updated config
                                                 arch_config_optns.append(curr_config) 
+
             if random_hps:
                 print('CONFIG OPTIONS (TRAIN ARCH) FOR USE:')
                 print(arch_config_optns)
