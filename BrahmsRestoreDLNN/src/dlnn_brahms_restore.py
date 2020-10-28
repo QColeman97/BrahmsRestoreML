@@ -23,7 +23,6 @@ from tensorflow.keras.activations import relu
 from tensorflow.keras.callbacks import EarlyStopping
 import numpy as np
 import datetime
-import numpy as np
 import math
 import random
 import json
