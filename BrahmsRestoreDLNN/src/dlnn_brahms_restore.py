@@ -42,7 +42,8 @@ print("GPUs Available: ", gpus)
 mirrored_strategy = tf.distribute.MirroredStrategy()
 print("Num GPUs Available (according to mirrored strategy): ", mirrored_strategy.num_replicas_in_sync, "\n")
 
-tf.debugging.enable_check_numerics()
+# Only use for narrowing down NaN bug to exploding gradient
+# tf.debugging.enable_check_numerics()
 
 # TEST - 2 GS's at same time? SUCCESS!!!
 # BUT, set_memory_growth has perf disadvantages (slower) - give main GS full power
@@ -394,7 +395,11 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
                              np.empty((batch_size, train_seq, train_feat)),
                              np.empty((batch_size, train_seq, train_feat)))
             else:
-                x, y1, y2 = [], [], []
+                actual_batch_size = len(batch_labels1)
+                # x, y1, y2 = [], [], []
+                x, y1, y2 = (np.empty((actual_batch_size, train_seq, train_feat)),
+                             np.empty((actual_batch_size, train_seq, train_feat)),
+                             np.empty((actual_batch_size, train_seq, train_feat)))
 
             # For each example
             # for i, batch_sample in enumerate(batch_samples):
@@ -538,20 +543,20 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
 
                 # print('Finished training sample')
                 # Add samples to arrays
-                if (num_samples / batch_size == 0):
-                    x[i] = noise_piano_spgm
-                    y1[i] = piano_label_spgm
-                    y2[i] = noise_label_spgm
-                else:
-                    x.append(noise_piano_spgm)
-                    y1.append(piano_label_spgm)
-                    y2.append(noise_label_spgm)
+                # if (num_samples / batch_size == 0):
+                x[i] = noise_piano_spgm
+                y1[i] = piano_label_spgm
+                y2[i] = noise_label_spgm
+                # else:
+                #     x.append(noise_piano_spgm)
+                #     y1.append(piano_label_spgm)
+                #     y2.append(noise_label_spgm)
 
-            if (num_samples / batch_size != 0):
-            # Make sure they're numpy arrays (as opposed to lists)
-                x = np.array(x)
-                y1 = np.array(y1)
-                y2 = np.array(y2)
+            # if (num_samples / batch_size != 0):
+            # # Make sure they're numpy arrays (as opposed to lists)
+            #     x = np.array(x)
+            #     y1 = np.array(y1)
+            #     y2 = np.array(y2)
 
             # print('\nBlowing out x,y1,y2:', x.shape, y1.shape, y2.shape)
             # The generator-y part: yield the next training batch            
@@ -1298,10 +1303,14 @@ def evaluate_source_sep(train_generator, validation_generator,
 
 #         return self.__history
 
+def get_hp_configs(pc_run=False):
+    batch_size_optns = [3] if pc_run else [4, 10]  
+
+
 
 def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
                 n_feat, n_seq, wdw_size, epsilon, max_sig_len, t_mean, t_std,
-                config_path, gsres_path, early_stop_pat=3, pc_run=False, 
+                arch_config_path, gsres_path, early_stop_pat=3, pc_run=False, 
                 gs_id='', restart=False):
     # model = MyKerasRegressor(build_fn=make_model, 
     #                          features=n_feat, sequences=n_seq)
@@ -1337,7 +1346,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
         # CHANGE - DO NOT COMMIT TIL CHANGE IMPL
         # batch_size_optns = [3]
         # rnn_optns = ['RNN']
-        # with open(config_path + 'hp_arch_config.json') as hp_file:
+        # with open(arch_config_path + 'hp_arch_config.json') as hp_file:
         #     bare_config_optns = json.load(hp_file)['archs']
         # loss_const_optns = [0.02, 0.1] if pc_run else [0.2, 0.3]
     loss_const_optns = [0.05, 0.2]
@@ -1373,16 +1382,16 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # amp_var_rng_optns = [(0.5, 1.25), (0.75, 1.15), (0.9, 1.1)]
 
     # TEST - dont beleive this should matter (got to iter 16 last w/ & 2 batchsize)
-    # with open(config_path + 'hp_arch_config_nodimreduc.json') as hp_file:
+    # with open(arch_config_path + 'hp_arch_config_nodimreduc.json') as hp_file:
     #     bare_config_optns = json.load(hp_file)['archs']
     if pc_run:
         # TEST PC
-        # with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
-        with open(config_path + 'hp_arch_config_final.json') as hp_file:
+        # with open(arch_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+        with open(arch_config_path + 'hp_arch_config_final.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
     else:
-        # with open(config_path + 'hp_arch_config_largedim.json') as hp_file:
-        with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+        # with open(arch_config_path + 'hp_arch_config_largedim.json') as hp_file:
+        with open(arch_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
 
     # Comment-out block below for all-factors version
@@ -1734,7 +1743,7 @@ def main():
     test_on_synthetic = False
     wdw_size = PIANO_WDW_SIZE
     data_path = '../dlnn_data/'
-    config_path = '../config/'
+    arch_config_path = '../config/'
     gs_output_path = '../output_grid_search/'
     recent_model_path = '../recent_model'
     infer_output_path = '../output_restore/'
@@ -1887,12 +1896,12 @@ def main():
 
             if pc_run:
                 # TEST PC
-                # with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
-                with open(config_path + 'hp_arch_config_final.json') as hp_file:
+                # with open(arch_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+                with open(arch_config_path + 'hp_arch_config_final.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
             else:
-                # with open(config_path + 'hp_arch_config_largedim.json') as hp_file:
-                with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+                # with open(arch_config_path + 'hp_arch_config_largedim.json') as hp_file:
+                with open(arch_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
 
             rnn_optns = ['RNN'] if pc_run else ['LSTM']
@@ -1965,6 +1974,19 @@ def main():
             #                                     arch_config_optns.append(curr_config) 
 
             if random_hps:
+                # WORKED!!!! (very low lr - 2 orders of mag lower than default) at 9:45 am checked output
+                # optimizer = tf.keras.optimizers.RMSprop(clipvalue=10, learning_rate=0.00001) # Random HP
+                # Try next?
+                # ALMOST worked, bcame NaN at end, so bad result
+                # optimizer = tf.keras.optimizers.RMSprop(clipvalue=1, learning_rate=0.0001) # Random HP
+                # Failed
+                # optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.5)
+                # Failed
+                # optimizer = tf.keras.optimizers.RMSprop(clipvalue=1)
+                # Does gradient clipping do anything for us?
+                # Yes - b/c failed
+                # optimizer = tf.keras.optimizers.RMSprop(learning_rate=0.0001) # Random HP
+                # Find optimal balance betwwen clipval & lr for random HPs
                 optimizer = tf.keras.optimizers.RMSprop(clipvalue=10, learning_rate=0.0001) # Random HP
                 patience = 4
                 train_config = arch_config_optns[0]
@@ -2067,7 +2089,7 @@ def main():
                                         wdw_size=wdw_size, epsilon=epsilon,
                                         max_sig_len=max_sig_len, 
                                         t_mean=train_mean, t_std=train_std,
-                                        config_path=config_path, 
+                                        arch_config_path=arch_config_path, 
                                         gsres_path=gs_output_path,
                                         early_stop_pat=early_stop_pat, 
                                         pc_run=pc_run, gs_id=gs_id, 
