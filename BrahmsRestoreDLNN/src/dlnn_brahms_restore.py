@@ -1258,19 +1258,19 @@ def evaluate_source_sep(train_generator, validation_generator,
         # plt.show()
         plt.savefig('../train_val_loss_chart' + pc_run_str + '.png')
     # Consider if too much storage use, when model runs faster w/ OOM fix
-    else:
-        epoch_r = range(1, len(history['loss'])+1)
-        plt.plot(epoch_r, history['val_loss'], 'b', label = 'Validation Loss')
-        plt.plot(epoch_r, history['loss'], 'bo', label = 'Training Loss')
-        plt.title('Training & Validation Loss')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
-        plt.legend()
-        # plt.show()
-        if len(gs_id) > 0:
-            gs_id += '_'
-        plt.savefig(gs_path + gs_id + 'train_val_loss_chart_' + 
-                    str(grid_search_iter) + '_of_' + str(combos) + pc_run_str + '.png')
+    # else:
+    #     epoch_r = range(1, len(history['loss'])+1)
+    #     plt.plot(epoch_r, history['val_loss'], 'b', label = 'Validation Loss')
+    #     plt.plot(epoch_r, history['loss'], 'bo', label = 'Training Loss')
+    #     plt.title('Training & Validation Loss')
+    #     plt.xlabel('Epochs')
+    #     plt.ylabel('Loss')
+    #     plt.legend()
+    #     # plt.show()
+    #     if len(gs_id) > 0:
+    #         gs_id += '_'
+    #     plt.savefig(gs_path + gs_id + 'train_val_loss_chart_' + 
+    #                 str(grid_search_iter) + '_of_' + str(combos) + pc_run_str + '.png')
 
     return model, history['loss'], history['val_loss']
 
