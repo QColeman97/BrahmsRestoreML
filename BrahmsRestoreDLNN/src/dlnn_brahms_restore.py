@@ -389,17 +389,17 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
             # batch_samples = x_files[offset:offset+batch_size]
             batch_labels1 = y1_files[offset:offset+batch_size]
             batch_labels2 = y2_files[offset:offset+batch_size]
-            # Initialise x, y1 and y2 arrays for this batch
+            # Initialise x, y1 and y2 arrays for this batch (FLOAT 32 for DLNN)
             if (num_samples / batch_size == 0):
-                x, y1, y2 = (np.empty((batch_size, train_seq, train_feat)),
-                             np.empty((batch_size, train_seq, train_feat)),
-                             np.empty((batch_size, train_seq, train_feat)))
+                x, y1, y2 = (np.empty((batch_size, train_seq, train_feat)).astype('float32'),
+                             np.empty((batch_size, train_seq, train_feat)).astype('float32'),
+                             np.empty((batch_size, train_seq, train_feat)).astype('float32'))
             else:
                 actual_batch_size = len(batch_labels1)
                 # x, y1, y2 = [], [], []
-                x, y1, y2 = (np.empty((actual_batch_size, train_seq, train_feat)),
-                             np.empty((actual_batch_size, train_seq, train_feat)),
-                             np.empty((actual_batch_size, train_seq, train_feat)))
+                x, y1, y2 = (np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'),
+                             np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'),
+                             np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'))
 
             # For each example
             # for i, batch_sample in enumerate(batch_samples):
@@ -567,7 +567,7 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
             #        y1, y2)
             # IF DOESN'T WORK, TRY
             # print('IN GENERATOR YEILDING SHAPE:', (x.shape, y1.shape, y2.shape))
-            
+
             yield (x, y1, y2)
 
             # What fit expects
@@ -1304,7 +1304,19 @@ def evaluate_source_sep(train_generator, validation_generator,
 #         return self.__history
 
 def get_hp_configs(pc_run=False):
+    # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
     batch_size_optns = [3] if pc_run else [4, 10]  
+    # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
+    epochs_optns = [10]
+    # loss_const total options 0 - 0.3 by steps of 0.05
+    loss_const_optns = [0.05, 0.2]
+    # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
+    # Balance between gradient clipping and lr for exploding gradient
+    # If time permits, later grid searches explore learning rate & momentum to fine tune
+    optimizer_optns = [
+                      (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
+                      (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
+                      ]
 
 
 
@@ -1338,7 +1350,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     # batch_size_optns = [1] if pc_run else [3, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
     # FOR PC: Runs longer, so 1 less batch size option is good for ~2 weeks runtime
     batch_size_optns = [3] if pc_run else [4, 10]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
-    # loss_const total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
+    # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
     # Paper - joint training causes sensitivity to gamma, keep in low range of (0.05 - 0.2)
