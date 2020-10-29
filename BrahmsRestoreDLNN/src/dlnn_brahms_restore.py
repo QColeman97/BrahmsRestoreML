@@ -2,6 +2,7 @@
 # Advisor: Dr. Dennis Sun
 # 8/31/20
 # dlnn_brahms_restore - neural network to restore brahms recording
+# Custom training loop version
 
 # DATA RULES #
 # - If writing a transformed signal, write it back using its original data type/range (wavfile lib)
@@ -549,7 +550,6 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
             # IF DOESN'T WORK, TRY
             # print('IN GENERATOR YEILDING SHAPE:', (x.shape, y1.shape, y2.shape))
             
-            # TODO: For custom train loop, yield a DatasetBatch?
             yield (x, y1, y2)
 
             # What fit expects
@@ -750,62 +750,6 @@ class TimeFreqMasking(Layer):
 # def l2_norm_squared(a, b, last_dim):
 #     return tf.math.reduce_sum(tf.reshape(a - b, shape=(-1, last_dim)) ** 2, axis=-1)
 
-# # @tf.function
-# def disc_loss(piano_true, piano_pred, noise_true, noise_pred, loss_const):
-#     last_dim = noise_pred.shape[1] * noise_pred.shape[2]
-#     loss = (l2_norm_squared(piano_pred, piano_true, last_dim) - 
-#             (loss_const * l2_norm_squared(piano_pred, noise_true, last_dim)) +
-#             l2_norm_squared(noise_pred, noise_true, last_dim) - 
-#             (loss_const * l2_norm_squared(noise_pred, piano_true, last_dim)))
-#     # print('Type of piano_true:', type(piano_true))
-#     # print('piano_true:', piano_true)
-#     # print('Piano True Below in Loss')
-#     # tf.print(piano_true)    # Erroneous
-
-#     # poss_nans = tf.math.is_nan(loss)
-#     # if np.nan in poss_nans.numpy():
-#     #     print('NAN IN LOSS')
-#     #     print('Piano True:\n', piano_true.numpy())
-#     #     print('Piano Pred:\n', piano_true.numpy())
-#     #     print('Noise True:\n', piano_true.numpy())
-#     #     print('Noise Pred:\n', piano_true.numpy())
-
-#     return loss
-
-# BACKUP TO 2 BELOW
-# def custom_loss(self_true, self_pred, other_true, other_pred, loss_const):
-#     def closure(self_true, self_pred):
-#         last_dim = other_pred.shape[1] * other_pred.shape[2]
-#         return (
-#             tf.math.reduce_mean(tf.reshape(self_pred - self_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-#             (loss_const * tf.math.reduce_mean(tf.reshape(self_pred - other_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-#             tf.math.reduce_mean(tf.reshape(other_pred - other_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-#             (loss_const * tf.math.reduce_mean(tf.reshape(other_pred - self_true, shape=(-1, last_dim)) ** 2, axis=-1))
-#         )
-#     return closure(self_true, self_pred)
-
-# TODO: This method should solve OOM errors, but need to convert symbolic model -> imperative model first
-# def piano_loss(noise_true, noise_pred, loss_const):
-#     def closure(piano_true, piano_pred):
-#         last_dim = noise_pred.shape[1] * noise_pred.shape[2]
-#         return (
-#             tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-#             (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-#             tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-#             (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
-#         )
-#     return closure
-
-# def noise_loss(piano_true, piano_pred, loss_const):
-#     def closure(noise_true, noise_pred):
-#         last_dim = piano_pred.shape[1] * piano_pred.shape[2]
-#         return (
-#             tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-#             (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-#             tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-#             (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1))
-#         )
-#     return closure
 
 
 # Prefer native TF API over Keras backend API whenever possible, mostly
@@ -837,431 +781,6 @@ def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_con
         tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2) -
         (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2))
     )
-
-
-
-# class RestorationModel(Model):
-#     def __init__(self, features, loss_const, name='Restoration Model', 
-#                  epsilon=10**(-10), config=None, t_mean=None, t_std=None, **kwargs):
-#         super(RestorationModel, self).__init__(name=name, **kwargs)
-#         # super(RestorationModel, self).__init__()
-#         self.config = config
-#         self.loss_const = loss_const
-#         # self._name = name
-#         if self.config is not None:
-#             pass
-#         else:
-#             self.rnn1 = SimpleRNN(features // 2, 
-#                                   activation='relu', 
-#                                   return_sequences=True)
-#             self.rnn2 = SimpleRNN(features // 2, 
-#                                   activation='relu', 
-#                                   return_sequences=True)
-#             self.dense_branch1 = TimeDistributed(Dense(features), name='piano_hat')
-#             self.dense_branch2 = TimeDistributed(Dense(features), name='noise_hat')
-#         self.piano_tf_mask = TimeFreqMasking(epsilon=epsilon, name='piano_pred')
-#         self.noise_tf_mask = TimeFreqMasking(epsilon=epsilon, name='noise_pred')
- 
-
-#     def call(self, inputs):
-#         # piano_noise_mix, p_true, n_true = inputs[0], inputs[1], inputs[2]
-#         # print('SHAPE OF INCOMING INPUTS (CALL):', inputs.shape)
-#         # global_phases1, global_phases2, global_phases3 = np.fromfile('1').reshape((1847, 2049)), np.fromfile('2').reshape((1847, 2049)), np.fromfile('3').reshape((1847, 2049))
-#         # print('TEST - WRITE THESE TO WAV -', global_phases1.shape, global_phases2.shape, global_phases3.shape)
-#         # synthetic_sig = make_synthetic_signal(inputs[0].numpy(), global_phases1, PIANO_WDW_SIZE, 
-#         #                                       'int16', ova=True, debug=False)
-#         # wavfile.write('1.wav', 44100, synthetic_sig)
-#         # synthetic_sig = make_synthetic_signal(inputs[1].numpy(), global_phases2, PIANO_WDW_SIZE, 
-#         #                                       'int16', ova=True, debug=False)
-#         # wavfile.write('2.wav', 44100, synthetic_sig)
-#         # synthetic_sig = make_synthetic_signal(inputs[2].numpy(), global_phases3, PIANO_WDW_SIZE, 
-#         #                                       'int16', ova=True, debug=False)
-#         # wavfile.write('3.wav', 44100, synthetic_sig)
-#         # print('SHAPE OF X INPUT (CALL):', piano_noise_mix.shape)
-#         if self.config is not None:
-#             pass
-#         else:
-#             # x = self.rnn1(piano_noise_mix)
-#             x = self.rnn1(inputs)
-#             x = self.rnn2(x)
-#             piano_hat = self.dense_branch1(x)   # source 1 branch
-#             noise_hat = self.dense_branch2(x)   # source 2 branch
-#         piano_pred = self.piano_tf_mask([piano_hat, noise_hat, inputs])
-#         noise_pred = self.noise_tf_mask([noise_hat, piano_hat, inputs])
-#         # piano_pred = self.piano_tf_mask([piano_hat, noise_hat, piano_noise_mix])
-#         # noise_pred = self.noise_tf_mask([noise_hat, piano_hat, piano_noise_mix])
-
-#         return (piano_pred, noise_pred)
-
-
-#     def train_step(self, data):
-#         # Unpack data - what generator yeilds
-#         # {'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, y1, y2 = data
-#         x, piano_true, noise_true = data
-
-#         # print('SHAPE OF X INPUT (TRAIN_STEP):', x.shape)
-#         with tf.GradientTape() as tape:
-#             # y_pred = self(x, training=True) # Forward pass
-#             piano_pred, noise_pred = self((x, piano_true, noise_true), training=True)   # Forward pass
-#             # Compute the loss value
-#             # loss = self.compiled_loss(y, y_pred, regularization_losses=self.losses)
-#             loss = self.compiled_loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
-
-#         # Compute gradients
-#         trainable_vars = self.trainable_variables
-#         gradients = tape.gradient(loss, trainable_vars)
-#         # Update weights
-#         self.optimizer.apply_gradients(zip(gradients, trainable_vars))
-#         # Update metrics (includes the metric that tracks the loss)
-#         # self.compiled_metrics.update_state(y, y_pred)
-#         # Uncomment if error here (no metrics)
-#         # self.compiled_metrics.update_state(piano_true, noise_true, piano_pred, noise_pred)
-#         # Return a dict mapping metric names to current value
-#         return {m.name: m.result() for m in self.metrics}
-
-
-
-class RestorationModel2(Model):
-    def __init__(self, model, loss_const):#, training=True):
-        super(RestorationModel2, self).__init__()
-        self.model = model
-        self.loss_const = loss_const
-        # self.training = training
-
-    # def __call__(self, inputs):
-    def call(self, inputs):
-        # print('IN CALL (INPUTS SHAPE):', inputs.shape)
-        return self.model(inputs)
-
-    def compile(self, optimizer, loss):
-        super(RestorationModel2, self).compile()
-        self.optimizer = optimizer
-        self.loss = loss
-
-    def train_step(self, data):
-        # Unpack data - what generator yeilds
-        x, piano_true, noise_true = data
-
-        # print('SHAPE OF X INPUT (TRAIN_STEP):', x.shape)
-        # print('SHAPE OF PIANO_TRUE INPUT (TRAIN_STEP):', piano_true.shape)
-        # print('SHAPE OF NOISE_TRUE INPUT (TRAIN_STEP):', noise_true.shape)
-        with tf.GradientTape() as tape:
-            # y_pred = self(x, training=True) # Forward pass
-            piano_pred, noise_pred = self.model((x, piano_true, noise_true), training=True) # Forward pass
-            # Compute the loss value
-            # loss = self.compiled_loss(y, y_pred, regularization_losses=self.losses)
-            # loss = self.compiled_loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
-            loss = self.loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
-
-        # Compute gradients
-        trainable_vars = self.trainable_variables # TODO: Do YouTube video way?
-        # trainable_vars = self.model.trainable_variables
-        gradients = tape.gradient(loss, trainable_vars)
-        # Update weights
-        self.optimizer.apply_gradients(zip(gradients, trainable_vars))
-        # Update metrics (includes the metric that tracks the loss)
-        # self.compiled_metrics.update_state(y, y_pred)
-        # Uncomment if error here (no metrics)
-        # self.compiled_metrics.update_state(piano_true, noise_true, piano_pred, noise_pred)
-        # Return a dict mapping metric names to current value
-        # return {m.name: m.result() for m in self.metrics}
-        return {'loss': loss}
-
-    def test_step(self, data):
-        x, piano_true, noise_true = data
-
-        piano_pred, noise_pred = self.model((x, piano_true, noise_true), training=False)
-        loss = self.loss(piano_true, noise_true, piano_pred, noise_pred, self.loss_const)
-        
-        return {'loss': loss}
-
-
-def make_imp_model(features, sequences, loss_const=0.05, 
-                   optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.7),
-                   pre_trained_wgts=None, name='Restoration Model', epsilon=10 ** (-10),
-                   config=None, t_mean=None, t_std=None):
-    
-    # model = RestorationModel(features, loss_const, name=name, epsilon=epsilon, 
-    #                           config=config, t_mean=t_mean, t_std=t_std)
-    # No name version :(
-    # model = RestorationModel(features, loss_const, epsilon=epsilon, 
-    #                           config=config, t_mean=t_mean, t_std=t_std)
-    # NEW Semi-imperative model
-    model = RestorationModel2(make_model(features, sequences, loss_const, optimizer=optimizer, 
-                                         name='Training Model', epsilon=epsilon, config=config,
-                                         t_mean=t_mean, t_std=t_std, for_imp=True),
-                              loss_const=loss_const)
-
-    if pre_trained_wgts is not None:
-        print('Only loading pre-trained weights for prediction')
-        model.set_weights(pre_trained_wgts)
-    else:
-        model.compile(optimizer=optimizer, loss=discriminative_loss)
-
-    return model
-
-
-def make_model(features, sequences, loss_const=0.05, training=True,
-               optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.7),
-               pre_trained_wgts=None, name='Model', epsilon=10 ** (-10),
-               config=None, t_mean=None, t_std=None, for_imp=False):
-
-    # TODO: Implement 'training' param, b/c subclass model can't do it itself??
-    # No, I think functional API model should be able to handle it
-
-    # print('DEBUG Batch Size in Make Model:', batch_size)
-    # Deprecated param in use
-    # input_layer = Input(batch_shape=(batch_size, sequences, features),
-    #                     dtype='float32', name='piano_noise_mixed')
-    # input_layer = Input(shape=(sequences, features), batch_size=batch_size,
-    #                     dtype='float32', name='piano_noise_mixed')
-    input_layer = Input(shape=(sequences, features), dtype='float32', 
-                        name='piano_noise_mixed')
-    # print('Input Layer Type:', type(input_layer))
-    # print('Input Layer:', input_layer)
-    # tf.print(input_layer) # Errors
-
-    if config is not None:
-        # print('Curr config for make_model:')    # Debug
-        # print(config)
-        #['scale'],['rnn_res_cntn'],['bias_rnn'], ['bias_dense'], 
-        #['rnn_dropout'], ['bidir'], ['bn']
-
-        # Create the network
-        num_layers = len(config['layers'])
-        prev_layer_type = None  # Works b/c all RNN stacks are size > 1
-        # for i in range(1, num_layers):
-        for i in range(num_layers):
-            layer_config = config['layers'][i]
-            curr_layer_type = layer_config['type']
-
-            # Standardize option
-            if config['scale'] and i == 0:
-            # if i == 0:
-                x = Standardize(t_mean, t_std) (input_layer)
-
-            # Add skip connection if necessary
-            if (config['rnn_res_cntn'] and prev_layer_type is not None and
-                  prev_layer_type != 'Dense' and curr_layer_type == 'Dense'):
-                x = Concatenate() ([x, input_layer])
-    
-            if curr_layer_type == 'RNN':
-                if config['bidir']:
-                    x = Bidirectional(SimpleRNN(features // layer_config['nrn_div'], 
-                            activation=layer_config['act'], 
-                            use_bias=config['bias_rnn'],
-                            dropout=config['rnn_dropout'][0],
-                            recurrent_dropout=config['rnn_dropout'][1],
-                            # return_sequences=True)) (x)
-                            return_sequences=True)) (input_layer if (i == 0 and not config['scale']) else x)
-                else:
-                    x = SimpleRNN(features // layer_config['nrn_div'], 
-                            activation=layer_config['act'], 
-                            use_bias=config['bias_rnn'],
-                            dropout=config['rnn_dropout'][0],
-                            recurrent_dropout=config['rnn_dropout'][1],
-                            # return_sequences=True) (x)
-                            return_sequences=True) (input_layer if (i == 0 and not config['scale']) else x)
-
-            elif curr_layer_type == 'LSTM':
-                if config['bidir']:
-                    x = Bidirectional(LSTM(features // layer_config['nrn_div'], 
-                            activation=layer_config['act'], 
-                            use_bias=config['bias_rnn'],
-                            dropout=config['rnn_dropout'][0],
-                            recurrent_dropout=config['rnn_dropout'][1],
-                            # return_sequences=True)) (x)
-                            return_sequences=True)) (input_layer if (i == 0 and not config['scale']) else x)
-                else:
-                    x = LSTM(features // layer_config['nrn_div'], 
-                            activation=layer_config['act'], 
-                            use_bias=config['bias_rnn'],
-                            dropout=config['rnn_dropout'][0],
-                            recurrent_dropout=config['rnn_dropout'][1],
-                            # return_sequences=True) (x)
-                            return_sequences=True) (input_layer if (i == 0 and not config['scale']) else x)
-            elif curr_layer_type == 'Dense':
-                if i == (num_layers - 1):   # Last layer is fork layer
-                    # Reverse standardization at end of model if appropriate
-                    # TEMP - Do the paper un-scale
-                    if config['scale']:
-                        piano_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                                        # activation=None, 
-                                                        activation=layer_config['act'], 
-                                                        use_bias=config['bias_dense']), 
-                                                    name='piano_hat'
-                                                   ) (x)
-                        noise_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                                        # activation=None, 
-                                                        activation=layer_config['act'], 
-                                                        use_bias=config['bias_dense']), 
-                                                    name='noise_hat'
-                                                   ) (x)
-                        if config['bn']:
-                            piano_hat = BatchNormalization() (piano_hat)
-                            noise_hat = BatchNormalization() (noise_hat)
-                        
-                        piano_hat = UnStandardize(t_mean, t_std) (piano_hat)
-                        noise_hat = UnStandardize(t_mean, t_std) (noise_hat)
-
-                        # Normal activation method for un-stdize TOO SIMILAR to paper version
-                        # See if this works (or if necessary this order)
-                        # Apply activations after un-standardizing
-                        # if layer_config['act'] == 'relu':
-                        #     piano_hat = tf.keras.activations.relu(piano_hat)
-                        #     noise_hat = tf.keras.activations.relu(noise_hat)
-                
-                    # TEMP - Do a normal un-scale
-                    else:
-                        piano_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                                        activation=layer_config['act'], 
-                                                        use_bias=config['bias_dense']), 
-                                                    name='piano_hat'
-                                                   ) (x)
-                        noise_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                                        activation=layer_config['act'], 
-                                                        use_bias=config['bias_dense']),
-                                                    name='noise_hat'
-                                                   ) (x)
-                        if config['bn']:
-                            piano_hat = BatchNormalization() (piano_hat)
-                            noise_hat = BatchNormalization() (noise_hat)
-                        
-                        # TEMP block
-                        # piano_hat = UnStandardize(t_mean, t_std) (piano_hat)
-                        # noise_hat = UnStandardize(t_mean, t_std) (noise_hat)
-
-                else:
-                    x = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                            activation=layer_config['act'], 
-                                            use_bias=config['bias_dense']), 
-                                    #    ) (x)
-                                       ) (input_layer if (i == 0 and not config['scale']) else x)
-                    if config['bn']:
-                        x = BatchNormalization() (x)
-
-            prev_layer_type = curr_layer_type
-
-    # Use pre-configurations (default)
-    else:
-        x = SimpleRNN(features // 2, 
-                      activation='relu', 
-                      return_sequences=True) (input_layer) 
-        x = SimpleRNN(features // 2, 
-                  activation='relu',
-                  return_sequences=True) (x)
-
-        # x = TimeDistributed(Dense(features // 2, activation='relu')) (x)
-
-        piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
-        # piano_hat = BatchNormalization() (piano_hat)
-        noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
-        # noise_hat = BatchNormalization() (noise_hat)
-
-
-    piano_pred = TimeFreqMasking(epsilon=epsilon, 
-                                 name='piano_pred') ([piano_hat, noise_hat, input_layer])
-    noise_pred = TimeFreqMasking(epsilon=epsilon, 
-                                 name='noise_pred') ([noise_hat, piano_hat, input_layer])
-
-     
-    # Two additional 'keras funtional API inputs' for the labels
-    # Depcrecated param in use
-    # piano_true = Input(batch_shape=(batch_size, sequences, features),
-    #                    dtype='float32', name='piano_true')
-    # noise_true = Input(batch_shape=(batch_size, sequences, features),
-    #                    dtype='float32', name='noise_true')
-    # piano_true = Input(shape=(sequences, features), batch_size=batch_size,
-    #                    dtype='float32', name='piano_true')
-    # noise_true = Input(shape=(sequences, features), batch_size=batch_size,
-    #                    dtype='float32', name='noise_true')
-    piano_true = Input(shape=(sequences, features), dtype='float32', 
-                       name='piano_true')
-    noise_true = Input(shape=(sequences, features), dtype='float32', 
-                       name='noise_true')
-    
-    # print('X shape (inside NN):', input_layer.shape,
-    #       'y1 shape (inside NN):', piano_true.shape, 
-    #       'y2 shape (inside NN):', noise_true.shape)
-
-    model = Model(inputs=[input_layer, piano_true, noise_true],
-                  outputs=[piano_pred, noise_pred])
-                #   name=name)  # Erroneous when rebuilding model for inference
-    
-    if not for_imp:
-        if pre_trained_wgts is not None:
-            print('Only loading pre-trained weights for prediction')
-            model.set_weights(pre_trained_wgts)
-
-        else:
-            # # Keras debug block
-            # debug_piano_model = Model(
-            #     inputs=model.inputs,
-            #     # inputs=model.layers[3].output,
-            #     # outputs=[model.layers[0].output] + model.outputs,
-            #     outputs=[model.layers[2].output, model.layers[3].output, model.layers[7].output],
-            #     name='Debug Piano Model (rnn2 out -> piano_hat out -> piano_pred out)'
-            # )
-            # debug_noise_model = Model(
-            #     inputs=model.inputs,
-            #     outputs=[model.layers[2].output, model.layers[4].output, model.layers[8].output],
-            #     name='Debug Noise Model (rnn2 out -> noise_hat out -> noise_pred out)'
-            # )
-            # xs = tf.random.normal((batch_size, sequences, features))
-            # # print('DEBUG Piano Model Summary:')
-            # # print(debug_piano_model.summary())
-            # print('DEBUG Piano Model Run:')
-            # print(debug_piano_model(xs, training=True))
-            # # print('DEBUG Noise Model Summary:')
-            # # print(debug_noise_model.summary())
-            # print('DEBUG Noise Model Run:')
-            # print(debug_noise_model(xs, training=True))
-            # # print('Model Layers:')
-            # # print([layer.name for layer in model.layers])
-            # ['piano_noise_mixed', 'simple_rnn_6', 'simple_rnn_7', 'piano_hat', 'noise_hat', 'piano_true', 'noise_true', 'piano_pred', 'noise_pred']
-            
-            # Traditional method of extra arg loss in TF 2.0 no longer works -> add_loss()
-            # https://www.youtube.com/watch?v=uhzGTijaw8A&t=1965s
-            # TEMP TEST
-            last_dim = noise_pred.shape[1] * noise_pred.shape[2]
-            disc_loss = (
-                tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-                (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-                tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-                (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
-            )
-            # disc_loss = (
-            #     tf.math.reduce_sum(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-            #     (loss_const * tf.math.reduce_sum(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-            #     tf.math.reduce_sum(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-            #     (loss_const * tf.math.reduce_sum(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
-            # )
-            model.add_loss(disc_loss)
-
-            # Default learning rate = 0.001
-            # To fix exploding gradient 
-            # - lower learning rate
-            # - gradient clip?
-            model.compile(optimizer=optimizer)
-            # TODO: This method should solve OOM errors, but need to convert symbolic model -> imperative model first
-            # model.compile(optimizer=optimizer,
-            #               loss={
-            #                   'piano_pred': piano_loss(noise_true, noise_pred, loss_const),
-            #                   'noise_pred': noise_loss(piano_true, piano_pred, loss_const)
-            #               })
-
-                        #   loss={
-                        #       'piano_pred': 'mse',
-                        #       'noise_pred': 'mse'
-                        #   },
-                        #   metrics=['accuracy'])
-                        #   run_eagerly=True) # need param??? to debug
-
-        # Lambda layer dependent bug - or from custom loss?
-    # https://github.com/tensorflow/tensorflow/issues/38988
-    # model._layers = [layer for layer in model._layers if not isinstance(layer, dict)]
-
-    return model
 
 
 def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
@@ -1384,407 +903,263 @@ def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
 
 
 # CUSTOM TRAINING LOOP
-# @tf.function
-# def train_step(x, y1, y2, model, loss_const, optimizer):
+@tf.function
+def train_step(x, y1, y2, model, loss_const, optimizer):
+    with tf.GradientTape() as tape:
+        logits1, logits2 = model(x, training=True)
+        loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+    grads = tape.gradient(loss, model.trainable_weights)
+    optimizer.apply_gradients(zip(grads, model.trainable_weights))
+    return loss
+
+@tf.function
+def test_step(x, y1, y2, model, loss_const):
+    val_logits1, val_logits2 = model(x, training=False)
+    loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
+    return loss
+
+# # def train_step_for_dist(x, y1, y2, model, loss_const, optimizer):
+# def train_step_for_dist(inputs, model, loss_const, optimizer, dist_bs):
+#     x, y1, y2 = inputs
 #     with tf.GradientTape() as tape:
 #         logits1, logits2 = model(x, training=True)
-#         loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+#         per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+#         loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=dist_bs)
 #     grads = tape.gradient(loss, model.trainable_weights)
 #     optimizer.apply_gradients(zip(grads, model.trainable_weights))
 #     return loss
 
-# @tf.function
-# def test_step(x, y1, y2, model, loss_const):
+# # def test_step_for_dist(x, y1, y2, model, loss_const):
+# def test_step_for_dist(inputs, model, loss_const, dist_bs):
+#     x, y1, y2 = inputs
 #     val_logits1, val_logits2 = model(x, training=False)
-#     loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
-#     return loss
+#     per_example_loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
+#     return tf.nn.compute_average_loss(per_example_loss, global_batch_size=dist_bs)
 
-# # # def train_step_for_dist(x, y1, y2, model, loss_const, optimizer):
-# # def train_step_for_dist(inputs, model, loss_const, optimizer, dist_bs):
-# #     x, y1, y2 = inputs
-# #     with tf.GradientTape() as tape:
-# #         logits1, logits2 = model(x, training=True)
-# #         per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
-# #         loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=dist_bs)
-# #     grads = tape.gradient(loss, model.trainable_weights)
-# #     optimizer.apply_gradients(zip(grads, model.trainable_weights))
-# #     return loss
-
-# # # def test_step_for_dist(x, y1, y2, model, loss_const):
-# # def test_step_for_dist(inputs, model, loss_const, dist_bs):
-# #     x, y1, y2 = inputs
-# #     val_logits1, val_logits2 = model(x, training=False)
-# #     per_example_loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
-# #     return tf.nn.compute_average_loss(per_example_loss, global_batch_size=dist_bs)
-
-# # # @tf.function
-# # # def distributed_train_step(x, y1, y2, model, loss_const, optimizer):
 # # @tf.function
-# # def distributed_train_step(dist_inputs, model, loss_const, optimizer, dist_bs):
-# #     per_replica_losses = mirrored_strategy.run(train_step_for_dist, 
-# #                                                args=(dist_inputs, model, loss_const, optimizer, dist_bs))
-# #     return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
-# #                                     axis=None)
+# # def distributed_train_step(x, y1, y2, model, loss_const, optimizer):
+# @tf.function
+# def distributed_train_step(dist_inputs, model, loss_const, optimizer, dist_bs):
+#     per_replica_losses = mirrored_strategy.run(train_step_for_dist, 
+#                                                args=(dist_inputs, model, loss_const, optimizer, dist_bs))
+#     return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
+#                                     axis=None)
 
-# # # @tf.function
-# # # def distributed_test_step(x, y1, y2, model, loss_const):
 # # @tf.function
-# # def distributed_test_step(dist_inputs, model, loss_const, dist_bs):
-# #     per_replica_losses = mirrored_strategy.run(test_step_for_dist, 
-# #                                                args=(dist_inputs, model, loss_const, dist_bs))
-# #     return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
-# #                                     axis=None)
+# # def distributed_test_step(x, y1, y2, model, loss_const):
+# @tf.function
+# def distributed_test_step(dist_inputs, model, loss_const, dist_bs):
+#     per_replica_losses = mirrored_strategy.run(test_step_for_dist, 
+#                                                args=(dist_inputs, model, loss_const, dist_bs))
+#     return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
+#                                     axis=None)
 
-# def make_gen_callable(_gen):
-#     def gen():
-#         for x,y,z in _gen:
-#             yield x,y,z
-#     return gen
-
-
-
-# # MODEL TRAIN & EVAL FUNCTION
-# def evaluate_source_sep(train_generator, validation_generator,
-#                         num_train, num_val, n_feat, n_seq, batch_size, 
-#                         loss_const, epochs=20, 
-#                         opt=tf.keras.optimizers.RMSprop(clipvalue=0.75),
-#                         patience=10, epsilon=10 ** (-10), config=None, recent_model_path=None, pc_run=False,
-#                         t_mean=None, t_std=None, grid_search_iter=None, gs_path=None, combos=None, gs_id=''):
-#     # print('X shape:', X.shape, 'y1 shape:', y1.shape, 'y2 shape:', y2.shape)
-#     # print('X shape:', X.shape)
-#     print('Making model...')
-#     # print('DEBUG Batch Size in Eval Src Sep:', batch_size)
-#     # IMPERATIVE MODEL - Customize Fit
-#     # model = make_imp_model(n_feat, n_seq, loss_const=loss_const, optimizer=optimizer,
-#     #                        epsilon=epsilon, config=config, t_mean=t_mean, t_std=t_std)
-#     # For imperative model, build before summary BUT fixes batch size
-#     # ORIGINAL
-#     # model = make_model(n_feat, n_seq, loss_const, optimizer, 
-#     #                     name='Training Model', epsilon=epsilon, config=config,
-#     #                    t_mean=t_mean, t_std=t_std)
-
-#     # print('\nTEST GENERAOTR')
-#     # for iters, x in enumerate(train_generator):
-#     #     print('Generator yielded:', (x[0].shape, x[1].shape, x[2].shape))
-#     #     print('Generator yielded batch', iters + 1, 'out of', math.ceil(num_train // batch_size), '\n')
-#     #     if 
-
-#     # # TRAINING LOOP FROM SCRATCH
-#     # if pc_run:
-#     #     model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
-#     #                             config=config, t_mean=t_mean, t_std=t_std)
-#     #     optimizer = opt
-#     # else:
-#     #     with mirrored_strategy.scope():
-#     #         model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
-#     #                                 config=config, t_mean=t_mean, t_std=t_std)
-#     #         optimizer = opt
-#     # print(model.summary())
-
-#     # print('Going into training now...')
-#     # history = {'loss': [], 'val_loss': []}
-#     # for epoch in range(epochs):
-#     #     print('EPOCH:', epoch + 1)
-
-#     #     train_steps_per_epoch=math.ceil(num_train / batch_size)
-#     #     val_steps_per_epoch=math.ceil(num_val / batch_size)
-#     #     if pc_run:
-#     #         # TRAIN LOOP
-#     #         total_loss, num_batches = 0.0, 0
-#     #         for step, (x_batch_train, y1_batch_train, y2_batch_train) in enumerate(train_generator):
-#     #             loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train,
-#     #                                      model, loss_const, optimizer)
-#     #             # loss_value = tf.math.reduce_mean(loss_tensor).numpy()
-#     #             total_loss += tf.math.reduce_mean(loss_tensor).numpy()
-#     #             num_batches += 1
-
-#     #             readable_step = step + 1
-#     #             # Log every batch
-#     #             if step == 0:
-#     #                 print('Training execution (steps):', end = " ")
-#     #             print('(' + str(readable_step) + ')', end="")
-
-#     #             if readable_step == train_steps_per_epoch:
-#     #                 break
-            
-#     #         avg_train_loss = total_loss / num_batches
-#     #         print(' - epoch loss:', avg_train_loss)
-#     #         history['loss'].append(avg_train_loss)
-
-#     #         # VALIDATION LOOP
-#     #         total_loss, num_batches = 0.0, 0
-#     #         for step, (x_batch_val, y1_batch_val, y2_batch_val) in enumerate(validation_generator):
-#     #             loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val,
-#     #                                     model, loss_const)
-#     #             total_loss += tf.math.reduce_mean(loss_tensor).numpy()
-#     #             num_batches += 1
-
-#     #             readable_step = step + 1
-#     #             if step == 0:
-#     #                 print('Validate execution (steps):', end = " ")
-#     #             print('(' + str(readable_step) + ')', end="")
-#     #             if readable_step == val_steps_per_epoch:
-#     #                 break
-            
-#     #         avg_val_loss = total_loss / num_batches
-#     #         print(' - epoch val. loss:', avg_val_loss)        
-#     #         history['val_loss'].append(avg_val_loss)
-    
-#     #     else:
-#     #         # From docs: batch size must be equal to global batch size (refactor earlier if needed)
-#     #         # Assume better to give worker less batches than too many? - give even num
-#     #         # batch_size_per_replica = batch_size // 2
-#     #         # global_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
-            
-#     #         with mirrored_strategy.scope():
-#     #             def compute_loss(y1, y2, logits1, logits2, loss_const):
-#     #                 per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
-#     #                 return tf.nn.compute_average_loss(per_example_loss, 
-#     #                                                   global_batch_size=batch_size)
-#     #                                                   # global_batch_size=global_batch_size)
-
-#     #         # Put functions inside scope
-#     #         def train_step_for_dist(inputs):
-#     #             x, y1, y2 = inputs
-#     #             with tf.GradientTape() as tape:
-#     #                 logits1, logits2 = model(x, training=True)
-#     #                 # per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
-#     #                 # loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
-#     #                 loss = compute_loss(y1, y2, logits1, logits2, loss_const)
-#     #             grads = tape.gradient(loss, model.trainable_weights)
-#     #             optimizer.apply_gradients(zip(grads, model.trainable_weights))
-#     #             return loss
-
-#     #         def test_step_for_dist(inputs):
-#     #             x, y1, y2 = inputs
-#     #             val_logits1, val_logits2 = model(x, training=False)
-#     #             # per_example_loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
-#     #             # return tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
-#     #             return compute_loss(y1, y2, val_logits1, val_logits2, loss_const)
-
-#     #         @tf.function
-#     #         def distributed_train_step(dist_inputs):
-#     #             per_replica_losses = mirrored_strategy.run(train_step_for_dist, 
-#     #                                                        args=(dist_inputs,))
-#     #             return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
-#     #                                             axis=None)
-
-#     #         @tf.function
-#     #         def distributed_test_step(dist_inputs):
-#     #             per_replica_losses = mirrored_strategy.run(test_step_for_dist, 
-#     #                                                        args=(dist_inputs,))
-#     #             return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
-#     #                                             axis=None)
-
-#     #         # TRAIN DATASET FROM GENERATOR
-#     #         train_dataset = tf.data.Dataset.from_generator(
-#     #             make_gen_callable(train_generator), output_types=(tf.float32), 
-#     #             output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
-#     #         )
-#     #         # TRAIN LOOP
-#     #         total_loss, num_batches = 0.0, 0
-#     #         # Cross fingers for this line
-#     #         # train_dataset = train_dataset.batch(global_batch_size)
-#     #         dist_train_dataset = mirrored_strategy.experimental_distribute_dataset(train_dataset)
-#     #         train_iter = iter(dist_train_dataset)
-#     #         for step in range(train_steps_per_epoch):
-#     #             # x_batch_train, y1_batch_train, y2_batch_train = next(iterator)
-#     #             # loss_value = distributed_train_step(x_batch_train, y1_batch_train, y2_batch_train,
-#     #             #                                     model, loss_const, optimizer)
-#     #             # loss_value = distributed_train_step(next(iterator), model, loss_const, optimizer, global_batch_size)
-
-#     #             # debug = next(iterator)
-#     #             # print('next(iterator):', debug._values[0].shape, 'TYPE:', type(debug._values[0]), 
-#     #             # 'next thing:', debug._values[1].shape, 'TYPE:', type(debug._values[1]), 'LEN:', len(debug._values))
-                
-#     #             # loss_value = distributed_train_step(next(iterator))
-#     #             total_loss += distributed_train_step(next(train_iter))
-#     #             num_batches += 1
-
-#     #             readable_step = step + 1
-#     #             # Log every batch
-#     #             if step == 0:
-#     #                 print('Training execution (steps):', end = " ")
-#     #             print('(' + str(readable_step) + ')', end="")
-
-#     #             if readable_step == train_steps_per_epoch:
-#     #                 break
-            
-#     #         avg_train_loss = total_loss / num_batches
-
-#     #         print(' - epoch loss:', avg_train_loss)
-#     #         history['loss'].append(avg_train_loss)
-
-#     #         # VALIDATION DATASET FROM GENERATOR
-#     #         val_dataset = tf.data.Dataset.from_generator(
-#     #             make_gen_callable(validation_generator), output_types=(tf.float32), 
-#     #             output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
-#     #         )
-#     #         # VALIDATION LOOP
-#     #         total_loss, num_batches = 0.0, 0
-#     #         # Cross fingers for this line
-#     #         # val_dataset = val_dataset.batch(global_batch_size)
-#     #         dist_val_dataset = mirrored_strategy.experimental_distribute_dataset(val_dataset)
-#     #         val_iter = iter(dist_val_dataset)
-#     #         for step in range(train_steps_per_epoch):
-#     #             # x_batch_val, y1_batch_val, y2_batch_val = next(iterator)
-#     #             # loss_value = distributed_test_step(x_batch_val, y1_batch_val, y2_batch_val,
-#     #             #                                    model, loss_const)
-
-#     #             # loss_value = distributed_test_step(next(iterator), model, loss_const, global_batch_size)
-#     #             # loss_value = distributed_test_step(next(iterator))
-#     #             total_loss += distributed_test_step(next(val_iter))
-#     #             num_batches += 1
-
-#     #             readable_step = step + 1
-#     #             if step == 0:
-#     #                 print('Validate execution (steps):', end = " ")
-#     #             print('(' + str(readable_step) + ')', end="")
-#     #             if readable_step == val_steps_per_epoch:
-#     #                 break
-
-#     #         avg_val_loss = total_loss / num_batches
-
-#     #         print(' - epoch val. loss:', avg_val_loss)        
-#     #         history['val_loss'].append(avg_val_loss)
+def make_gen_callable(_gen):
+    def gen():
+        for x,y,z in _gen:
+            yield x,y,z
+    return gen
 
 
-#     # Not necessary for HPC (can't run on HPC)
-#     # tf.keras.utils.plot_model(model, 
-#     #                        (gs_path + 'model' + str(grid_search_iter) + 'of' + str(combos) + '.png'
-#     #                        if grid_search_iter is not None else
-#     #                        'dlnn_keras_model.png'), 
-#     #                        show_shapes=True)
-
-#     # log_dir = '/content/drive/My Drive/Quinn Coleman - Thesis/logs/fit/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-#     # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-#     # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir)
-
-#     # print('Going into training now...')
-#     # # print('Shape of data about to be fit:', X.shape, y1.shape, y2.shape)
-#     # # hist = model.fit({'piano_noise_mixed': X, 'piano_true': y1, 'noise_true': y2},
-#     # #                  {'piano_pred': y1, 'noise_pred': y2},
-#     # #                  validation_split=val_split,
-#     # #                  epochs=epochs, batch_size=batch_size)
-#     #                 #  callbacks=[tensorboard_callback])
-#     # hist = model.fit(train_generator,
-#     #                  steps_per_epoch=math.ceil(num_train / batch_size),
-#     #                  epochs=epochs,
-#     #                  validation_data=validation_generator,
-#     #                  validation_steps=math.ceil(num_val / batch_size),
-#     #                  callbacks=[EarlyStopping('val_loss', patience=patience, mode='min')])
-  
-
-#     pc_run_str = '' if pc_run else '_noPC'
-#     if grid_search_iter is None:
-#         #  Can't for imperative models
-#         model.save(recent_model_path)
-
-#         # print('History Dictionary Keys:', hist.history.keys())
-#         # 'val_loss', 'val_piano_pred_loss', 'val_noise_pred_loss',
-#         # 'loss', 'piano_pred_loss', 'noise_pred_loss'
-
-#         # print('Val Loss:\n', hist.history['val_loss'])
-#         # print('Loss:\n', hist.history['loss'])
-#         # CUSTOM TRAIN LOOP CHANGES FOR BOTH BLOCKS HERE
-#         print('Val Loss:\n', hist.history['val_loss'])
-#         print('Loss:\n', hist.history['loss'])
-
-#         epoch_r = range(1, len(hist.history['loss'])+1)
-#         plt.plot(epoch_r, hist.history['val_loss'], 'b', label = 'Validation Loss')
-#         plt.plot(epoch_r, hist.history['loss'], 'bo', label = 'Training Loss')
-#         plt.title('Training & Validation Loss')
-#         plt.xlabel('Epochs')
-#         plt.ylabel('Loss')
-#         plt.legend()
-#         # plt.show()
-#         plt.savefig('../train_val_loss_chart' + pc_run_str + '.png')
-#     # Consider if too much storage use, when model runs faster w/ OOM fix
-#     else:
-#         epoch_r = range(1, len(hist.history['loss'])+1)
-#         plt.plot(epoch_r, hist.history['val_loss'], 'b', label = 'Validation Loss')
-#         plt.plot(epoch_r, hist.history['loss'], 'bo', label = 'Training Loss')
-#         plt.title('Training & Validation Loss')
-#         plt.xlabel('Epochs')
-#         plt.ylabel('Loss')
-#         plt.legend()
-#         # plt.show()
-#         if len(gs_id) > 0:
-#             gs_id += '_'
-#         plt.savefig(gs_path + gs_id + 'train_val_loss_chart_' + 
-#                     str(grid_search_iter) + 'of' + str(combos) + pc_run_str + '.png')
-
-#     return model, hist.history['loss'], hist.history['val_loss']
- 
-#     # CUSTOM TRAINING LOOP
-#     # pc_run_str = '' if pc_run else '_noPC'
-#     # if grid_search_iter is None:
-#     #     #  Can't for imperative models
-#     #     model.save(recent_model_path)
-
-#     #     # print('History Dictionary Keys:', hist.history.keys())
-#     #     # 'val_loss', 'val_piano_pred_loss', 'val_noise_pred_loss',
-#     #     # 'loss', 'piano_pred_loss', 'noise_pred_loss'
-
-#     #     # print('Val Loss:\n', hist.history['val_loss'])
-#     #     # print('Loss:\n', hist.history['loss'])
-#     #     # CUSTOM TRAIN LOOP CHANGES FOR BOTH BLOCKS HERE
-#     #     print('Val Loss:\n', history['val_loss'])
-#     #     print('Loss:\n', history['loss'])
-
-#     #     epoch_r = range(1, len(history['loss'])+1)
-#     #     plt.plot(epoch_r, history['val_loss'], 'b', label = 'Validation Loss')
-#     #     plt.plot(epoch_r, history['loss'], 'bo', label = 'Training Loss')
-#     #     plt.title('Training & Validation Loss')
-#     #     plt.xlabel('Epochs')
-#     #     plt.ylabel('Loss')
-#     #     plt.legend()
-#     #     # plt.show()
-#     #     plt.savefig('../train_val_loss_chart' + pc_run_str + '.png')
-#     # # Consider if too much storage use, when model runs faster w/ OOM fix
-#     # else:
-#     #     epoch_r = range(1, len(history['loss'])+1)
-#     #     plt.plot(epoch_r, history['val_loss'], 'b', label = 'Validation Loss')
-#     #     plt.plot(epoch_r, history['loss'], 'bo', label = 'Training Loss')
-#     #     plt.title('Training & Validation Loss')
-#     #     plt.xlabel('Epochs')
-#     #     plt.ylabel('Loss')
-#     #     plt.legend()
-#     #     # plt.show()
-#     #     if len(gs_id) > 0:
-#     #         gs_id += '_'
-#     #     plt.savefig(gs_path + gs_id + 'train_val_loss_chart_' + 
-#     #                 str(grid_search_iter) + 'of' + str(combos) + pc_run_str + '.png')
-
-#     # return model, history['loss'], history['val_loss']
-
-
-
-
-# MODEL TRAIN & EVAL FUNCTION
+# MODEL TRAIN & EVAL FUNCTION - Training Loop From Scratch
 def evaluate_source_sep(train_generator, validation_generator,
                         num_train, num_val, n_feat, n_seq, batch_size, 
                         loss_const, epochs=20, 
                         optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.75),
-                        patience=10, epsilon=10 ** (-10), config=None, recent_model_path=None, pc_run=False,
+                        patience=100, epsilon=10 ** (-10), config=None, recent_model_path=None, pc_run=False,
                         t_mean=None, t_std=None, grid_search_iter=None, gs_path=None, combos=None, gs_id=''):
     # print('X shape:', X.shape, 'y1 shape:', y1.shape, 'y2 shape:', y2.shape)
     # print('X shape:', X.shape)
     print('Making model...')
-    # print('DEBUG Batch Size in Eval Src Sep:', batch_size)
-    # IMPERATIVE MODEL - Customize Fit
-    model = make_imp_model(n_feat, n_seq, loss_const=loss_const, optimizer=optimizer,
-                           epsilon=epsilon, config=config, t_mean=t_mean, t_std=t_std)
-    # For imperative model, build before summary BUT fixes batch size
-    # ORIGINAL
-    # model = make_model(n_feat, n_seq, loss_const, optimizer, 
-    #                     name='Training Model', epsilon=epsilon, config=config,
-    #                    t_mean=t_mean, t_std=t_std)
-    # TRAINING LOOP FROM SCRATCH
-    # model = make_model(n_feat, n_seq, loss_const, optimizer, 
-    #                    name='Training Model', epsilon=epsilon, config=config,
-    #                    t_mean=t_mean, t_std=t_std, for_imp=True)
-    # print(model.summary())
+    if pc_run:
+        model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
+                                config=config, t_mean=t_mean, t_std=t_std)
+        optimizer = optimizer
+    else:
+        with mirrored_strategy.scope():
+            model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
+                                    config=config, t_mean=t_mean, t_std=t_std)
+            optimizer = optimizer
+    print(model.summary())
+
+    print('Going into training now...')
+    history = {'loss': [], 'val_loss': []}
+    for epoch in range(epochs):
+        print('EPOCH:', epoch + 1)
+
+        train_steps_per_epoch=math.ceil(num_train / batch_size)
+        val_steps_per_epoch=math.ceil(num_val / batch_size)
+        if pc_run:
+            # TRAIN LOOP
+            total_loss, num_batches = 0.0, 0
+            for step, (x_batch_train, y1_batch_train, y2_batch_train) in enumerate(train_generator):
+                loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train,
+                                         model, loss_const, optimizer)
+                # loss_value = tf.math.reduce_mean(loss_tensor).numpy()
+                total_loss += tf.math.reduce_mean(loss_tensor).numpy()
+                num_batches += 1
+
+                readable_step = step + 1
+                # Log every batch
+                if step == 0:
+                    print('Training execution (steps):', end = " ")
+                print('(' + str(readable_step) + ')', end="")
+
+                if readable_step == train_steps_per_epoch:
+                    break
+            
+            avg_train_loss = total_loss / num_batches
+            print(' - epoch loss:', avg_train_loss)
+            history['loss'].append(avg_train_loss)
+
+            # VALIDATION LOOP
+            total_loss, num_batches = 0.0, 0
+            for step, (x_batch_val, y1_batch_val, y2_batch_val) in enumerate(validation_generator):
+                loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val,
+                                        model, loss_const)
+                total_loss += tf.math.reduce_mean(loss_tensor).numpy()
+                num_batches += 1
+
+                readable_step = step + 1
+                if step == 0:
+                    print('Validate execution (steps):', end = " ")
+                print('(' + str(readable_step) + ')', end="")
+                if readable_step == val_steps_per_epoch:
+                    break
+            
+            avg_val_loss = total_loss / num_batches
+            print(' - epoch val. loss:', avg_val_loss)        
+            history['val_loss'].append(avg_val_loss)
+    
+        else:
+            # From docs: batch size must be equal to global batch size (refactor earlier if needed)
+            # Assume better to give worker less batches than too many? - give even num
+            # batch_size_per_replica = batch_size // 2
+            # global_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
+            
+            with mirrored_strategy.scope():
+                def compute_loss(y1, y2, logits1, logits2, loss_const):
+                    per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+                    return tf.nn.compute_average_loss(per_example_loss, 
+                                                      global_batch_size=batch_size)
+                                                      # global_batch_size=global_batch_size)
+
+            # Put functions inside scope
+            def train_step_for_dist(inputs):
+                x, y1, y2 = inputs
+                with tf.GradientTape() as tape:
+                    logits1, logits2 = model(x, training=True)
+                    # per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+                    # loss = tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
+                    loss = compute_loss(y1, y2, logits1, logits2, loss_const)
+                grads = tape.gradient(loss, model.trainable_weights)
+                optimizer.apply_gradients(zip(grads, model.trainable_weights))
+                return loss
+
+            def test_step_for_dist(inputs):
+                x, y1, y2 = inputs
+                val_logits1, val_logits2 = model(x, training=False)
+                # per_example_loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
+                # return tf.nn.compute_average_loss(per_example_loss, global_batch_size=global_batch_size)
+                return compute_loss(y1, y2, val_logits1, val_logits2, loss_const)
+
+            @tf.function
+            def distributed_train_step(dist_inputs):
+                per_replica_losses = mirrored_strategy.run(train_step_for_dist, 
+                                                           args=(dist_inputs,))
+                return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
+                                                axis=None)
+
+            @tf.function
+            def distributed_test_step(dist_inputs):
+                per_replica_losses = mirrored_strategy.run(test_step_for_dist, 
+                                                           args=(dist_inputs,))
+                return mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, 
+                                                axis=None)
+
+            # TRAIN DATASET FROM GENERATOR
+            train_dataset = tf.data.Dataset.from_generator(
+                make_gen_callable(train_generator), output_types=(tf.float32), 
+                output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+            )
+            # TRAIN LOOP
+            total_loss, num_batches = 0.0, 0
+            # Cross fingers for this line
+            # train_dataset = train_dataset.batch(global_batch_size)
+            dist_train_dataset = mirrored_strategy.experimental_distribute_dataset(train_dataset)
+            train_iter = iter(dist_train_dataset)
+            for step in range(train_steps_per_epoch):
+                # x_batch_train, y1_batch_train, y2_batch_train = next(iterator)
+                # loss_value = distributed_train_step(x_batch_train, y1_batch_train, y2_batch_train,
+                #                                     model, loss_const, optimizer)
+                # loss_value = distributed_train_step(next(iterator), model, loss_const, optimizer, global_batch_size)
+
+                # debug = next(iterator)
+                # print('next(iterator):', debug._values[0].shape, 'TYPE:', type(debug._values[0]), 
+                # 'next thing:', debug._values[1].shape, 'TYPE:', type(debug._values[1]), 'LEN:', len(debug._values))
+                
+                # loss_value = distributed_train_step(next(iterator))
+                total_loss += distributed_train_step(next(train_iter))
+                num_batches += 1
+
+                readable_step = step + 1
+                # Log every batch
+                if step == 0:
+                    print('Training execution (steps):', end = " ")
+                print('(' + str(readable_step) + ')', end="")
+
+                if readable_step == train_steps_per_epoch:
+                    break
+            
+            avg_train_loss = total_loss / num_batches
+
+            print(' - epoch loss:', avg_train_loss)
+            history['loss'].append(avg_train_loss)
+
+            # VALIDATION DATASET FROM GENERATOR
+            val_dataset = tf.data.Dataset.from_generator(
+                make_gen_callable(validation_generator), output_types=(tf.float32), 
+                output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+            )
+            # VALIDATION LOOP
+            total_loss, num_batches = 0.0, 0
+            # Cross fingers for this line
+            # val_dataset = val_dataset.batch(global_batch_size)
+            dist_val_dataset = mirrored_strategy.experimental_distribute_dataset(val_dataset)
+            val_iter = iter(dist_val_dataset)
+            for step in range(train_steps_per_epoch):
+                # x_batch_val, y1_batch_val, y2_batch_val = next(iterator)
+                # loss_value = distributed_test_step(x_batch_val, y1_batch_val, y2_batch_val,
+                #                                    model, loss_const)
+
+                # loss_value = distributed_test_step(next(iterator), model, loss_const, global_batch_size)
+                # loss_value = distributed_test_step(next(iterator))
+                total_loss += distributed_test_step(next(val_iter))
+                num_batches += 1
+
+                readable_step = step + 1
+                if step == 0:
+                    print('Validate execution (steps):', end = " ")
+                print('(' + str(readable_step) + ')', end="")
+                if readable_step == val_steps_per_epoch:
+                    break
+
+            avg_val_loss = total_loss / num_batches
+
+            print(' - epoch val. loss:', avg_val_loss)        
+            history['val_loss'].append(avg_val_loss)
+
+        # Early stopping on no improvement in last (x-1) epochs - stop after x epochs
+        if len(history['val_loss']) >= patience:
+            # Track improvement over last (x-1) epochs
+            improvement, prev_val = [], None
+            for loss_val in history['val_loss'][-1 * patience:]:
+                if prev_val is not None:
+                    improvement.append((loss_val <= prev_val) or (not np.isnan(loss_val) and np.isnan(prev_val)))
+                prev_val = loss_val
+            # Stop training, no improvement in last x epochs
+            if not all(improvement):
+                break
 
     # Not necessary for HPC (can't run on HPC)
     # tf.keras.utils.plot_model(model, 
@@ -1792,47 +1167,25 @@ def evaluate_source_sep(train_generator, validation_generator,
     #                        if grid_search_iter is not None else
     #                        'dlnn_keras_model.png'), 
     #                        show_shapes=True)
-
-    # log_dir = '/content/drive/My Drive/Quinn Coleman - Thesis/logs/fit/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir, histogram_freq=1)
-    # tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir)
-
-    print('Going into training now...')
-    # print('Shape of data about to be fit:', X.shape, y1.shape, y2.shape)
-    # hist = model.fit({'piano_noise_mixed': X, 'piano_true': y1, 'noise_true': y2},
-    #                  {'piano_pred': y1, 'noise_pred': y2},
-    #                  validation_split=val_split,
-    #                  epochs=epochs, batch_size=batch_size)
-                    #  callbacks=[tensorboard_callback])
-    hist = model.fit(train_generator,
-                     steps_per_epoch=math.ceil(num_train / batch_size),
-                     epochs=epochs,
-                     validation_data=validation_generator,
-                     validation_steps=math.ceil(num_val / batch_size),
-                     callbacks=[EarlyStopping('val_loss', patience=patience, mode='min')])
-    print(model.summary())
-    # # Custom Training Loop for Custom Loss
-    # # Iterate over epochs
-    # for epoch in range(epochs):
-    #     print("Start of epoch %d" % (epoch,))
-
-    #     # Iterate over the batches of the dataset
-
+ 
     pc_run_str = '' if pc_run else '_noPC'
     if grid_search_iter is None:
         #  Can't for imperative models
-        # model.save(recent_model_path)
+        model.save(recent_model_path)
 
         # print('History Dictionary Keys:', hist.history.keys())
         # 'val_loss', 'val_piano_pred_loss', 'val_noise_pred_loss',
         # 'loss', 'piano_pred_loss', 'noise_pred_loss'
 
-        print('Val Loss:\n', hist.history['val_loss'])
-        print('Loss:\n', hist.history['loss'])
+        # print('Val Loss:\n', hist.history['val_loss'])
+        # print('Loss:\n', hist.history['loss'])
+        # CUSTOM TRAIN LOOP CHANGES FOR BOTH BLOCKS HERE
+        print('Val Loss:\n', history['val_loss'])
+        print('Loss:\n', history['loss'])
 
-        epoch_r = range(1, len(hist.history['loss'])+1)
-        plt.plot(epoch_r, hist.history['val_loss'], 'b', label = 'Validation Loss')
-        plt.plot(epoch_r, hist.history['loss'], 'bo', label = 'Training Loss')
+        epoch_r = range(1, len(history['loss'])+1)
+        plt.plot(epoch_r, history['val_loss'], 'b', label = 'Validation Loss')
+        plt.plot(epoch_r, history['loss'], 'bo', label = 'Training Loss')
         plt.title('Training & Validation Loss')
         plt.xlabel('Epochs')
         plt.ylabel('Loss')
@@ -1841,9 +1194,9 @@ def evaluate_source_sep(train_generator, validation_generator,
         plt.savefig('../train_val_loss_chart' + pc_run_str + '.png')
     # Consider if too much storage use, when model runs faster w/ OOM fix
     else:
-        epoch_r = range(1, len(hist.history['loss'])+1)
-        plt.plot(epoch_r, hist.history['val_loss'], 'b', label = 'Validation Loss')
-        plt.plot(epoch_r, hist.history['loss'], 'bo', label = 'Training Loss')
+        epoch_r = range(1, len(history['loss'])+1)
+        plt.plot(epoch_r, history['val_loss'], 'b', label = 'Validation Loss')
+        plt.plot(epoch_r, history['loss'], 'bo', label = 'Training Loss')
         plt.title('Training & Validation Loss')
         plt.xlabel('Epochs')
         plt.ylabel('Loss')
@@ -1854,8 +1207,7 @@ def evaluate_source_sep(train_generator, validation_generator,
         plt.savefig(gs_path + gs_id + 'train_val_loss_chart_' + 
                     str(grid_search_iter) + 'of' + str(combos) + pc_run_str + '.png')
 
-    return model, hist.history['loss'], hist.history['val_loss']
-
+    return model, history['loss'], history['val_loss']
 
 
 # GRID SEARCH FUNCTION
@@ -2332,10 +1684,12 @@ def main():
     # FROM PO-SEN PAPER - about loss_const
     # Empirically, the value γ is in the range of 0.05∼0.2 in order
     # to achieve SIR improvements and maintain SAR and SDR.
+    # Constant variables for random HPs
     loss_const, epochs, val_split = 0.05, 10, 0.25 #(1/3)
-    # optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9)
-    optimizer = tf.keras.optimizers.Adam(clipvalue=0.1)
-    loss_const = 0.05
+    # Variables changed for random HPs
+    patience, train_config, optimizer = epochs, None, tf.keras.optimizers.RMSprop(clipvalue=0.9) 
+    # optimizer = tf.keras.optimizers.Adam(clipvalue=10)
+    # loss_const = 0.05
 
     # TRAINING DATA SPECIFIC CONSTANTS (Change when data changes) #
     MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
@@ -2475,57 +1829,22 @@ def main():
                 with open(config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
                     bare_config_optns = json.load(hp_file)['archs']
 
-            # rnn_optns = ['RNN'] if pc_run else ['LSTM']
-            # # TEST PC
-            # # rnn_optns = ['LSTM'] if pc_run else ['LSTM']
+            rnn_optns = ['RNN'] if pc_run else ['LSTM']
+            # TEST PC
+            # rnn_optns = ['LSTM'] if pc_run else ['LSTM']
 
-            # dropout_optns = [(0.0,0.0)]
-            # arch_config_optns = []   # Add variations of each bare config to official
-            # for config in bare_config_optns[3:4]:  #[3:4]:    # rand base = #71 last
-            #     for scale_optn in [True]:  
-            #         for rnn_skip_optn in [True]:    # false last
-            #             for bias_rnn_optn in [True]:
-            #                 for bias_dense_optn in [True]:
-            #                     for dropout_optn in dropout_optns:      # For RNN only
-            #                         for bidir_optn in [False]:
-            #                             for bn_optn in [True]:   # For Dense only # true last
-            #                                 for rnn_optn in rnn_optns:
-            #                                     # Important: skip bad output cases
-            #                                     if bias_rnn_optn == False and bias_dense_optn == False:
-            #                                         continue
-
-            #                                     # Make a unique copy for each factor combo
-            #                                     curr_config = config.copy()
-            #                                     curr_config['scale'] = scale_optn
-            #                                     curr_config['rnn_res_cntn'] = rnn_skip_optn
-            #                                     curr_config['bias_rnn'] = bias_rnn_optn
-            #                                     curr_config['bias_dense'] = bias_dense_optn
-            #                                     curr_config['rnn_dropout'] = dropout_optn
-            #                                     curr_config['bidir'] = bidir_optn
-            #                                     curr_config['bn'] = bn_optn
-            #                                     if rnn_optn == 'LSTM':
-            #                                         for i, layer in enumerate(config['layers']):
-            #                                             if layer['type'] == 'RNN':
-            #                                                 curr_config['layers'][i]['type'] = rnn_optn
-            #                                     # Append updated config
-            #                                     arch_config_optns.append(curr_config) 
-            
-            # if random_hps:
-            #     optimizer = tf.keras.optimizers.Adam(clipvalue=0.9) # Random HP
-
-            # DEBUG - normal HPs, RNN -> LSTM
-            rnn_optns = ['LSTM']
+            print('Config in train:', train_config)
 
             dropout_optns = [(0.0,0.0)]
             arch_config_optns = []   # Add variations of each bare config to official
-            for config in bare_config_optns[0:1]:  #[3:4]:    # rand base = #71 last
-                for scale_optn in [False]:  
-                    for rnn_skip_optn in [False]:    # false last
+            for config in bare_config_optns[3:4]:  #[3:4]:    # rand base = #71 last
+                for scale_optn in [True]:  
+                    for rnn_skip_optn in [True]:    # false last
                         for bias_rnn_optn in [True]:
                             for bias_dense_optn in [True]:
                                 for dropout_optn in dropout_optns:      # For RNN only
                                     for bidir_optn in [False]:
-                                        for bn_optn in [False]:   # For Dense only # true last
+                                        for bn_optn in [True]:   # For Dense only # true last
                                             for rnn_optn in rnn_optns:
                                                 # Important: skip bad output cases
                                                 if bias_rnn_optn == False and bias_dense_optn == False:
@@ -2547,11 +1866,48 @@ def main():
                                                 # Append updated config
                                                 arch_config_optns.append(curr_config) 
 
-            if random_hps:
-                print('CONFIG OPTIONS (TRAIN ARCH) FOR USE:')
-                print(arch_config_optns)
+            # # DEBUG - normal HPs, RNN -> LSTM
+            # rnn_optns = ['LSTM']
+            print('Config in train:', train_config)
+            # dropout_optns = [(0.0,0.0)]
+            # arch_config_optns = []   # Add variations of each bare config to official
+            # for config in bare_config_optns[0:1]:  #[3:4]:    # rand base = #71 last
+            #     for scale_optn in [False]:  
+            #         for rnn_skip_optn in [False]:    # false last
+            #             for bias_rnn_optn in [True]:
+            #                 for bias_dense_optn in [True]:
+            #                     for dropout_optn in dropout_optns:      # For RNN only
+            #                         for bidir_optn in [False]:
+            #                             for bn_optn in [False]:   # For Dense only # true last
+            #                                 for rnn_optn in rnn_optns:
+            #                                     # Important: skip bad output cases
+            #                                     if bias_rnn_optn == False and bias_dense_optn == False:
+            #                                         continue
 
-            config = arch_config_optns[0] if random_hps else None
+            #                                     # Make a unique copy for each factor combo
+            #                                     curr_config = config.copy()
+            #                                     curr_config['scale'] = scale_optn
+            #                                     curr_config['rnn_res_cntn'] = rnn_skip_optn
+            #                                     curr_config['bias_rnn'] = bias_rnn_optn
+            #                                     curr_config['bias_dense'] = bias_dense_optn
+            #                                     curr_config['rnn_dropout'] = dropout_optn
+            #                                     curr_config['bidir'] = bidir_optn
+            #                                     curr_config['bn'] = bn_optn
+            #                                     if rnn_optn == 'LSTM':
+            #                                         for i, layer in enumerate(config['layers']):
+            #                                             if layer['type'] == 'RNN':
+            #                                                 curr_config['layers'][i]['type'] = rnn_optn
+            #                                     # Append updated config
+            #                                     arch_config_optns.append(curr_config) 
+
+            if random_hps:
+                optimizer = tf.keras.optimizers.RMSprop(clipvalue=10) # Random HP
+                patience = 4
+                train_config = arch_config_optns[0]
+                print('RANDOM TRAIN ARCH FOR USE:')
+                print(train_config)
+            else:
+                print('CONFIG:', train_config)
 
             # TEMP - update for each unique dataset
             # train_mean, train_std = get_stats(y1_train_files, y2_train_files, num_train,
@@ -2566,9 +1922,9 @@ def main():
                                     n_feat=train_feat, n_seq=train_seq, 
                                     batch_size=train_batch_size, 
                                     loss_const=loss_const, epochs=epochs,
-                                    optimizer=optimizer, epsilon=epsilon,
+                                    optimizer=optimizer, patience=patience, epsilon=epsilon,
                                     recent_model_path=recent_model_path, pc_run=pc_run,
-                                    config=config, t_mean=train_mean, t_std=train_std)
+                                    config=train_config, t_mean=train_mean, t_std=train_std)
             
             if sample:
                 restore_audio_file(infer_output_path, model, wdw_size, epsilon, 

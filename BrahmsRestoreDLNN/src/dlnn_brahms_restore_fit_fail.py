@@ -2,6 +2,7 @@
 # Advisor: Dr. Dennis Sun
 # 8/31/20
 # dlnn_brahms_restore - neural network to restore brahms recording
+# Keras fit() training version (doesn't work)
 
 # DATA RULES #
 # - If writing a transformed signal, write it back using its original data type/range (wavfile lib)
