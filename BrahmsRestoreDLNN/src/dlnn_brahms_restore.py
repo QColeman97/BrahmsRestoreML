@@ -1270,7 +1270,7 @@ def evaluate_source_sep(train_generator, validation_generator,
         if len(gs_id) > 0:
             gs_id += '_'
         plt.savefig(gs_path + gs_id + 'train_val_loss_chart_' + 
-                    str(grid_search_iter) + 'of' + str(combos) + pc_run_str + '.png')
+                    str(grid_search_iter) + '_of_' + str(combos) + pc_run_str + '.png')
 
     return model, history['loss'], history['val_loss']
 
