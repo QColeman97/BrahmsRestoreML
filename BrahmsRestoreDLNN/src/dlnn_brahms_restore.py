@@ -41,6 +41,9 @@ print("GPUs Available: ", gpus)
 
 mirrored_strategy = tf.distribute.MirroredStrategy()
 print("Num GPUs Available (according to mirrored strategy): ", mirrored_strategy.num_replicas_in_sync, "\n")
+
+tf.debugging.enable_check_numerics()
+
 # TEST - 2 GS's at same time? SUCCESS!!!
 # BUT, set_memory_growth has perf disadvantages (slower) - give main GS full power
 # tf.config.experimental.set_memory_growth(gpus[0], True)
@@ -523,6 +526,16 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
                 # print('PL Shape:', piano_label_spgm.shape)
                 # print('NL Shape:', noise_label_spgm.shape)
 
+                # # DEBUG prints
+                # print('OFFSET', offset, 'index', str(i) + ':')
+                # print('Zero in np spgm:', 0 in noise_piano_spgm)
+                # print('Zero in p spgm:', 0 in piano_label_spgm)
+                # print('Zero in n spgm:', 0 in noise_label_spgm)
+                # print('NaN in np spgm:', True in np.isnan(noise_piano_spgm))
+                # print('NaN in p spgm:', True in np.isnan(piano_label_spgm))
+                # print('NaN in n spgm:', True in np.isnan(noise_label_spgm))
+                # print()
+
                 # print('Finished training sample')
                 # Add samples to arrays
                 if (num_samples / batch_size == 0):
@@ -764,23 +777,23 @@ class TimeFreqMasking(Layer):
 # )
 
 # Loss function for subclassed model
-# def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
-#     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
-#     return (
-#         tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-#         (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-#         tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-#         (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1))
-#     )
-# FIX - only return one value = less memory taken
 def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
     return (
-        tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2) - 
-        (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2)) +
-        tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2) -
-        (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2))
+        tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+        (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+        tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+        (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1))
     )
+# # FIX - only return one value = less memory taken
+# def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
+#     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
+#     return (
+#         tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2) - 
+#         (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2)) +
+#         tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2) -
+#         (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2))
+#     )
 
 
 def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
@@ -898,6 +911,58 @@ def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
                                  name='noise_pred') ([noise_hat, piano_hat, input_layer])
 
     model = Model(inputs=input_layer, outputs=[piano_pred, noise_pred])
+
+    # # Keras debug block
+    # debug_piano_model = Model(
+    #     inputs=model.inputs,
+    #     # inputs=model.layers[3].output,
+    #     # outputs=[model.layers[0].output] + model.outputs,
+    #     outputs=[model.layers[2].output, model.layers[3].output, model.layers[5].output],
+    #     name='Debug Piano Model (rnn2 out -> piano_hat out -> piano_pred out)'
+    # )
+    # debug_noise_model = Model(
+    #     inputs=model.inputs,
+    #     outputs=[model.layers[2].output, model.layers[4].output, model.layers[6].output],
+    #     name='Debug Noise Model (rnn2 out -> noise_hat out -> noise_pred out)'
+    # )
+    # xs = tf.random.normal((3, sequences, features))
+    # # print('DEBUG Piano Model Summary:')
+    # # print(debug_piano_model.summary())
+    # print('DEBUG Piano Model Run:')
+    # # print(debug_piano_model(xs, training=True))
+
+    # debug_piano_model_outputs = debug_piano_model(xs, training=True)
+    # rnn_o, dense_o, mask_o = debug_piano_model_outputs[0].numpy(), debug_piano_model_outputs[1].numpy(), debug_piano_model_outputs[2].numpy()
+    # print('Shape rnn out:', rnn_o.shape)
+    # print('Shape dense out:', dense_o.shape)
+    # print('Shape mask out:', mask_o.shape)
+    # # print('Inf in rnn out:', True in np.isinf(rnn_o))
+    # # print('Inf in dense out:', True in np.isinf(dense_o))
+    # # print('Inf in mask out:', True in np.isinf(mask_o))
+    # # print('NaN in rnn out:', True in np.isnan(rnn_o))
+    # # print('NaN in dense out:', True in np.isnan(dense_o))
+    # # print('NaN in mask out:', True in np.isnan(mask_o))
+    # print()
+
+    # # print('DEBUG Noise Model Summary:')
+    # # print(debug_noise_model.summary())
+    # print('DEBUG Noise Model Run:')
+    # # print(debug_noise_model(xs, training=True))
+    # debug_noise_model_outputs = debug_noise_model(xs, training=True)
+    # rnn_o, dense_o, mask_o = debug_noise_model_outputs[0].numpy(), debug_noise_model_outputs[1].numpy(), debug_noise_model_outputs[2].numpy()
+    # print('Shape rnn out:', rnn_o.shape)
+    # print('Shape dense out:', dense_o.shape)
+    # print('Shape mask out:', mask_o.shape)
+    # # print('Inf in rnn out:', True in np.isinf(rnn_o))
+    # # print('Inf in dense out:', True in np.isinf(dense_o))
+    # # print('Inf in mask out:', True in np.isinf(mask_o))
+    # # print('NaN in rnn out:', True in np.isnan(rnn_o))
+    # # print('NaN in dense out:', True in np.isnan(dense_o))
+    # # print('NaN in mask out:', True in np.isnan(mask_o))
+    # print()
+    # # print('Model Layers:')
+    # # print([layer.name for layer in model.layers])
+    # # ['piano_noise_mixed', 'simple_rnn', 'simple_rnn_1', 'piano_hat', 'noise_hat', 'piano_pred', 'noise_pred']    
     
     return model
 
@@ -1688,7 +1753,8 @@ def main():
     loss_const, epochs, val_split = 0.05, 10, 0.25 #(1/3)
     # Variables changed for random HPs
     patience, train_config, optimizer = epochs, None, tf.keras.optimizers.RMSprop(clipvalue=0.9) 
-    # optimizer = tf.keras.optimizers.Adam(clipvalue=10)
+    # CURR FIX - Exploding gradient
+    optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9, learning_rate=0.0001)
     # loss_const = 0.05
 
     # TRAINING DATA SPECIFIC CONSTANTS (Change when data changes) #
@@ -1831,9 +1897,7 @@ def main():
 
             rnn_optns = ['RNN'] if pc_run else ['LSTM']
             # TEST PC
-            # rnn_optns = ['LSTM'] if pc_run else ['LSTM']
-
-            print('Config in train:', train_config)
+            # rnn_optns = ['LSTM'] if pc_run else ['LSTM'
 
             dropout_optns = [(0.0,0.0)]
             arch_config_optns = []   # Add variations of each bare config to official
@@ -1866,9 +1930,9 @@ def main():
                                                 # Append updated config
                                                 arch_config_optns.append(curr_config) 
 
-            # # DEBUG - normal HPs, RNN -> LSTM
+            # DEBUG - normal HPs, RNN -> LSTM
             # rnn_optns = ['LSTM']
-            print('Config in train:', train_config)
+
             # dropout_optns = [(0.0,0.0)]
             # arch_config_optns = []   # Add variations of each bare config to official
             # for config in bare_config_optns[0:1]:  #[3:4]:    # rand base = #71 last
@@ -1901,7 +1965,7 @@ def main():
             #                                     arch_config_optns.append(curr_config) 
 
             if random_hps:
-                optimizer = tf.keras.optimizers.RMSprop(clipvalue=10) # Random HP
+                optimizer = tf.keras.optimizers.RMSprop(clipvalue=10, learning_rate=0.0001) # Random HP
                 patience = 4
                 train_config = arch_config_optns[0]
                 print('RANDOM TRAIN ARCH FOR USE:')
