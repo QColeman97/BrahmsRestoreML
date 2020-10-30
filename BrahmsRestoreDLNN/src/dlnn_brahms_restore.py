@@ -39,8 +39,8 @@ gpus = tf.config.list_physical_devices('GPU')
 print("Num GPUs Available: ", len(gpus))
 print("GPUs Available: ", gpus)
 
-mirrored_strategy = tf.distribute.MirroredStrategy()
-print("Num GPUs Available (according to mirrored strategy): ", mirrored_strategy.num_replicas_in_sync, "\n")
+# mirrored_strategy = tf.distribute.MirroredStrategy()
+# print("Num GPUs Available (according to mirrored strategy): ", mirrored_strategy.num_replicas_in_sync, "\n")
 
 # Only use for narrowing down NaN bug to exploding gradient
 # tf.debugging.enable_check_numerics()
@@ -1036,15 +1036,15 @@ def evaluate_source_sep(train_generator, validation_generator,
     # print('X shape:', X.shape, 'y1 shape:', y1.shape, 'y2 shape:', y2.shape)
     # print('X shape:', X.shape)
     print('Making model...')
-    if pc_run:
-        model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
-                                config=config, t_mean=t_mean, t_std=t_std)
-        optimizer = optimizer
-    else:
-        with mirrored_strategy.scope():
-            model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
-                                    config=config, t_mean=t_mean, t_std=t_std)
-            optimizer = optimizer
+    # if pc_run:
+    model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
+                            config=config, t_mean=t_mean, t_std=t_std)
+        # optimizer = optimizer
+    # else:
+    #     with mirrored_strategy.scope():
+    #         model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
+    #                                 config=config, t_mean=t_mean, t_std=t_std)
+    #         optimizer = optimizer
     print(model.summary())
 
     print('Going into training now...')
