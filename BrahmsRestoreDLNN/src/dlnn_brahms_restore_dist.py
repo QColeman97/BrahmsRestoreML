@@ -1036,15 +1036,15 @@ def evaluate_source_sep(train_generator, validation_generator,
     # print('X shape:', X.shape, 'y1 shape:', y1.shape, 'y2 shape:', y2.shape)
     # print('X shape:', X.shape)
     print('Making model...')
-    if pc_run:
-        model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
-                                config=config, t_mean=t_mean, t_std=t_std)
-        optimizer = optimizer
-    else:
-        with mirrored_strategy.scope():
-            model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
-                                    config=config, t_mean=t_mean, t_std=t_std)
-            optimizer = optimizer
+    # if pc_run:
+    model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
+                            config=config, t_mean=t_mean, t_std=t_std)
+        # optimizer = optimizer
+    # else:
+    #     with mirrored_strategy.scope():
+    #         model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
+    #                                 config=config, t_mean=t_mean, t_std=t_std)
+    #         optimizer = optimizer
     print(model.summary())
 
     print('Going into training now...')
@@ -1102,12 +1102,12 @@ def evaluate_source_sep(train_generator, validation_generator,
             # batch_size_per_replica = batch_size // 2
             # global_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
             
-            with mirrored_strategy.scope():
-                def compute_loss(y1, y2, logits1, logits2, loss_const):
-                    per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
-                    return tf.nn.compute_average_loss(per_example_loss, 
-                                                      global_batch_size=batch_size)
-                                                      # global_batch_size=global_batch_size)
+            # with mirrored_strategy.scope():
+            def compute_loss(y1, y2, logits1, logits2, loss_const):
+                per_example_loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+                return tf.nn.compute_average_loss(per_example_loss, 
+                                                    global_batch_size=batch_size)
+                                                    # global_batch_size=global_batch_size)
 
             # Put functions inside scope
             def train_step_for_dist(inputs):
@@ -1637,7 +1637,23 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
                                     train_feat=n_feat, wdw_size=wdw_size, 
                                     epsilon=epsilon, pad_len=max_sig_len)
 
-                            _, losses, val_losses = evaluate_source_sep(train_generator,
+                            if pc_run:
+                                _, losses, val_losses = evaluate_source_sep(train_generator,
+                                                                        validation_generator,
+                                                                        num_train, num_val,
+                                                                        n_feat, n_seq, 
+                                                                        batch_size, loss_const,
+                                                                        epochs, opt, 
+                                                                        patience=early_stop_pat,
+                                                                        epsilon=epsilon,
+                                                                        config=arch_config, pc_run=pc_run,
+                                                                        t_mean=t_mean, t_std=t_std,
+                                                                        grid_search_iter=gs_iter,
+                                                                        gs_path=gsres_path,
+                                                                        combos=combos)
+                            else:
+                                with mirrored_strategy.scope():
+                                    _, losses, val_losses = evaluate_source_sep(train_generator,
                                                                     validation_generator,
                                                                     num_train, num_val,
                                                                     n_feat, n_seq, 
@@ -1650,7 +1666,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
                                                                     grid_search_iter=gs_iter,
                                                                     gs_path=gsres_path,
                                                                     combos=combos)
-                            
+
                             # CUSTOM TRAINING
                             if not pc_run:
                                 batch_size = og_batch_size
@@ -2131,7 +2147,17 @@ def main():
             # Train Mean: 1728.2116672701493 Train Std: 6450.4985228518635 - 10/18/20
             train_mean, train_std = TRAIN_MEAN, TRAIN_STD
 
-            model, _, _ = evaluate_source_sep(train_generator, validation_generator, num_train, num_val,
+            if pc_run:
+                model, _, _ = evaluate_source_sep(train_generator, validation_generator, num_train, num_val,
+                                        n_feat=train_feat, n_seq=train_seq, 
+                                        batch_size=train_batch_size, 
+                                        loss_const=train_loss_const, epochs=train_epochs,
+                                        optimizer=train_optimizer, patience=patience, epsilon=epsilon,
+                                        recent_model_path=recent_model_path, pc_run=pc_run,
+                                        config=training_arch_config, t_mean=train_mean, t_std=train_std)
+            else:
+                with mirrored_strategy.scope():
+                    model, _, _ = evaluate_source_sep(train_generator, validation_generator, num_train, num_val,
                                     n_feat=train_feat, n_seq=train_seq, 
                                     batch_size=train_batch_size, 
                                     loss_const=train_loss_const, epochs=train_epochs,
