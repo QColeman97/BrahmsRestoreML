@@ -777,23 +777,23 @@ class TimeFreqMasking(Layer):
 # )
 
 # Loss function for subclassed model
-def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
-    last_dim = piano_pred.shape[1] * piano_pred.shape[2]
-    return (
-        tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-        (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-        tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-        (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1))
-    )
-# # FIX - only return one value = less memory taken
 # def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
 #     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
 #     return (
-#         tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2) - 
-#         (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2)) +
-#         tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2) -
-#         (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2))
+#         tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+#         (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+#         tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+#         (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1))
 #     )
+# # FIX - only return one value = less memory taken
+def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
+    last_dim = piano_pred.shape[1] * piano_pred.shape[2]
+    return (
+        tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2) - 
+        (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2)) +
+        tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2) -
+        (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2))
+    )
 
 
 def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
