@@ -968,20 +968,39 @@ def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
 
 
 # CUSTOM TRAINING LOOP
-@tf.function
-def train_step(x, y1, y2, model, loss_const, optimizer):
-    with tf.GradientTape() as tape:
-        logits1, logits2 = model(x, training=True)
-        loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
-    grads = tape.gradient(loss, model.trainable_weights)
-    optimizer.apply_gradients(zip(grads, model.trainable_weights))
-    return loss
+# class TrainStep():
+#     def __init__(self):
+#         self.logits1, self.logits2 = None, None
+#         self.loss, self.grads = None, None
 
-@tf.function
-def test_step(x, y1, y2, model, loss_const):
-    val_logits1, val_logits2 = model(x, training=False)
-    loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
-    return loss
+#     @tf.function
+#     def __call__(self, x, y1, y2, model, loss_const, optimizer):
+#         with tf.GradientTape() as tape:
+#             logits1, logits2 = model(x, training=True)
+#             loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+#         grads = tape.gradient(loss, model.trainable_weights)
+#         optimizer.apply_gradients(zip(grads, model.trainable_weights))
+#         return loss
+
+
+# # def get_train_step_func():
+# @tf.function
+# def train_step(x, y1, y2, model, loss_const, optimizer):
+#     with tf.GradientTape() as tape:
+#         logits1, logits2 = model(x, training=True)
+#         loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+#     grads = tape.gradient(loss, model.trainable_weights)
+#     optimizer.apply_gradients(zip(grads, model.trainable_weights))
+#     return loss
+#     # return train_step
+
+# # def get_test_step_func():
+# @tf.function
+# def test_step(x, y1, y2, model, loss_const):
+#     val_logits1, val_logits2 = model(x, training=False)
+#     loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
+#     return loss
+#     # return test_step
 
 # # def train_step_for_dist(x, y1, y2, model, loss_const, optimizer):
 # def train_step_for_dist(inputs, model, loss_const, optimizer, dist_bs):
@@ -1028,6 +1047,7 @@ def make_gen_callable(_gen):
 
 # MODEL TRAIN & EVAL FUNCTION - Training Loop From Scratch
 def evaluate_source_sep(train_generator, validation_generator,
+                        # train_step_func, test_step_func,
                         num_train, num_val, n_feat, n_seq, batch_size, 
                         loss_const, epochs=20, 
                         optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.75),
@@ -1047,6 +1067,23 @@ def evaluate_source_sep(train_generator, validation_generator,
     #         optimizer = optimizer
     print(model.summary())
 
+    @tf.function
+    def train_step(x, y1, y2):
+        with tf.GradientTape() as tape:
+            logits1, logits2 = model(x, training=True)
+            loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+        grads = tape.gradient(loss, model.trainable_weights)
+        optimizer.apply_gradients(zip(grads, model.trainable_weights))
+        return loss
+        # return train_step
+
+    # def get_test_step_func():
+    @tf.function
+    def test_step(x, y1, y2):
+        val_logits1, val_logits2 = model(x, training=False)
+        loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
+        return loss
+
     print('Going into training now...')
     history = {'loss': [], 'val_loss': []}
     for epoch in range(epochs):
@@ -1056,10 +1093,14 @@ def evaluate_source_sep(train_generator, validation_generator,
         val_steps_per_epoch=math.ceil(num_val / batch_size)
         # if pc_run:
         # TRAIN LOOP
+        # train_step_func, test_step_func = get_train_step_func(), get_test_step_func()
         total_loss, num_batches = 0.0, 0
         for step, (x_batch_train, y1_batch_train, y2_batch_train) in enumerate(train_generator):
-            loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train,
-                                        model, loss_const, optimizer)
+            loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train)
+            # loss_tensor = train_step_func(x_batch_train, y1_batch_train, y2_batch_train,
+            #                               model, loss_const, optimizer)
+            # loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train,
+            #                             model, loss_const, optimizer)
             # loss_value = tf.math.reduce_mean(loss_tensor).numpy()
             total_loss += tf.math.reduce_mean(loss_tensor).numpy()
             num_batches += 1
@@ -1080,8 +1121,11 @@ def evaluate_source_sep(train_generator, validation_generator,
         # VALIDATION LOOP
         total_loss, num_batches = 0.0, 0
         for step, (x_batch_val, y1_batch_val, y2_batch_val) in enumerate(validation_generator):
-            loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val,
-                                    model, loss_const)
+            loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val)
+            # loss_tensor = test_step_func(x_batch_val, y1_batch_val, y2_batch_val,
+            #                              model, loss_const)
+            # loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val,
+            #                         model, loss_const)
             total_loss += tf.math.reduce_mean(loss_tensor).numpy()
             num_batches += 1
 
@@ -1410,6 +1454,7 @@ def get_hp_configs(bare_config_path, pc_run=False):
 
 
 def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
+                # train_step_func, test_step_func,
                 n_feat, n_seq, wdw_size, epsilon, max_sig_len, t_mean, t_std,
                 train_configs, arch_config_optns,
                 # arch_config_path, 
@@ -1639,6 +1684,7 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
 
                             _, losses, val_losses = evaluate_source_sep(train_generator,
                                                                     validation_generator,
+                                                                    # train_step_func, test_step_func,
                                                                     num_train, num_val,
                                                                     n_feat, n_seq, 
                                                                     batch_size, loss_const,
@@ -1903,6 +1949,8 @@ def main():
         #     except:
         #         print('ERROR: Couldn\'t set memory growth for GPU 2')
 
+        # train_step_func, test_step_func = get_train_step_func(), get_test_step_func()
+
         train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run)
 
         # Load in train/validation data
@@ -2125,7 +2173,9 @@ def main():
             # Train Mean: 1728.2116672701493 Train Std: 6450.4985228518635 - 10/18/20
             train_mean, train_std = TRAIN_MEAN, TRAIN_STD
 
-            model, _, _ = evaluate_source_sep(train_generator, validation_generator, num_train, num_val,
+            model, _, _ = evaluate_source_sep(train_generator, validation_generator, 
+                                    # train_step_func, test_step_func, 
+                                    num_train, num_val,
                                     n_feat=train_feat, n_seq=train_seq, 
                                     batch_size=train_batch_size, 
                                     loss_const=train_loss_const, epochs=train_epochs,
@@ -2206,6 +2256,7 @@ def main():
 
             grid_res, grid_res_val = grid_search(y1_train_files, y2_train_files,
                                         y1_val_files, y2_val_files,
+                                        # train_step_func, test_step_func,
                                         n_feat=train_feat, n_seq=train_seq,
                                         wdw_size=wdw_size, epsilon=epsilon,
                                         max_sig_len=max_sig_len, 
