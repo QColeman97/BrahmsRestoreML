@@ -71,11 +71,6 @@ PIANO_WDW_SIZE = 4096
 # Resolution (Windows per second) = STD_SR_HZ / PIANO_WDW_SIZE
 SPGM_BRAHMS_RATIO = 0.08
 
-# Python 3.4 Backward Compatibility Utility
-#def merge_two_dicts(x,y):
-#    z = x.copy()
-#    z.update(y)
-#    return z
 
 # TEST - call() input for imp model
 # global_phases1, global_phases2, global_phases3 = None, None, None
@@ -1228,7 +1223,7 @@ def evaluate_source_sep(train_generator, validation_generator,
                     improvement.append((loss_val <= prev_val) or (not np.isnan(loss_val) and np.isnan(prev_val)))
                 prev_val = loss_val
             # Stop training, no improvement in last x epochs
-            if not all(improvement):
+            if not any(improvement):
                 break
 
     # Not necessary for HPC (can't run on HPC)
@@ -1303,9 +1298,9 @@ def evaluate_source_sep(train_generator, validation_generator,
 
 #         return self.__history
 
-def get_hp_configs(pc_run=False):
+def get_hp_configs(bare_config_path, pc_run=False):
     # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
-    batch_size_optns = [3] if pc_run else [4, 10]  
+    batch_size_optns = [3] if pc_run else [5, 10]  
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
@@ -1313,71 +1308,51 @@ def get_hp_configs(pc_run=False):
     # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
     # Balance between gradient clipping and lr for exploding gradient
     # If time permits, later grid searches explore learning rate & momentum to fine tune
+    
+    # OLD
+    # WORKED!!!! (very low lr - 2 orders of mag lower than default) at 9:45 am checked output
+    # optimizer = tf.keras.optimizers.RMSprop(clipvalue=10, learning_rate=0.00001) # Random HP
+    # Try next?
+    # ALMOST worked, bcame NaN at end, so bad result
+    # optimizer = tf.keras.optimizers.RMSprop(clipvalue=1, learning_rate=0.0001) # Random HP
+    # Failed
+    # optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.5)
+    # Failed
+    # optimizer = tf.keras.optimizers.RMSprop(clipvalue=1)
+    # ALMOST
+    # optimizer = tf.keras.optimizers.RMSprop(learning_rate=0.0001) # Random HP
+    # Find optimal balance betwwen clipval & lr for random HPs
+    # ALMOST worked, NaN at end
+    # optimizer = tf.keras.optimizers.RMSprop(clipvalue=10, learning_rate=0.0001) # Random HP
+    # (very low clipvalue - 2/3 orders of mag higher than default ~1/0.1)
+    # Failed
+    # optimizer = tf.keras.optimizers.RMSprop(clipvalue=100, learning_rate=0.0001) # Random HP
+    # Is learning rate only thing that matters? YES or does clip val help no
+    # ALMOST, but became NaN earlier - lr is more effective
+    #   When clip calue is too high w/ lr -> bad, else almost works
+    #       does work when learning rate = 0.00001
+    # train_optimizer = tf.keras.optimizers.RMSprop(learning_rate=0.0001) # Random HP
+    
+    # Optimizers, should non-PC have more options b/c LSTM could help w/ expl gradi
+    #   TODO Test - on PC w/ LSTM to find out after this
+
+    # Trials for good results
+    # Does clipvalue do anything by itslef (cv=100)? - no
+    # What's the ghighest learning rate by itself that makes it work? 
+    #   0.0001 (R & A)->0.0005 (not R & not A)
+    # If we gradclip with a a little higher learning rate, still work? 
     optimizer_optns = [
-                      (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-                      (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
+                      (tf.keras.optimizers.RMSprop(learning_rate=0.0005), -1, 0.0005, 'RMSprop'),
+                      (tf.keras.optimizers.Adam(learning_rate=0.0005), -1, 0.0005, 'Adam')
                       ]
-
-
-
-def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
-                n_feat, n_seq, wdw_size, epsilon, max_sig_len, t_mean, t_std,
-                arch_config_path, gsres_path, early_stop_pat=3, pc_run=False, 
-                gs_id='', restart=False):
-    # model = MyKerasRegressor(build_fn=make_model, 
-    #                          features=n_feat, sequences=n_seq)
-    # param_grid = {batch_size: batch_size, epochs: epochs}#, 
-    #               #lost_const: loss_const}
-    # grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1)#, cv=3)
-
-    # IMPORTANT to take advantage of what's known in test data to minimize factors
-    # Factors: batchsize, epochs, loss_const, optimizers, gradient clipping,
-    # learning rate, lstm/rnn, layer type/arch, tanh activation, num neurons in layer,
-    # bidiric layer, amp var aug range, batch norm, skip connection over lstms,
-    # standardize input & un-standardize output  
-    # Maybe factor? Dmged/non-dmged piano input 
-    print('\nPC RUN:', pc_run, '\n\nGRID SEARCH ID:', gs_id if len(gs_id) > 0 else 'N/A', '\n')
-
-    num_train, num_val = len(y1_train_files), len(y1_val_files)
-
-    # All factors version below:
-    # IMPORTANT FOR BATCH SIZE: Factors of total samples * (1 - val_split) for performance
-    #   - total options: 1,3,5,9,15
-    # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
-    # batch_size_optns = [3] if pc_run else [3, 5, 15]
-
-    # Being careful about batch size effect on mem -> start low
-    # batch_size_optns = [1] if pc_run else [3, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
-    # FOR PC: Runs longer, so 1 less batch size option is good for ~2 weeks runtime
-    batch_size_optns = [3] if pc_run else [4, 10]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
-    # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
-    epochs_optns = [10]
-    # loss_const total options 0 - 0.3 by steps of 0.05
-    # Paper - joint training causes sensitivity to gamma, keep in low range of (0.05 - 0.2)
-        # FAILED - IMPORTANT LATER: Possible exception - can split up one HP, if we run 2 on PC (must be HP easy on mem) ALL OTHER HPs SAME
-        # CHANGE - DO NOT COMMIT TIL CHANGE IMPL
-        # batch_size_optns = [3]
-        # rnn_optns = ['RNN']
-        # with open(arch_config_path + 'hp_arch_config.json') as hp_file:
-        #     bare_config_optns = json.load(hp_file)['archs']
-        # loss_const_optns = [0.02, 0.1] if pc_run else [0.2, 0.3]
-    loss_const_optns = [0.05, 0.2]
-    # Remove no clipval? - 1st GS
-    optimizer_optns = [
-                      (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-                      (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
-                      ]
-    # optimizer_optns = [(tf.keras.optimizers.RMSprop(), 0, 0.001, 'RMSprop'), 
-    #                   (tf.keras.optimizers.RMSprop(clipvalue=0.25), 0.25, 0.001, 'RMSprop'), 
-    #                   (tf.keras.optimizers.RMSprop(clipvalue=0.5), 0.5, 0.001, 'RMSprop'), 
-    #                   (tf.keras.optimizers.RMSprop(clipvalue=0.75), 0.75, 0.001, 'RMSprop'),
-    #                   (tf.keras.optimizers.Adam(), 0, 0.001, 'Adam'), 
-    #                   (tf.keras.optimizers.Adam(clipvalue=0.25), 0.25, 0.001, 'Adam'), 
-    #                   (tf.keras.optimizers.Adam(clipvalue=0.5), 0.5, 0.001, 'Adam'), 
-    #                   (tf.keras.optimizers.Adam(clipvalue=0.75), 0.75, 0.001, 'Adam')#,
+    # optimizer_optns = [
+    #                   (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
+    #                   (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
     #                   ]
-    # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
-    # If time permits, later grid searches explore learning rate & momentum to fine tune
+
+    train_configs = {'batch_size': batch_size_optns, 'epochs': epochs_optns,
+                     'loss_const': loss_const_optns, 'optimizer': optimizer_optns}
+    
     # dropout_optns = [(0.0,0.0), (0.2,0.2), (0.2,0.5), (0.5,0.2), (0.5,0.5)]   # For RNN only
     dropout_optns = [(0.0,0.0), (0.25,0.25)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
     scale_optns = [True, False]
@@ -1385,29 +1360,21 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
     bias_rnn_optns = [True]     # False
     bias_dense_optns = [True]   # False
     bidir_optns = [True, False]
-    bn_optns = [True, False]            # For Dense only
-    # TEST - dont believe this should matter (got to iter 16 last w/ & 2 batchsize)
-    # rnn_optns = ['RNN', 'LSTM']
-    rnn_optns = ['RNN'] if pc_run else ['LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
-
-    # Optional - for future when I'm not hitting SNR correctly
-    # amp_var_rng_optns = [(0.5, 1.25), (0.75, 1.15), (0.9, 1.1)]
-
-    # TEST - dont beleive this should matter (got to iter 16 last w/ & 2 batchsize)
-    # with open(arch_config_path + 'hp_arch_config_nodimreduc.json') as hp_file:
-    #     bare_config_optns = json.load(hp_file)['archs']
+    bn_optns = [True, False]                    # For Dense only
+    # TEST
+    rnn_optns = ['LSTM'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model              
+    # rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
     if pc_run:
         # TEST PC
-        # with open(arch_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
-        with open(arch_config_path + 'hp_arch_config_final.json') as hp_file:
+        # with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+        with open(bare_config_path + 'hp_arch_config_final.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
     else:
-        # with open(arch_config_path + 'hp_arch_config_largedim.json') as hp_file:
-        with open(arch_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+        # with open(bare_config_path + 'hp_arch_config_largedim.json') as hp_file:
+        with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
-
-    # Comment-out block below for all-factors version
-    arch_config_optns = []   # Add variations of each bare config to official
+    
+    arch_config_optns = []
     for config in bare_config_optns:    
         for scale_optn in scale_optns:
             for rnn_skip_optn in rnn_skip_optns:
@@ -1431,45 +1398,168 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
                                                 if layer['type'] == 'RNN':
                                                     curr_config['layers'][i]['type'] = rnn_optn
                                         # Append updated config
-                                        arch_config_optns.append(curr_config)       
-    
-    # # TEST - some factors version below
-    # # batch_size_optns = [5]    # IMPORTANT: Factors of total samples * (1 - val_split) for performance
-    # # CUDA_OUT_OF_MEMORY Error Debug
-    # batch_size_optns = [3]    # IMPORTANT: Factors of total samples * (1 - val_split) for performance
+                                        arch_config_optns.append(curr_config) 
+
+    return train_configs, arch_config_optns
+
+
+def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
+                n_feat, n_seq, wdw_size, epsilon, max_sig_len, t_mean, t_std,
+                train_configs, arch_config_optns,
+                # arch_config_path, 
+                gsres_path, early_stop_pat=3, pc_run=False, 
+                gs_id='', restart=False):
+    # model = MyKerasRegressor(build_fn=make_model, 
+    #                          features=n_feat, sequences=n_seq)
+    # param_grid = {batch_size: batch_size, epochs: epochs}#, 
+    #               #lost_const: loss_const}
+    # grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1)#, cv=3)
+
+    # IMPORTANT to take advantage of what's known in test data to minimize factors
+    # Factors: batchsize, epochs, loss_const, optimizers, gradient clipping,
+    # learning rate, lstm/rnn, layer type/arch, tanh activation, num neurons in layer,
+    # bidiric layer, amp var aug range, batch norm, skip connection over lstms,
+    # standardize input & un-standardize output  
+    # Maybe factor? Dmged/non-dmged piano input 
+    print('\nPC RUN:', pc_run, '\n\nGRID SEARCH ID:', gs_id if len(gs_id) > 0 else 'N/A', '\n')
+
+    num_train, num_val = len(y1_train_files), len(y1_val_files)
+
+    # # All factors version below:
+    # # IMPORTANT FOR BATCH SIZE: Factors of total samples * (1 - val_split) for performance
+    # #   - total options: 1,3,5,9,15
+    # # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
+    # # batch_size_optns = [3] if pc_run else [3, 5, 15]
+
+    # # Being careful about batch size effect on mem -> start low
+    # # batch_size_optns = [1] if pc_run else [3, 9]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
+    # # FOR PC: Runs longer, so 1 less batch size option is good for ~2 weeks runtime
+    # batch_size_optns = [3] if pc_run else [4, 10]    # Lowering batch size 3 -> 1 b/c OOM Error on GS iter 15
+    # # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     # epochs_optns = [10]
-    # loss_const_optns = [0.1]
-    # optimizer_optns = [(tf.keras.optimizers.RMSprop(), 0, 0.001, 'RMSprop')]     
-    # dropout_optns = [(0.0,0.0)]
+    # # loss_const total options 0 - 0.3 by steps of 0.05
+    # # Paper - joint training causes sensitivity to gamma, keep in low range of (0.05 - 0.2)
+    #     # FAILED - IMPORTANT LATER: Possible exception - can split up one HP, if we run 2 on PC (must be HP easy on mem) ALL OTHER HPs SAME
+    #     # CHANGE - DO NOT COMMIT TIL CHANGE IMPL
+    #     # batch_size_optns = [3]
+    #     # rnn_optns = ['RNN']
+    #     # with open(arch_config_path + 'hp_arch_config.json') as hp_file:
+    #     #     bare_config_optns = json.load(hp_file)['archs']
+    #     # loss_const_optns = [0.02, 0.1] if pc_run else [0.2, 0.3]
+    # loss_const_optns = [0.05, 0.2]
+    # # Remove no clipval? - 1st GS
+    # optimizer_optns = [
+    #                   (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
+    #                   (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
+    #                   ]
+    # # optimizer_optns = [(tf.keras.optimizers.RMSprop(), 0, 0.001, 'RMSprop'), 
+    # #                   (tf.keras.optimizers.RMSprop(clipvalue=0.25), 0.25, 0.001, 'RMSprop'), 
+    # #                   (tf.keras.optimizers.RMSprop(clipvalue=0.5), 0.5, 0.001, 'RMSprop'), 
+    # #                   (tf.keras.optimizers.RMSprop(clipvalue=0.75), 0.75, 0.001, 'RMSprop'),
+    # #                   (tf.keras.optimizers.Adam(), 0, 0.001, 'Adam'), 
+    # #                   (tf.keras.optimizers.Adam(clipvalue=0.25), 0.25, 0.001, 'Adam'), 
+    # #                   (tf.keras.optimizers.Adam(clipvalue=0.5), 0.5, 0.001, 'Adam'), 
+    # #                   (tf.keras.optimizers.Adam(clipvalue=0.75), 0.75, 0.001, 'Adam')#,
+    # #                   ]
+    # # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
+    # # If time permits, later grid searches explore learning rate & momentum to fine tune
+    # # dropout_optns = [(0.0,0.0), (0.2,0.2), (0.2,0.5), (0.5,0.2), (0.5,0.5)]   # For RNN only
+    # dropout_optns = [(0.0,0.0), (0.25,0.25)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
+    # scale_optns = [True, False]
+    # rnn_skip_optns = [True, False]
+    # bias_rnn_optns = [True]     # False
+    # bias_dense_optns = [True]   # False
+    # bidir_optns = [True, False]
+    # bn_optns = [True, False]            # For Dense only
+    # # TEST - dont believe this should matter (got to iter 16 last w/ & 2 batchsize)
+    # # rnn_optns = ['RNN', 'LSTM']
+    # rnn_optns = ['RNN'] if pc_run else ['LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
+
+    # # Optional - for future when I'm not hitting SNR correctly
+    # # amp_var_rng_optns = [(0.5, 1.25), (0.75, 1.15), (0.9, 1.1)]
+
+    # # TEST - dont beleive this should matter (got to iter 16 last w/ & 2 batchsize)
+    # # with open(arch_config_path + 'hp_arch_config_nodimreduc.json') as hp_file:
+    # #     bare_config_optns = json.load(hp_file)['archs']
+    # if pc_run:
+    #     # TEST PC
+    #     # with open(arch_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+    #     with open(arch_config_path + 'hp_arch_config_final.json') as hp_file:
+    #         bare_config_optns = json.load(hp_file)['archs']
+    # else:
+    #     # with open(arch_config_path + 'hp_arch_config_largedim.json') as hp_file:
+    #     with open(arch_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+    #         bare_config_optns = json.load(hp_file)['archs']
+
+    # # Comment-out block below for all-factors version
     # arch_config_optns = []   # Add variations of each bare config to official
-    # for config in bare_config_optns[:1]:
-    #     # TEMP - 2 tests @ once: 1 for hpc test, 2 for diff scalinng methods
-    #     for scale_optn in [False]:    # TODO: Be skeptical of scaling, b/c must scale at end before activation
-    #         for rnn_skip_optn in [True]:
-    #             for bias_rnn_optn in [False]:
-    #                 for bias_dense_optn in [False]:
-    #                     for dropout_optn in dropout_optns:      # For RNN only
-    #                         for bidir_optn in [True]:
-    #                             for bn_optn in [True]:   # For Dense only
-    #                                 for rnn_optn in ['LSTM']:
+    # for config in bare_config_optns:    
+    #     for scale_optn in scale_optns:
+    #         for rnn_skip_optn in rnn_skip_optns:
+    #             for bias_rnn_optn in bias_rnn_optns:
+    #                 for bias_dense_optn in bias_dense_optns:
+    #                     for bidir_optn in bidir_optns:
+    #                         for dropout_optn in dropout_optns:  
+    #                             for bn_optn in bn_optns:   
+    #                                 for rnn_optn in rnn_optns:
     #                                     # Make a unique copy for each factor combo
     #                                     curr_config = config.copy()
     #                                     curr_config['scale'] = scale_optn
-    #                                     # if scale_optn = True: # Unneseccary block
-    #                                     #     curr_config['layers'].insert(0, {'type': 'Scale'})
-    #                                     #     curr_config['layers'].append({'type': 'Un-Scale'})
     #                                     curr_config['rnn_res_cntn'] = rnn_skip_optn
     #                                     curr_config['bias_rnn'] = bias_rnn_optn
     #                                     curr_config['bias_dense'] = bias_dense_optn
-    #                                     curr_config['rnn_dropout'] = dropout_optn
     #                                     curr_config['bidir'] = bidir_optn
+    #                                     curr_config['rnn_dropout'] = dropout_optn
     #                                     curr_config['bn'] = bn_optn
     #                                     if rnn_optn == 'LSTM':
     #                                         for i, layer in enumerate(config['layers']):
     #                                             if layer['type'] == 'RNN':
     #                                                 curr_config['layers'][i]['type'] = rnn_optn
     #                                     # Append updated config
-    #                                     arch_config_optns.append(curr_config) 
+    #                                     arch_config_optns.append(curr_config)       
+    
+    # # # TEST - some factors version below
+    # # # batch_size_optns = [5]    # IMPORTANT: Factors of total samples * (1 - val_split) for performance
+    # # # CUDA_OUT_OF_MEMORY Error Debug
+    # # batch_size_optns = [3]    # IMPORTANT: Factors of total samples * (1 - val_split) for performance
+    # # epochs_optns = [10]
+    # # loss_const_optns = [0.1]
+    # # optimizer_optns = [(tf.keras.optimizers.RMSprop(), 0, 0.001, 'RMSprop')]     
+    # # dropout_optns = [(0.0,0.0)]
+    # # arch_config_optns = []   # Add variations of each bare config to official
+    # # for config in bare_config_optns[:1]:
+    # #     # TEMP - 2 tests @ once: 1 for hpc test, 2 for diff scalinng methods
+    # #     for scale_optn in [False]:    # TODO: Be skeptical of scaling, b/c must scale at end before activation
+    # #         for rnn_skip_optn in [True]:
+    # #             for bias_rnn_optn in [False]:
+    # #                 for bias_dense_optn in [False]:
+    # #                     for dropout_optn in dropout_optns:      # For RNN only
+    # #                         for bidir_optn in [True]:
+    # #                             for bn_optn in [True]:   # For Dense only
+    # #                                 for rnn_optn in ['LSTM']:
+    # #                                     # Make a unique copy for each factor combo
+    # #                                     curr_config = config.copy()
+    # #                                     curr_config['scale'] = scale_optn
+    # #                                     # if scale_optn = True: # Unneseccary block
+    # #                                     #     curr_config['layers'].insert(0, {'type': 'Scale'})
+    # #                                     #     curr_config['layers'].append({'type': 'Un-Scale'})
+    # #                                     curr_config['rnn_res_cntn'] = rnn_skip_optn
+    # #                                     curr_config['bias_rnn'] = bias_rnn_optn
+    # #                                     curr_config['bias_dense'] = bias_dense_optn
+    # #                                     curr_config['rnn_dropout'] = dropout_optn
+    # #                                     curr_config['bidir'] = bidir_optn
+    # #                                     curr_config['bn'] = bn_optn
+    # #                                     if rnn_optn == 'LSTM':
+    # #                                         for i, layer in enumerate(config['layers']):
+    # #                                             if layer['type'] == 'RNN':
+    # #                                                 curr_config['layers'][i]['type'] = rnn_optn
+    # #                                     # Append updated config
+    # #                                     arch_config_optns.append(curr_config) 
+
+    batch_size_optns = train_configs['batch_size']
+    epochs_optns = train_configs['epochs']
+    loss_const_optns = train_configs['loss_const']
+    optimizer_optns = train_configs['optimizer']
 
     combos = (len(batch_size_optns) * len(epochs_optns) * len(loss_const_optns) *
               len(optimizer_optns) * len(arch_config_optns))
@@ -1760,23 +1850,20 @@ def main():
     recent_model_path = '../recent_model'
     infer_output_path = '../output_restore/'
     brahms_path = '../brahms.wav'
-
-    epsilon = 10 ** (-10)
-    # Orig batch size 5, orig loss const 0.05, orig clipval 0.9
-    train_batch_size = 3 if pc_run else 4   # Batchsize is even to dist on 2 GPUs
-    # PC TEST
-    # train_batch_size = 5 if pc_run else 5
-    # Notes:
-    # FROM PO-SEN PAPER - about loss_const
-    # Empirically, the value γ is in the range of 0.05∼0.2 in order
-    # to achieve SIR improvements and maintain SAR and SDR.
-    # Constant variables for random HPs
-    loss_const, epochs, val_split = 0.05, 10, 0.25 #(1/3)
-    # Variables changed for random HPs
-    patience, train_config, optimizer = epochs, None, tf.keras.optimizers.RMSprop(clipvalue=0.9) 
+    
+    # EMPERICALLY DERIVED HPs
+    # Note: FROM PO-SEN PAPER - about loss_const
+    #   Empirically, the value γ is in the range of 0.05∼0.2 in order
+    #   to achieve SIR improvements and maintain SAR and SDR.
+    # Orig batch size 5, orig loss const 0.05, orig clipval 0.9 - Colab
+    train_batch_size = 3 if pc_run else 4   # Batchsize is even to dist on 2 GPUs?
+    train_loss_const = 0.05
+    train_epochs = 10
     # CURR FIX - Exploding gradient
-    optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9, learning_rate=0.0001)
-    # loss_const = 0.05
+    train_optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.9, learning_rate=0.0001)
+    training_arch_config = None
+
+    epsilon, patience, val_split = 10 ** (-10), train_epochs, 0.25 #(1/3)
 
     # TRAINING DATA SPECIFIC CONSTANTS (Change when data changes) #
     MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
@@ -1809,6 +1896,8 @@ def main():
         #         print('Set mem growth for GPU 2')
         #     except:
         #         print('ERROR: Couldn\'t set memory growth for GPU 2')
+
+        train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run)
 
         # Load in train/validation data
         piano_label_filepath_prefix = ((data_path + 'final_piano_data/psource')
@@ -1906,64 +1995,30 @@ def main():
                                 train_feat=train_feat, wdw_size=wdw_size, 
                                 epsilon=epsilon, pad_len=max_sig_len)
 
-            if pc_run:
-                # TEST PC
-                # with open(arch_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
-                with open(arch_config_path + 'hp_arch_config_final.json') as hp_file:
-                    bare_config_optns = json.load(hp_file)['archs']
-            else:
-                # with open(arch_config_path + 'hp_arch_config_largedim.json') as hp_file:
-                with open(arch_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
-                    bare_config_optns = json.load(hp_file)['archs']
+            # if pc_run:
+            #     # TEST PC
+            #     # with open(arch_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+            #     with open(arch_config_path + 'hp_arch_config_final.json') as hp_file:
+            #         bare_config_optns = json.load(hp_file)['archs']
+            # else:
+            #     # with open(arch_config_path + 'hp_arch_config_largedim.json') as hp_file:
+            #     with open(arch_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+            #         bare_config_optns = json.load(hp_file)['archs']
 
-            rnn_optns = ['RNN'] if pc_run else ['LSTM']
-            # TEST PC
-            # rnn_optns = ['LSTM'] if pc_run else ['LSTM'
-
-            dropout_optns = [(0.0,0.0)]
-            arch_config_optns = []   # Add variations of each bare config to official
-            for config in bare_config_optns[3:4]:  #[3:4]:    # rand base = #71 last
-                for scale_optn in [True]:  
-                    for rnn_skip_optn in [True]:    # false last
-                        for bias_rnn_optn in [True]:
-                            for bias_dense_optn in [True]:
-                                for dropout_optn in dropout_optns:      # For RNN only
-                                    for bidir_optn in [False]:
-                                        for bn_optn in [True]:   # For Dense only # true last
-                                            for rnn_optn in rnn_optns:
-                                                # Important: skip bad output cases
-                                                if bias_rnn_optn == False and bias_dense_optn == False:
-                                                    continue
-
-                                                # Make a unique copy for each factor combo
-                                                curr_config = config.copy()
-                                                curr_config['scale'] = scale_optn
-                                                curr_config['rnn_res_cntn'] = rnn_skip_optn
-                                                curr_config['bias_rnn'] = bias_rnn_optn
-                                                curr_config['bias_dense'] = bias_dense_optn
-                                                curr_config['rnn_dropout'] = dropout_optn
-                                                curr_config['bidir'] = bidir_optn
-                                                curr_config['bn'] = bn_optn
-                                                if rnn_optn == 'LSTM':
-                                                    for i, layer in enumerate(config['layers']):
-                                                        if layer['type'] == 'RNN':
-                                                            curr_config['layers'][i]['type'] = rnn_optn
-                                                # Append updated config
-                                                arch_config_optns.append(curr_config) 
-
-            # DEBUG - normal HPs, RNN -> LSTM
-            # rnn_optns = ['LSTM']
+            # rnn_optns = ['RNN'] if pc_run else ['LSTM']
+            # # TEST PC
+            # # rnn_optns = ['LSTM'] if pc_run else ['LSTM'
 
             # dropout_optns = [(0.0,0.0)]
             # arch_config_optns = []   # Add variations of each bare config to official
-            # for config in bare_config_optns[0:1]:  #[3:4]:    # rand base = #71 last
-            #     for scale_optn in [False]:  
-            #         for rnn_skip_optn in [False]:    # false last
+            # for config in bare_config_optns[3:4]:  #[3:4]:    # rand base = #71 last
+            #     for scale_optn in [True]:  
+            #         for rnn_skip_optn in [True]:    # false last
             #             for bias_rnn_optn in [True]:
             #                 for bias_dense_optn in [True]:
             #                     for dropout_optn in dropout_optns:      # For RNN only
             #                         for bidir_optn in [False]:
-            #                             for bn_optn in [False]:   # For Dense only # true last
+            #                             for bn_optn in [True]:   # For Dense only # true last
             #                                 for rnn_optn in rnn_optns:
             #                                     # Important: skip bad output cases
             #                                     if bias_rnn_optn == False and bias_dense_optn == False:
@@ -1985,27 +2040,74 @@ def main():
             #                                     # Append updated config
             #                                     arch_config_optns.append(curr_config) 
 
+            # # DEBUG - normal HPs, RNN -> LSTM
+            # # rnn_optns = ['LSTM']
+
+            # # dropout_optns = [(0.0,0.0)]
+            # # arch_config_optns = []   # Add variations of each bare config to official
+            # # for config in bare_config_optns[0:1]:  #[3:4]:    # rand base = #71 last
+            # #     for scale_optn in [False]:  
+            # #         for rnn_skip_optn in [False]:    # false last
+            # #             for bias_rnn_optn in [True]:
+            # #                 for bias_dense_optn in [True]:
+            # #                     for dropout_optn in dropout_optns:      # For RNN only
+            # #                         for bidir_optn in [False]:
+            # #                             for bn_optn in [False]:   # For Dense only # true last
+            # #                                 for rnn_optn in rnn_optns:
+            # #                                     # Important: skip bad output cases
+            # #                                     if bias_rnn_optn == False and bias_dense_optn == False:
+            # #                                         continue
+
+            # #                                     # Make a unique copy for each factor combo
+            # #                                     curr_config = config.copy()
+            # #                                     curr_config['scale'] = scale_optn
+            # #                                     curr_config['rnn_res_cntn'] = rnn_skip_optn
+            # #                                     curr_config['bias_rnn'] = bias_rnn_optn
+            # #                                     curr_config['bias_dense'] = bias_dense_optn
+            # #                                     curr_config['rnn_dropout'] = dropout_optn
+            # #                                     curr_config['bidir'] = bidir_optn
+            # #                                     curr_config['bn'] = bn_optn
+            # #                                     if rnn_optn == 'LSTM':
+            # #                                         for i, layer in enumerate(config['layers']):
+            # #                                             if layer['type'] == 'RNN':
+            # #                                                 curr_config['layers'][i]['type'] = rnn_optn
+            # #                                     # Append updated config
+            # #                                     arch_config_optns.append(curr_config) 
+
             if random_hps:
-                # WORKED!!!! (very low lr - 2 orders of mag lower than default) at 9:45 am checked output
-                # optimizer = tf.keras.optimizers.RMSprop(clipvalue=10, learning_rate=0.00001) # Random HP
-                # Try next?
-                # ALMOST worked, bcame NaN at end, so bad result
-                # optimizer = tf.keras.optimizers.RMSprop(clipvalue=1, learning_rate=0.0001) # Random HP
-                # Failed
-                # optimizer = tf.keras.optimizers.RMSprop(clipvalue=0.5)
-                # Failed
-                # optimizer = tf.keras.optimizers.RMSprop(clipvalue=1)
-                # Does gradient clipping do anything for us?
-                # Yes - b/c failed
-                # optimizer = tf.keras.optimizers.RMSprop(learning_rate=0.0001) # Random HP
-                # Find optimal balance betwwen clipval & lr for random HPs
-                optimizer = tf.keras.optimizers.RMSprop(clipvalue=10, learning_rate=0.0001) # Random HP
+                # Index into random arch config, and other random HPs
+                arch_rand_index = random.randint(0, len(arch_config_optns)-1)
+                # print('ARCH RAND INDEX:', arch_rand_index)
+                training_arch_config = arch_config_optns[arch_rand_index]
+                for hp, optns in train_configs.items():
+                    # print('HP:', hp, 'OPTNS:', optns)
+                    hp_rand_index = random.randint(0, len(optns)-1)
+                    if hp == 'batch_size':
+                        # print('BATCH SIZE RAND INDEX:', hp_rand_index)
+                        train_batch_size = optns[hp_rand_index]
+                    elif hp == 'epochs':
+                        # print('EPOCHS RAND INDEX:', hp_rand_index)
+                        train_epochs = optns[hp_rand_index]
+                    elif hp == 'loss_const':
+                        # print('LOSS CONST RAND INDEX:', hp_rand_index)
+                        train_loss_const = optns[hp_rand_index]
+                    elif hp == 'optimizer':
+                        # print('OPT RAND INDEX:', hp_rand_index)
+                        train_optimizer, clip_val, lr, opt_name = (
+                            optns[hp_rand_index]
+                        )
+
+                # Early stop for random HPs
                 patience = 4
-                train_config = arch_config_optns[0]
+                # training_arch_config = arch_config_optns[0]
                 print('RANDOM TRAIN ARCH FOR USE:')
-                print(train_config)
-            else:
-                print('CONFIG:', train_config)
+                print(training_arch_config)
+                print('RANDOM TRAIN HPs FOR USE:')
+                print('Batch size:', train_batch_size, 'Epochs:', train_epochs,
+                      'Loss constant:', train_loss_const, 'Optimizer:', opt_name, 
+                      'Clip value:', clip_val, 'Learning rate:', lr)
+            # else:
+            #     print('CONFIG:', training_arch_config)
 
             # TEMP - update for each unique dataset
             # train_mean, train_std = get_stats(y1_train_files, y2_train_files, num_train,
@@ -2019,10 +2121,10 @@ def main():
             model, _, _ = evaluate_source_sep(train_generator, validation_generator, num_train, num_val,
                                     n_feat=train_feat, n_seq=train_seq, 
                                     batch_size=train_batch_size, 
-                                    loss_const=loss_const, epochs=epochs,
-                                    optimizer=optimizer, patience=patience, epsilon=epsilon,
+                                    loss_const=train_loss_const, epochs=train_epochs,
+                                    optimizer=train_optimizer, patience=patience, epsilon=epsilon,
                                     recent_model_path=recent_model_path, pc_run=pc_run,
-                                    config=train_config, t_mean=train_mean, t_std=train_std)
+                                    config=training_arch_config, t_mean=train_mean, t_std=train_std)
             
             if sample:
                 restore_audio_file(infer_output_path, model, wdw_size, epsilon, 
@@ -2101,7 +2203,9 @@ def main():
                                         wdw_size=wdw_size, epsilon=epsilon,
                                         max_sig_len=max_sig_len, 
                                         t_mean=train_mean, t_std=train_std,
-                                        arch_config_path=arch_config_path, 
+                                        train_configs=train_configs,
+                                        arch_config_optns=arch_config_optns,
+                                        # arch_config_path=arch_config_path, 
                                         gsres_path=gs_output_path,
                                         early_stop_pat=early_stop_pat, 
                                         pc_run=pc_run, gs_id=gs_id, 
