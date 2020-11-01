@@ -6,7 +6,7 @@
 
 # DATA RULES #
 # - If writing a transformed signal, write it back using its original data type/range (wavfile lib)
-# - Convert signals into float64 for processing (numpy default, no GPUs used) (in make_spgm() do a check)
+# - Convert signals into float64 for processing (numpy default, no GPUs usit ed) (in make_spgm() do a check)
 # - Convert data fed into NN into float32 (GPUs like it)
 # - No functionality to train on 8-bit PCM signal (unsigned) b/c of rare case
 ##############
@@ -31,6 +31,7 @@ import os
 import sys
 # from copy import deepcopy
 
+
 # TODO: See if both processes allow mem growth, is it faster or does GPU just work less hard?
 #       if faster, keep both proc using mem growth
 # For run-out-of-memory error
@@ -47,7 +48,7 @@ print("GPUs Available: ", gpus)
 
 # TEST - 2 GS's at same time? SUCCESS!!!
 # BUT, set_memory_growth has perf disadvantages (slower) - give main GS full power
-# tf.config.experimental.set_memory_growth(gpus[0], True)
+tf.config.experimental.set_memory_growth(gpus[0], True)
 # if gpus:
 #   # Restrict TensorFlow to only allocate 1GB of memory on the first GPU
 #   try:
@@ -187,9 +188,9 @@ def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False):
     spectrogram[spectrogram == 0], pos_phases[pos_phases == 0] = epsilon, epsilon
 
     # Safety measure to avoid overflow
-    spectrogram = np.clip(spectrogram, np.finfo('float32').min, np.finfo('float32').max)
+    spectrogram = np.clip(spectrogram, np.finfo('float16').min, np.finfo('float16').max)
     # Spectrogram matrix w/ correct orientation (orig orient.)
-    spectrogram = spectrogram.astype('float32')     # T Needed? (don't think so, only for plotting)
+    spectrogram = spectrogram.astype('float16')     # T Needed? (don't think so, only for plotting)
     #if debug:
         #plot_matrix(spectrogram, name='Built Spectrogram', ylabel='Frequency (Hz)', ratio=SPGM_BRAHMS_RATIO)
 
@@ -386,15 +387,15 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
             batch_labels2 = y2_files[offset:offset+batch_size]
             # Initialise x, y1 and y2 arrays for this batch (FLOAT 32 for DLNN)
             if (num_samples / batch_size == 0):
-                x, y1, y2 = (np.empty((batch_size, train_seq, train_feat)).astype('float32'),
-                             np.empty((batch_size, train_seq, train_feat)).astype('float32'),
-                             np.empty((batch_size, train_seq, train_feat)).astype('float32'))
+                x, y1, y2 = (np.empty((batch_size, train_seq, train_feat)).astype('float16'),
+                             np.empty((batch_size, train_seq, train_feat)).astype('float16'),
+                             np.empty((batch_size, train_seq, train_feat)).astype('float16'))
             else:
                 actual_batch_size = len(batch_labels1)
                 # x, y1, y2 = [], [], []
-                x, y1, y2 = (np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'),
-                             np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'),
-                             np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'))
+                x, y1, y2 = (np.empty((actual_batch_size, train_seq, train_feat)).astype('float16'),
+                             np.empty((actual_batch_size, train_seq, train_feat)).astype('float16'),
+                             np.empty((actual_batch_size, train_seq, train_feat)).astype('float16'))
 
             # For each example
             # for i, batch_sample in enumerate(batch_samples):
@@ -799,7 +800,7 @@ def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_con
 def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     config=None, t_mean=None, t_std=None):
 
-    input_layer = Input(shape=(sequences, features), dtype='float32', 
+    input_layer = Input(shape=(sequences, features), dtype='float16', 
                         name='piano_noise_mixed')
 
     if config is not None:
@@ -1067,6 +1068,12 @@ def evaluate_source_sep(train_generator, validation_generator,
     #         optimizer = optimizer
     print(model.summary())
 
+    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    train_log_dir = '../logs/gradient_tape/' + current_time + '/train'
+    test_log_dir = '../logs/gradient_tape/' + current_time + '/test'
+    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+    test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+
     @tf.function
     def train_step(x, y1, y2):
         with tf.GradientTape() as tape:
@@ -1091,11 +1098,22 @@ def evaluate_source_sep(train_generator, validation_generator,
 
         train_steps_per_epoch=math.ceil(num_train / batch_size)
         val_steps_per_epoch=math.ceil(num_val / batch_size)
+
+        # train_dataset = tf.data.Dataset.from_generator(
+        #         make_gen_callable(train_generator), output_types=(tf.float32), 
+        #         output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+        # )
+        # val_dataset = tf.data.Dataset.from_generator(
+        #     make_gen_callable(validation_generator), output_types=(tf.float32), 
+        #     output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+        # )
+
         # if pc_run:
         # TRAIN LOOP
         # train_step_func, test_step_func = get_train_step_func(), get_test_step_func()
         total_loss, num_batches = 0.0, 0
         for step, (x_batch_train, y1_batch_train, y2_batch_train) in enumerate(train_generator):
+            # with tf.profiler.experimental.Trace('train', step)
             loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train)
             # loss_tensor = train_step_func(x_batch_train, y1_batch_train, y2_batch_train,
             #                               model, loss_const, optimizer)
@@ -1113,10 +1131,14 @@ def evaluate_source_sep(train_generator, validation_generator,
 
             if readable_step == train_steps_per_epoch:
                 break
-        
+
         avg_train_loss = total_loss / num_batches
         print(' - epoch loss:', avg_train_loss)
         history['loss'].append(avg_train_loss)
+
+        # Tensorboard
+        with train_summary_writer.as_default():
+            tf.summary.scalar("Loss", avg_train_loss, step=epoch)
 
         # VALIDATION LOOP
         total_loss, num_batches = 0.0, 0
@@ -1139,6 +1161,10 @@ def evaluate_source_sep(train_generator, validation_generator,
         avg_val_loss = total_loss / num_batches
         print(' - epoch val. loss:', avg_val_loss)        
         history['val_loss'].append(avg_val_loss)
+
+        # Tensorboard
+        with test_summary_writer.as_default():
+            tf.summary.scalar("Loss", avg_val_loss, step=epoch)
     
         # # else:
         #     # From docs: batch size must be equal to global batch size (refactor earlier if needed)
