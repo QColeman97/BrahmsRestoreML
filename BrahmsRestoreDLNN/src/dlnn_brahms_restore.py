@@ -21,7 +21,8 @@ from tensorflow.keras.layers import Input, SimpleRNN, Dense, Lambda, TimeDistrib
 from tensorflow.keras.models import Model
 # from tensorflow.keras.utils import Sequence
 from tensorflow.keras.activations import relu
-from tensorflow.keras.callbacks import EarlyStopping
+# from tensorflow.keras.callbacks import EarlyStopping
+import tensorboard
 import numpy as np
 import datetime
 import math
@@ -65,6 +66,9 @@ tf.config.experimental.set_memory_growth(gpus[0], True)
 #     # Virtual devices must be set before GPUs have been initialized
 #     print(e)
 # np.set_printoptions(precision=3)    # Change if needed
+
+# For float16 model
+tf.keras.backend.set_floatx('float16')
 
 # CONSTANTS:
 STD_SR_HZ = 44100
@@ -564,6 +568,8 @@ def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_f
             # IF DOESN'T WORK, TRY
             # print('IN GENERATOR YEILDING SHAPE:', (x.shape, y1.shape, y2.shape))
 
+            # print('GENERATOR YEILDING TYPES:', x.dtype, y1.dtype, y2.dtype)
+
             yield (x, y1, y2)
 
             # What fit expects
@@ -716,6 +722,8 @@ class TimeFreqMasking(Layer):
     # Init is for input-independent variables
     # def __init__(self, piano_flag, **kwargs):
     def __init__(self, epsilon, **kwargs):
+        # MAKE LAYER DEAL IN FLOAT16
+        kwargs['autocast'] = False
         super(TimeFreqMasking, self).__init__(**kwargs)
         # self.piano_flag = piano_flag
         self.epsilon = epsilon
@@ -729,12 +737,19 @@ class TimeFreqMasking(Layer):
         # return self.total
 
         y_hat_self, y_hat_other, x_mixed = inputs[0], inputs[1], inputs[2]
+
+        # print('TYPES IN TF MASKING:', y_hat_self.dtype, y_hat_other.dtype, x_mixed.dtype)
+
+
         mask = tf.abs(y_hat_self) / (tf.abs(y_hat_self) + tf.abs(y_hat_other) + self.epsilon)
         # print('Mask Shape:', mask.shape)
         # ones = tf.convert_to_tensor(np.ones(mask.shape).astype('float32'))
         # print('Ones Shape:', ones.shape)
         # y_tilde_self = mask * x_mixed if (self.piano_flag) else (ones - mask) * x_mixed
         y_tilde_self = mask * x_mixed
+
+        # y_tilde_self = tf.dtypes.cast(y_tilde_self, tf.float16)
+
         # print('Y Tilde Shape:', y_tilde_self.shape)
         return y_tilde_self
     
@@ -779,6 +794,7 @@ class TimeFreqMasking(Layer):
 
 # Loss function for subclassed model
 def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
+    # print('TYPES:', piano_true.dtype, noise_true.dtype, piano_pred.dtype, noise_pred.dtype)
     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
     return (
         tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
@@ -1091,6 +1107,7 @@ def evaluate_source_sep(train_generator, validation_generator,
         loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
         return loss
 
+    # tf.profiler.experimental.start('logdir')
     print('Going into training now...')
     history = {'loss': [], 'val_loss': []}
     for epoch in range(epochs):
@@ -1099,22 +1116,42 @@ def evaluate_source_sep(train_generator, validation_generator,
         train_steps_per_epoch=math.ceil(num_train / batch_size)
         val_steps_per_epoch=math.ceil(num_val / batch_size)
 
-        # train_dataset = tf.data.Dataset.from_generator(
-        #         make_gen_callable(train_generator), output_types=(tf.float32), 
-        #         output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
-        # )
-        # val_dataset = tf.data.Dataset.from_generator(
-        #     make_gen_callable(validation_generator), output_types=(tf.float32), 
-        #     output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
-        # )
+        train_dataset = tf.data.Dataset.from_generator(
+                make_gen_callable(train_generator), output_types=(tf.float16), 
+                output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+        )
+        val_dataset = tf.data.Dataset.from_generator(
+            make_gen_callable(validation_generator), output_types=(tf.float16), 
+            output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+        )
+        print('TRAIN DATASET TYPE (should be BatchDataset):', train_dataset)
+        print('VALID DATASET TYPE (should be BatchDataset):', val_dataset)
 
+        train_iter = iter(train_dataset)
+        val_iter = iter(val_dataset)
         # if pc_run:
         # TRAIN LOOP
         # train_step_func, test_step_func = get_train_step_func(), get_test_step_func()
         total_loss, num_batches = 0.0, 0
-        for step, (x_batch_train, y1_batch_train, y2_batch_train) in enumerate(train_generator):
-            # with tf.profiler.experimental.Trace('train', step)
-            loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train)
+        # for step, (x_batch_train, y1_batch_train, y2_batch_train) in enumerate(train_generator):
+        for step in range(train_steps_per_epoch):
+            # profile no more than 10 steps @ a time - save memory
+            # avoid profiling first few batches for accuracy
+            # if step % 2 == 0 and step > 1:
+                # with tf.profiler.experimental.Trace('train', step_num=step, _r=1):
+            x_batch_train, y1_batch_train, y2_batch_train = next(train_iter)
+
+            if epoch == 0 and step == 0:
+                tf.summary.trace_on(graph=True, profiler=True)
+                loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train)
+                with train_summary_writer.as_default():
+                    tf.summary.trace_export(
+                        name='train_trace',
+                        step=step,
+                        profiler_outdir=train_log_dir)
+            else:
+                loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train)
+            
             # loss_tensor = train_step_func(x_batch_train, y1_batch_train, y2_batch_train,
             #                               model, loss_const, optimizer)
             # loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train,
@@ -1131,6 +1168,27 @@ def evaluate_source_sep(train_generator, validation_generator,
 
             if readable_step == train_steps_per_epoch:
                 break
+            # else:
+            #     x_batch_train, y1_batch_train, y2_batch_train = next(train_iter)
+
+            #     loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train)
+
+            #     # loss_tensor = train_step_func(x_batch_train, y1_batch_train, y2_batch_train,
+            #     #                               model, loss_const, optimizer)
+            #     # loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train,
+            #     #                             model, loss_const, optimizer)
+            #     # loss_value = tf.math.reduce_mean(loss_tensor).numpy()
+            #     total_loss += tf.math.reduce_mean(loss_tensor).numpy()
+            #     num_batches += 1
+
+            #     readable_step = step + 1
+            #     # Log every batch
+            #     if step == 0:
+            #         print('Training execution (steps):', end = " ")
+            #     print('(' + str(readable_step) + ')', end="")
+
+            #     if readable_step == train_steps_per_epoch:
+            #         break
 
         avg_train_loss = total_loss / num_batches
         print(' - epoch loss:', avg_train_loss)
@@ -1142,8 +1200,20 @@ def evaluate_source_sep(train_generator, validation_generator,
 
         # VALIDATION LOOP
         total_loss, num_batches = 0.0, 0
-        for step, (x_batch_val, y1_batch_val, y2_batch_val) in enumerate(validation_generator):
+        # for step, (x_batch_val, y1_batch_val, y2_batch_val) in enumerate(validation_generator):
+        for step in range(val_steps_per_epoch):
+            # if step % 2 == 0 and step > 1:
+                # with tf.profiler.experimental.Trace('val', step_num=step, _r=1):
+            x_batch_val, y1_batch_val, y2_batch_val = next(val_iter)
+
+            # tf.summary.trace_on(graph=True, profiler=True)
             loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val)
+            # with test_summary_writer.as_default():
+            #     tf.summary.trace_export(
+            #         name='val_trace',
+            #         step=step,
+            #         profiler_outdir=test_log_dir)
+
             # loss_tensor = test_step_func(x_batch_val, y1_batch_val, y2_batch_val,
             #                              model, loss_const)
             # loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val,
@@ -1157,7 +1227,23 @@ def evaluate_source_sep(train_generator, validation_generator,
             print('(' + str(readable_step) + ')', end="")
             if readable_step == val_steps_per_epoch:
                 break
-        
+            # else:
+            #     x_batch_train, y1_batch_train, y2_batch_train = next(val_iter)
+            #     # loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val)
+            #     # loss_tensor = test_step_func(x_batch_val, y1_batch_val, y2_batch_val,
+            #     #                              model, loss_const)
+            #     # loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val,
+            #     #                         model, loss_const)
+            #     total_loss += tf.math.reduce_mean(loss_tensor).numpy()
+            #     num_batches += 1
+
+            #     readable_step = step + 1
+            #     if step == 0:
+            #         print('Validate execution (steps):', end = " ")
+            #     print('(' + str(readable_step) + ')', end="")
+            #     if readable_step == val_steps_per_epoch:
+            #         break
+
         avg_val_loss = total_loss / num_batches
         print(' - epoch val. loss:', avg_val_loss)        
         history['val_loss'].append(avg_val_loss)
@@ -1296,6 +1382,7 @@ def evaluate_source_sep(train_generator, validation_generator,
             if not any(improvement):
                 break
 
+    # tf.profiler.experimental.stop()
     # Not necessary for HPC (can't run on HPC)
     # tf.keras.utils.plot_model(model, 
     #                        (gs_path + 'model' + str(grid_search_iter) + 'of' + str(combos) + '.png'
@@ -2179,7 +2266,7 @@ def main():
 
                 # Early stop for random HPs
                 # TIME TEST
-                # patience = 4
+                patience = 4
                 # training_arch_config = arch_config_optns[0]
                 print('RANDOM TRAIN ARCH FOR USE:')
                 print(training_arch_config)
