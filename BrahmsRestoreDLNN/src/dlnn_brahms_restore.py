@@ -1124,6 +1124,15 @@ def evaluate_source_sep(train_generator, validation_generator,
             make_gen_callable(validation_generator), output_types=(tf.float16), 
             output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
         )
+        # Input pipeline optimizations
+        # TODO - parallelize pre-processing -> move preprocessing to tf first
+        # Vectorize pre-processing, by batching before & transform whole batch of data
+        # If doing this ^, do it before call to cache()
+        # BUT if transformed data (sig->spgm) to big for cache, call cache() after
+        train_dataset.cache()
+        val_dataset.cache()
+        train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+        val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
         print('TRAIN DATASET TYPE (should be BatchDataset):', train_dataset)
         print('VALID DATASET TYPE (should be BatchDataset):', val_dataset)
 
