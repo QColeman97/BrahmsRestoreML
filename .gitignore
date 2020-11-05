@@ -9,6 +9,7 @@ __pycache__/
 /BrahmsRestoreDLNN/src/install_and_run.py
 /BrahmsRestoreDLNN/src/dlnn_brahms_restore_fit_fail_old.py
 /BrahmsRestoreDLNN/logs/
+BrahmsRestoreDLNN/src/logs/
 
 .vs
 
