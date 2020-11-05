@@ -22,6 +22,7 @@ from tensorflow.keras.models import Model
 # from tensorflow.keras.utils import Sequence
 from tensorflow.keras.activations import relu
 # from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.mixed_precision import experimental as mixed_precision
 import tensorboard
 import numpy as np
 import datetime
@@ -50,7 +51,12 @@ print("GPUs Available: ", gpus)
 
 # TEST - 2 GS's at same time? SUCCESS!!!
 # BUT, set_memory_growth has perf disadvantages (slower) - give main GS full power
-tf.config.experimental.set_memory_growth(gpus[0], True)
+# tf.config.experimental.set_memory_growth(gpus[0], True)
+
+# MIXED PRECISION
+policy = mixed_precision.Policy('mixed_float16')
+mixed_precision.set_policy(policy)
+
 # if gpus:
 #   # Restrict TensorFlow to only allocate 1GB of memory on the first GPU
 #   try:
@@ -769,7 +775,10 @@ class TimeFreqMasking(Layer):
         # MAKE LAYER DEAL IN FLOAT16
         # TEST FLOAT16
         # kwargs['autocast'] = False
-        super(TimeFreqMasking, self).__init__(**kwargs)
+        # MIXED PRECISION - output layer needs to produce float32
+        # kwargs['dtype'] = 'float32' - or actually try in __init__ below
+        super(TimeFreqMasking, self).__init__(dtype='float32', **kwargs)
+        # super(TimeFreqMasking, self).__init__(**kwargs)
         # self.piano_flag = piano_flag
         self.epsilon = epsilon
 
@@ -792,8 +801,6 @@ class TimeFreqMasking(Layer):
         # print('Ones Shape:', ones.shape)
         # y_tilde_self = mask * x_mixed if (self.piano_flag) else (ones - mask) * x_mixed
         y_tilde_self = mask * x_mixed
-
-        # y_tilde_self = tf.dtypes.cast(y_tilde_self, tf.float16)
 
         # print('Y Tilde Shape:', y_tilde_self.shape)
         return y_tilde_self
@@ -861,7 +868,8 @@ def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_con
 def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     config=None, t_mean=None, t_std=None, test=0):
     # TEST FLOAT16
-    input_layer = Input(shape=(sequences, features), dtype='float32', 
+    # MIXED PRECISION
+    input_layer = Input(shape=(sequences, features), dtype='float16', 
                         name='piano_noise_mixed')
 
     if config is not None:
@@ -1181,6 +1189,9 @@ def evaluate_source_sep(train_generator, validation_generator,
     #         optimizer = optimizer
     print(model.summary())
 
+    # MIXED PRECISION
+    optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')
+
     # current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     # train_log_dir = '../logs/gradient_tape/' + current_time + '/train'
     # test_log_dir = '../logs/gradient_tape/' + current_time + '/test'
@@ -1192,7 +1203,11 @@ def evaluate_source_sep(train_generator, validation_generator,
         with tf.GradientTape() as tape:
             logits1, logits2 = model(x, training=True)
             loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
-        grads = tape.gradient(loss, model.trainable_weights)
+            # MIXED PRECISION
+            scaled_loss = optimizer.get_scaled_loss(loss)
+        # grads = tape.gradient(loss, model.trainable_weights)
+        scaled_grads = tape.gradient(scaled_loss, model.trainable_weights)
+        grads = optimizer.get_unscaled_gradients(scaled_grads)
         optimizer.apply_gradients(zip(grads, model.trainable_weights))
         return loss
         # return train_step
@@ -1553,7 +1568,9 @@ def evaluate_source_sep(train_generator, validation_generator,
 
 def get_hp_configs(bare_config_path, pc_run=False):
     # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
-    batch_size_optns = [3] if pc_run else [5, 10]  
+    # MIXED PRECISION   - double batch size, for V100: multiple of 8
+    batch_size_optns = [3] if pc_run else [16, 24]  
+    # batch_size_optns = [3] if pc_run else [5, 10]  
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
@@ -1922,10 +1939,10 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                             #         batch_size=batch_size, train_seq=n_seq,
                             #         train_feat=n_feat, wdw_size=wdw_size, 
                             #         epsilon=epsilon, pad_len=max_sig_len)
-                            train_generator = my_generator(
+                            train_generator = fixed_data_generator(
                                     x_train_files,y1_train_files, y2_train_files, num_train,
                                     batch_size=batch_size, train_seq=n_seq, train_feat=n_feat)
-                            validation_generator = my_generator(
+                            validation_generator = fixed_data_generator(
                                     x_val_files, y1_val_files, y2_val_files, num_val,
                                     batch_size=batch_size, train_seq=n_seq, train_feat=n_feat)
 
@@ -2165,7 +2182,8 @@ def main():
     epsilon, patience, val_split = 10 ** (-10), train_epochs, 0.25 #(1/3)
 
     # TRAINING DATA SPECIFIC CONSTANTS (Change when data changes) #
-    MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
+    # MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
+    TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 1847, 2049
     TRAIN_MEAN, TRAIN_STD = 1728.2116672701493, 6450.4985228518635
     TOTAL_SMPLS = 61 # 60 # Performance: Make divisible by batch_size (actual total = 61) ... questionable
 
