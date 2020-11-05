@@ -30,6 +30,7 @@ import random
 import json
 import os
 import sys
+import re
 # from copy import deepcopy
 
 
@@ -67,8 +68,8 @@ tf.config.experimental.set_memory_growth(gpus[0], True)
 #     print(e)
 # np.set_printoptions(precision=3)    # Change if needed
 
-# For float16 model
-tf.keras.backend.set_floatx('float16')
+# TEST FLOAT16 - FAILED
+# tf.keras.backend.set_floatx('float16')
 
 # CONSTANTS:
 STD_SR_HZ = 44100
@@ -192,9 +193,10 @@ def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False):
     spectrogram[spectrogram == 0], pos_phases[pos_phases == 0] = epsilon, epsilon
 
     # Safety measure to avoid overflow
-    spectrogram = np.clip(spectrogram, np.finfo('float16').min, np.finfo('float16').max)
+    # TEST FLOAT16
+    spectrogram = np.clip(spectrogram, np.finfo('float32').min, np.finfo('float32').max)
     # Spectrogram matrix w/ correct orientation (orig orient.)
-    spectrogram = spectrogram.astype('float16')     # T Needed? (don't think so, only for plotting)
+    spectrogram = spectrogram.astype('float32')     # T Needed? (don't think so, only for plotting)
     #if debug:
         #plot_matrix(spectrogram, name='Built Spectrogram', ylabel='Frequency (Hz)', ratio=SPGM_BRAHMS_RATIO)
 
@@ -371,210 +373,252 @@ def convert_sig_16bit_to_8bit(sig):
 
 
 ## NEURAL NETWORK DATA GENERATOR
+def fixed_data_generator(x_files, y1_files, y2_files, num_samples, batch_size, 
+                         train_seq, train_feat):
+    for offset in range(0, num_samples, batch_size):
+        x_batch_labels = x_files[offset:offset+batch_size]
+        y1_batch_labels = y1_files[offset:offset+batch_size]
+        y2_batch_labels = y2_files[offset:offset+batch_size]
+        if (num_samples / batch_size == 0):
+            # TEST FLOAT16
+            actual_batch_size = batch_size
+            x, y1, y2 = (np.empty((batch_size, train_seq, train_feat)).astype('float32'),
+                         np.empty((batch_size, train_seq, train_feat)).astype('float32'),
+                         np.empty((batch_size, train_seq, train_feat)).astype('float32'))
+        else:
+            actual_batch_size = len(x_batch_labels)
+            x, y1, y2 = (np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'),
+                         np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'),
+                         np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'))
+        
+        for i in range(actual_batch_size):
+            pn_filepath = x_batch_labels[i]
+            pl_filepath = y1_batch_labels[i]
+            nl_filepath = y2_batch_labels[i]
 
-# Have a train dir, a val dir, and (a test dir?)
-# Generator that returns samples and two targets each (TF-matrices)
-# def my_generator(x_files, y1_files, y2_files, batch_size, train_seq, train_feat, 
-def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_feat, 
-                 wdw_size, epsilon, pad_len=3081621, src_amp_low=0.75, src_amp_high=1.15):
-    # print('DEBUG Batch Size in my_generator:', batch_size)
-    # paper amp rng is (0.25, 1.25) for generalizing more
-    while True: # Loop forever so the generator never terminates
-        # Get index to start each batch: [0, batch_size, 2*batch_size, ..., max multiple of batch_size <= num_samples]
-        # print('In the TRAIN generator loop') if (num_samples == 45) else print('In the VAL generator loop')
-        for offset in range(0, num_samples, batch_size):
-            # print('OFFSET:', offset)
-            # print('Starting batch', (offset + batch_size) / batch_size, 'out of', num_samples / batch_size)
-            # Get the samples you'll use in this batch
-            # batch_samples = x_files[offset:offset+batch_size]
-            batch_labels1 = y1_files[offset:offset+batch_size]
-            batch_labels2 = y2_files[offset:offset+batch_size]
-            # Initialise x, y1 and y2 arrays for this batch (FLOAT 32 for DLNN)
-            if (num_samples / batch_size == 0):
-                x, y1, y2 = (np.empty((batch_size, train_seq, train_feat)).astype('float16'),
-                             np.empty((batch_size, train_seq, train_feat)).astype('float16'),
-                             np.empty((batch_size, train_seq, train_feat)).astype('float16'))
-            else:
-                actual_batch_size = len(batch_labels1)
-                # x, y1, y2 = [], [], []
-                x, y1, y2 = (np.empty((actual_batch_size, train_seq, train_feat)).astype('float16'),
-                             np.empty((actual_batch_size, train_seq, train_feat)).astype('float16'),
-                             np.empty((actual_batch_size, train_seq, train_feat)).astype('float16'))
+            noise_piano_spgm = np.load(pn_filepath)
+            piano_label_spgm = np.load(pl_filepath)
+            noise_label_spgm = np.load(nl_filepath)
 
-            # For each example
-            # for i, batch_sample in enumerate(batch_samples):
-            for i in range(len(batch_labels1)):
-                # print('I:', i)
-                # print('Making training sample', (i+1), 'out of', len(batch_labels1))
-                # Load mixed source (x) and source labels (y1, y2)
-                # pn_filepath = batch_sample
-                pl_filepath = batch_labels1[i]
-                nl_filepath = batch_labels2[i]
+            x[i] = noise_piano_spgm
+            y1[i] = piano_label_spgm
+            y2[i] = noise_label_spgm
+        
+        yield x, y1, y2
 
-                # pn_sr, noise_piano_sig = wavfile.read(pn_filepath)
-                pl_sr, piano_label_sig = wavfile.read(pl_filepath)
-                nl_sr, noise_label_sig = wavfile.read(nl_filepath)
-                pl_orig_type, nl_orig_type = piano_label_sig.dtype, noise_label_sig.dtype 
-                piano_label_sig, noise_label_sig = piano_label_sig.astype('float64'), noise_label_sig.astype('float64')
-                # assert len(noise_piano_sig) == len(noise_label_sig) == len(piano_label_sig)   
-                assert len(noise_label_sig) == len(piano_label_sig)  
-                # Stereo audio safety check
-                if isinstance(piano_label_sig[0], np.ndarray):   # Stereo signal = 2 channels
-                    # piano_label_sig = np.array([((x[0] + x[1]) / 2) for x in piano_label_sig.astype('float32')]).astype(p_type)
-                    piano_label_sig = np.average(piano_label_sig, axis=-1)
-                if isinstance(noise_label_sig[0], np.ndarray):   # Stereo signal = 2 channels
-                    # noise_label_sig = np.array([((x[0] + x[1]) / 2) for x in noise_label_sig.astype('float32')]).astype(n_type)
-                    noise_label_sig = np.average(noise_label_sig, axis=-1)
 
-                # if i == 0:
-                #     print('Filenames:', pl_filepath, nl_filepath)
-                #     print('Piano Sig:', piano_label_sig[1000:1010], 'type:', piano_label_sig.dtype)
-                #     print('Noise Sig:', noise_label_sig[1000:1010], 'type:', noise_label_sig.dtype)
+# # Have a train dir, a val dir, and (a test dir?)
+# # Generator that returns samples and two targets each (TF-matrices)
+# # def my_generator(x_files, y1_files, y2_files, batch_size, train_seq, train_feat, 
+# def my_generator(y1_files, y2_files, num_samples, batch_size, train_seq, train_feat, 
+#                  wdw_size, epsilon, pad_len=3081621, src_amp_low=0.75, src_amp_high=1.15):
+#     # print('DEBUG Batch Size in my_generator:', batch_size)
+#     # paper amp rng is (0.25, 1.25) for generalizing more
+#     while True: # Loop forever so the generator never terminates
+#         # Get index to start each batch: [0, batch_size, 2*batch_size, ..., max multiple of batch_size <= num_samples]
+#         # print('In the TRAIN generator loop') if (num_samples == 45) else print('In the VAL generator loop')
+#         for offset in range(0, num_samples, batch_size):
+#             # print('OFFSET:', offset)
+#             # print('Starting batch', (offset + batch_size) / batch_size, 'out of', num_samples / batch_size)
+#             # Get the samples you'll use in this batch
+#             # batch_samples = x_files[offset:offset+batch_size]
+#             batch_labels1 = y1_files[offset:offset+batch_size]
+#             batch_labels2 = y2_files[offset:offset+batch_size]
+#             # Initialise x, y1 and y2 arrays for this batch (FLOAT 32 for DLNN)
+#             if (num_samples / batch_size == 0):
+#                 # TEST FLOAT16
+#                 x, y1, y2 = (np.empty((batch_size, train_seq, train_feat)).astype('float32'),
+#                              np.empty((batch_size, train_seq, train_feat)).astype('float32'),
+#                              np.empty((batch_size, train_seq, train_feat)).astype('float32'))
+#             else:
+#                 actual_batch_size = len(batch_labels1)
+#                 # x, y1, y2 = [], [], []
+#                 x, y1, y2 = (np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'),
+#                              np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'),
+#                              np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'))
 
-                # NEW - create features w/ signal data augmentation
-                # 1) Do amplitude variation aug on each source
-                # DEBUG
-                # piano_amp_factor = random.uniform(src_amp_low, src_amp_high)
-                # noise_amp_factor = random.uniform(src_amp_low, src_amp_high)
-                # piano_label_sig *= piano_amp_factor
-                # Done for the debug wavfile.write()
-                # piano_label_sig = np.clip(piano_label_sig, 
-                #                           np.iinfo(pl_orig_type).min, 
-                #                           np.iinfo(pl_orig_type).max)
-                # piano_label_sig = np.around(piano_label_sig).astype(pl_orig_type)
+#             # For each example
+#             # for i, batch_sample in enumerate(batch_samples):
+#             for i in range(len(batch_labels1)):
+#                 # print('I:', i)
+#                 # print('Making training sample', (i+1), 'out of', len(batch_labels1))
+#                 # Load mixed source (x) and source labels (y1, y2)
+#                 # pn_filepath = batch_sample
+#                 pl_filepath = batch_labels1[i]
+#                 nl_filepath = batch_labels2[i]
 
-                # noise_label_sig *= noise_amp_factor
-                # noise_label_sig = np.clip(noise_label_sig, 
-                #                           np.iinfo(nl_orig_type).min, 
-                #                           np.iinfo(nl_orig_type).max)
-                # noise_label_sig = np.around(noise_label_sig).astype(nl_orig_type)
+#                 # Get number from filename
+#                 file_num_str = list(re.findall(r'\d+', pl_filepath))[-1]
+
+#                 # pn_sr, noise_piano_sig = wavfile.read(pn_filepath)
+#                 pl_sr, piano_label_sig = wavfile.read(pl_filepath)
+#                 nl_sr, noise_label_sig = wavfile.read(nl_filepath)
+#                 pl_orig_type, nl_orig_type = piano_label_sig.dtype, noise_label_sig.dtype 
+#                 piano_label_sig, noise_label_sig = piano_label_sig.astype('float64'), noise_label_sig.astype('float64')
+#                 # assert len(noise_piano_sig) == len(noise_label_sig) == len(piano_label_sig)   
+#                 assert len(noise_label_sig) == len(piano_label_sig)  
+#                 # Stereo audio safety check
+#                 if isinstance(piano_label_sig[0], np.ndarray):   # Stereo signal = 2 channels
+#                     # piano_label_sig = np.array([((x[0] + x[1]) / 2) for x in piano_label_sig.astype('float32')]).astype(p_type)
+#                     piano_label_sig = np.average(piano_label_sig, axis=-1)
+#                 if isinstance(noise_label_sig[0], np.ndarray):   # Stereo signal = 2 channels
+#                     # noise_label_sig = np.array([((x[0] + x[1]) / 2) for x in noise_label_sig.astype('float32')]).astype(n_type)
+#                     noise_label_sig = np.average(noise_label_sig, axis=-1)
+
+#                 # if i == 0:
+#                 #     print('Filenames:', pl_filepath, nl_filepath)
+#                 #     print('Piano Sig:', piano_label_sig[1000:1010], 'type:', piano_label_sig.dtype)
+#                 #     print('Noise Sig:', noise_label_sig[1000:1010], 'type:', noise_label_sig.dtype)
+
+#                 # NEW - create features w/ signal data augmentation
+#                 # 1) Do amplitude variation aug on each source
+#                 # DEBUG
+#                 # piano_amp_factor = random.uniform(src_amp_low, src_amp_high)
+#                 # noise_amp_factor = random.uniform(src_amp_low, src_amp_high)
+#                 # piano_label_sig *= piano_amp_factor
+#                 # Done for the debug wavfile.write()
+#                 # piano_label_sig = np.clip(piano_label_sig, 
+#                 #                           np.iinfo(pl_orig_type).min, 
+#                 #                           np.iinfo(pl_orig_type).max)
+#                 # piano_label_sig = np.around(piano_label_sig).astype(pl_orig_type)
+
+#                 # noise_label_sig *= noise_amp_factor
+#                 # noise_label_sig = np.clip(noise_label_sig, 
+#                 #                           np.iinfo(nl_orig_type).min, 
+#                 #                           np.iinfo(nl_orig_type).max)
+#                 # noise_label_sig = np.around(noise_label_sig).astype(nl_orig_type)
                 
-                # assert len(noise_label_sig) == len(piano_label_sig)  
+#                 # assert len(noise_label_sig) == len(piano_label_sig)  
 
-                # if offset == 0 and i == 0:
-                #     wavfile.write('/content/drive/My Drive/Quinn Coleman - Thesis/DLNN_Data/output/noise_beforepert.wav', 
-                #                   nl_sr, noise_label_sig)
+#                 # if offset == 0 and i == 0:
+#                 #     wavfile.write('/content/drive/My Drive/Quinn Coleman - Thesis/DLNN_Data/output/noise_beforepert.wav', 
+#                 #                   nl_sr, noise_label_sig)
 
-                # print('LEN:', len(noise_label_sig))
-                # 2) TODO Do frequency perturbation aug on noise source
-                # noise_label_sig = freq_perturb(noise_label_sig, wdw_size, epsilon)
+#                 # print('LEN:', len(noise_label_sig))
+#                 # 2) TODO Do frequency perturbation aug on noise source
+#                 # noise_label_sig = freq_perturb(noise_label_sig, wdw_size, epsilon)
 
-                # assert len(noise_label_sig) == len(piano_label_sig)  
+#                 # assert len(noise_label_sig) == len(piano_label_sig)  
 
-                # if offset == 0 and i == 0:
-                #     wavfile.write('/content/drive/My Drive/Quinn Coleman - Thesis/DLNN_Data/output/noise_afterpert.wav', 
-                #                   nl_sr, noise_label_sig)
-                # 3) Mix - NOTE sigs must be same dtype
-                avg_src_sum = (np.sum(piano_label_sig) + np.sum(noise_label_sig)) / 2
-                src_percent_1 = random.randrange(int((src_amp_low*100) // 2), int((src_amp_high*100) // 2)) / 100
-                src_percent_2 = 1 - src_percent_1
-                piano_src_is_1 = bool(random.getrandbits(1))
-                if piano_src_is_1:
-                    piano_label_sig *= src_percent_1
-                    noise_label_sig *= src_percent_2
-                else:
-                    piano_label_sig *= src_percent_2
-                    noise_label_sig *= src_percent_1
+#                 # if offset == 0 and i == 0:
+#                 #     wavfile.write('/content/drive/My Drive/Quinn Coleman - Thesis/DLNN_Data/output/noise_afterpert.wav', 
+#                 #                   nl_sr, noise_label_sig)
+#                 # 3) Mix - NOTE sigs must be same dtype
+#                 avg_src_sum = (np.sum(piano_label_sig) + np.sum(noise_label_sig)) / 2
+#                 src_percent_1 = random.randrange(int((src_amp_low*100) // 2), int((src_amp_high*100) // 2)) / 100
+#                 src_percent_2 = 1 - src_percent_1
+#                 piano_src_is_1 = bool(random.getrandbits(1))
+#                 if piano_src_is_1:
+#                     piano_label_sig *= src_percent_1
+#                     noise_label_sig *= src_percent_2
+#                 else:
+#                     piano_label_sig *= src_percent_2
+#                     noise_label_sig *= src_percent_1
 
-                noise_piano_sig = piano_label_sig + noise_label_sig
-                noise_piano_sig *= (avg_src_sum / np.sum(noise_piano_sig))             
-                # piano_label_sig = piano_label_sig.astype('float64')
-                # noise_label_sig = noise_label_sig.astype('float64')
-                # noise_piano_sig = noise_piano_sig.astype('float64')
+#                 noise_piano_sig = piano_label_sig + noise_label_sig
+#                 noise_piano_sig *= (avg_src_sum / np.sum(noise_piano_sig))             
+#                 # piano_label_sig = piano_label_sig.astype('float64')
+#                 # noise_label_sig = noise_label_sig.astype('float64')
+#                 # noise_piano_sig = noise_piano_sig.astype('float64')
 
-                # Preprocessing - length pad, transform into spectrograms, add eps
-                # if isinstance(noise_piano_sig[0], np.ndarray):   # Stereo signal = 2 channels
-                #     noise_piano_sig = np.array([((x[0] + x[1]) / 2) for x in noise_piano_sig.astype('float64')])
-                # if isinstance(piano_label_sig[0], np.ndarray):   # Stereo signal = 2 channels
-                #     piano_label_sig = np.array([((x[0] + x[1]) / 2) for x in piano_label_sig.astype('float64')])
+#                 # Preprocessing - length pad, transform into spectrograms, add eps
+#                 # if isinstance(noise_piano_sig[0], np.ndarray):   # Stereo signal = 2 channels
+#                 #     noise_piano_sig = np.array([((x[0] + x[1]) / 2) for x in noise_piano_sig.astype('float64')])
+#                 # if isinstance(piano_label_sig[0], np.ndarray):   # Stereo signal = 2 channels
+#                 #     piano_label_sig = np.array([((x[0] + x[1]) / 2) for x in piano_label_sig.astype('float64')])
                 
-                deficit = pad_len - len(noise_piano_sig)
-                noise_piano_sig = np.pad(noise_piano_sig, (0,deficit))
-                piano_label_sig = np.pad(piano_label_sig, (0,deficit))
-                noise_label_sig = np.pad(noise_label_sig, (0,deficit))
-                # print('We\'re just sigs!')
+#                 deficit = pad_len - len(noise_piano_sig)
+#                 noise_piano_sig = np.pad(noise_piano_sig, (0,deficit))
+#                 piano_label_sig = np.pad(piano_label_sig, (0,deficit))
+#                 noise_label_sig = np.pad(noise_label_sig, (0,deficit))
+#                 # print('We\'re just sigs!')
 
-                # noise_piano_spgm, np_phase
-                noise_piano_spgm, _ = make_spectrogram(noise_piano_sig, wdw_size, epsilon, 
-                                                ova=True, debug=False)#[0].astype('float32').T
-                piano_label_spgm, _ = make_spectrogram(piano_label_sig, wdw_size, epsilon,
-                                                ova=True, debug=False)
-                noise_label_spgm, _ = make_spectrogram(noise_label_sig, wdw_size, epsilon, 
-                                                ova=True, debug=False)
+#                 # noise_piano_spgm, np_phase
+#                 noise_piano_spgm, _ = make_spectrogram(noise_piano_sig, wdw_size, epsilon, 
+#                                                 ova=True, debug=False)#[0].astype('float32').T
+#                 piano_label_spgm, _ = make_spectrogram(piano_label_sig, wdw_size, epsilon,
+#                                                 ova=True, debug=False)
+#                 noise_label_spgm, _ = make_spectrogram(noise_label_sig, wdw_size, epsilon, 
+#                                                 ova=True, debug=False)
 
-                # if offset == 0 and i == 0:
-                #     global_phases1 = np_phase
-                #     print('GLOBAL PHASES 1:', global_phases1.shape)
-                #     np_phase.tofile('1')
-                # elif offset == 0 and i == 1:
-                #     global_phases2 = np_phase
-                #     print('GLOBAL PHASES 2:', global_phases2.shape)
-                #     np_phase.tofile('2')
-                # elif offset == 0 and i == 2:
-                #     global_phases3 = np_phase
-                #     print('GLOBAL PHASES 3:', global_phases3.shape)
-                #     np_phase.tofile('3')
+#                 # Write to file for fixed data gen
+#                 np.save('../dlnn_data/piano_noise_numpy/mixed' + file_num_str, noise_piano_spgm)
+#                 np.save('../dlnn_data/piano_label_numpy/piano' + file_num_str, piano_label_spgm)
+#                 np.save('../dlnn_data/noise_label_numpy/noise' + file_num_str, noise_label_spgm)
 
-                # if i == 0:
-                #     print('Mixed Sig:', noise_piano_sig[1000:1010])
-                #     print('Piano Spgm Sum:', np.sum(piano_label_spgm))
-                #     print('Noise Spgm Sum:', np.sum(noise_label_spgm))
-                #     print('Mixed Spgm Sum:', np.sum(noise_piano_spgm))
+#                 # if offset == 0 and i == 0:
+#                 #     global_phases1 = np_phase
+#                 #     print('GLOBAL PHASES 1:', global_phases1.shape)
+#                 #     np_phase.tofile('1')
+#                 # elif offset == 0 and i == 1:
+#                 #     global_phases2 = np_phase
+#                 #     print('GLOBAL PHASES 2:', global_phases2.shape)
+#                 #     np_phase.tofile('2')
+#                 # elif offset == 0 and i == 2:
+#                 #     global_phases3 = np_phase
+#                 #     print('GLOBAL PHASES 3:', global_phases3.shape)
+#                 #     np_phase.tofile('3')
+
+#                 # if i == 0:
+#                 #     print('Mixed Sig:', noise_piano_sig[1000:1010])
+#                 #     print('Piano Spgm Sum:', np.sum(piano_label_spgm))
+#                 #     print('Noise Spgm Sum:', np.sum(noise_label_spgm))
+#                 #     print('Mixed Spgm Sum:', np.sum(noise_piano_spgm))
                 
-                # Add below into make_spgm()
-                # noise_piano_spgm[noise_piano_spgm == 0] = epsilon
-                # piano_label_spgm[piano_label_spgm == 0] = epsilon
-                # noise_label_spgm[noise_label_spgm == 0] = epsilon
-                # print('We\'re spectrograms now!')
+#                 # Add below into make_spgm()
+#                 # noise_piano_spgm[noise_piano_spgm == 0] = epsilon
+#                 # piano_label_spgm[piano_label_spgm == 0] = epsilon
+#                 # noise_label_spgm[noise_label_spgm == 0] = epsilon
+#                 # print('We\'re spectrograms now!')
 
-                # print('NP Shape:', noise_piano_spgm.shape)
-                # print('PL Shape:', piano_label_spgm.shape)
-                # print('NL Shape:', noise_label_spgm.shape)
+#                 # print('NP Shape:', noise_piano_spgm.shape)
+#                 # print('PL Shape:', piano_label_spgm.shape)
+#                 # print('NL Shape:', noise_label_spgm.shape)
 
-                # # DEBUG prints
-                # print('OFFSET', offset, 'index', str(i) + ':')
-                # print('Zero in np spgm:', 0 in noise_piano_spgm)
-                # print('Zero in p spgm:', 0 in piano_label_spgm)
-                # print('Zero in n spgm:', 0 in noise_label_spgm)
-                # print('NaN in np spgm:', True in np.isnan(noise_piano_spgm))
-                # print('NaN in p spgm:', True in np.isnan(piano_label_spgm))
-                # print('NaN in n spgm:', True in np.isnan(noise_label_spgm))
-                # print()
+#                 # # DEBUG prints
+#                 # print('OFFSET', offset, 'index', str(i) + ':')
+#                 # print('Zero in np spgm:', 0 in noise_piano_spgm)
+#                 # print('Zero in p spgm:', 0 in piano_label_spgm)
+#                 # print('Zero in n spgm:', 0 in noise_label_spgm)
+#                 # print('NaN in np spgm:', True in np.isnan(noise_piano_spgm))
+#                 # print('NaN in p spgm:', True in np.isnan(piano_label_spgm))
+#                 # print('NaN in n spgm:', True in np.isnan(noise_label_spgm))
+#                 # print()
 
-                # print('Finished training sample')
-                # Add samples to arrays
-                # if (num_samples / batch_size == 0):
-                x[i] = noise_piano_spgm
-                y1[i] = piano_label_spgm
-                y2[i] = noise_label_spgm
-                # else:
-                #     x.append(noise_piano_spgm)
-                #     y1.append(piano_label_spgm)
-                #     y2.append(noise_label_spgm)
+#                 # print('Finished training sample')
+#                 # Add samples to arrays
+#                 # if (num_samples / batch_size == 0):
+#                 x[i] = noise_piano_spgm
+#                 y1[i] = piano_label_spgm
+#                 y2[i] = noise_label_spgm
+#                 # else:
+#                 #     x.append(noise_piano_spgm)
+#                 #     y1.append(piano_label_spgm)
+#                 #     y2.append(noise_label_spgm)
 
-            # if (num_samples / batch_size != 0):
-            # # Make sure they're numpy arrays (as opposed to lists)
-            #     x = np.array(x)
-            #     y1 = np.array(y1)
-            #     y2 = np.array(y2)
+#             # if (num_samples / batch_size != 0):
+#             # # Make sure they're numpy arrays (as opposed to lists)
+#             #     x = np.array(x)
+#             #     y1 = np.array(y1)
+#             #     y2 = np.array(y2)
 
-            # print('\nBlowing out x,y1,y2:', x.shape, y1.shape, y2.shape)
-            # The generator-y part: yield the next training batch            
-            # yield [x_train, y1_train, y2_train], y1_train, y2_train
-            # yield {'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}
-            # IF DOESN'T WORK, TRY
-            # yield ({'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, 
-            #        y1, y2)
-            # IF DOESN'T WORK, TRY
-            # print('IN GENERATOR YEILDING SHAPE:', (x.shape, y1.shape, y2.shape))
+#             # print('\nBlowing out x,y1,y2:', x.shape, y1.shape, y2.shape)
+#             # The generator-y part: yield the next training batch            
+#             # yield [x_train, y1_train, y2_train], y1_train, y2_train
+#             # yield {'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}
+#             # IF DOESN'T WORK, TRY
+#             # yield ({'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, 
+#             #        y1, y2)
+#             # IF DOESN'T WORK, TRY
+#             # print('IN GENERATOR YEILDING SHAPE:', (x.shape, y1.shape, y2.shape))
 
-            # print('GENERATOR YEILDING TYPES:', x.dtype, y1.dtype, y2.dtype)
+#             # print('GENERATOR YEILDING TYPES:', x.dtype, y1.dtype, y2.dtype)
 
-            yield (x, y1, y2)
+#             yield (x, y1, y2)
 
-            # What fit expects
-            # {'piano_noise_mixed': X, 'piano_true': y1, 'noise_true': y2}
-            # {'piano_pred': y1, 'noise_pred': y2}
+#             # What fit expects
+#             # {'piano_noise_mixed': X, 'piano_true': y1, 'noise_true': y2}
+#             # {'piano_pred': y1, 'noise_pred': y2}
 
 
 # NN DATA STATS FUNC - Only used when dataset changes
@@ -723,7 +767,8 @@ class TimeFreqMasking(Layer):
     # def __init__(self, piano_flag, **kwargs):
     def __init__(self, epsilon, **kwargs):
         # MAKE LAYER DEAL IN FLOAT16
-        kwargs['autocast'] = False
+        # TEST FLOAT16
+        # kwargs['autocast'] = False
         super(TimeFreqMasking, self).__init__(**kwargs)
         # self.piano_flag = piano_flag
         self.epsilon = epsilon
@@ -814,9 +859,9 @@ def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_con
 
 
 def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
-                    config=None, t_mean=None, t_std=None):
-
-    input_layer = Input(shape=(sequences, features), dtype='float16', 
+                    config=None, t_mean=None, t_std=None, test=0):
+    # TEST FLOAT16
+    input_layer = Input(shape=(sequences, features), dtype='float32', 
                         name='piano_noise_mixed')
 
     if config is not None:
@@ -911,6 +956,56 @@ def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
                         x = BatchNormalization() (x)
 
             prev_layer_type = curr_layer_type
+    
+    elif test > 0:
+        # The difference in mem use between test 1 @ 2 is much an long a rnn takes
+        if test == 1:
+            x = SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            x = SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (x) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        if test == 2:
+            x = SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        # The difference in mem use between test 2 @ 4 is how much more an lstm takes
+        if test == 3:
+            x = LSTM(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            x = LSTM(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (x) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        if test == 4:
+            x = LSTM(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer)
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        # The difference in mem use between test 6 & 2 is what doubling dim red does to mem usage
+        if test == 5:
+            x = SimpleRNN(features // 4, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            x = SimpleRNN(features // 4, 
+                      activation='relu', 
+                      return_sequences=True) (x) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        if test == 6:
+            x = SimpleRNN(features // 4, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
 
     # Use pre-configurations (default)
     else:
@@ -1072,6 +1167,8 @@ def evaluate_source_sep(train_generator, validation_generator,
                         t_mean=None, t_std=None, grid_search_iter=None, gs_path=None, combos=None, gs_id=''):
     # print('X shape:', X.shape, 'y1 shape:', y1.shape, 'y2 shape:', y2.shape)
     # print('X shape:', X.shape)
+    # tf.profiler.experimental.server.start(6009)
+    # tf.profiler.experimental.start('logdir')
     print('Making model...')
     # if pc_run:
     model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
@@ -1084,11 +1181,11 @@ def evaluate_source_sep(train_generator, validation_generator,
     #         optimizer = optimizer
     print(model.summary())
 
-    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    train_log_dir = '../logs/gradient_tape/' + current_time + '/train'
-    test_log_dir = '../logs/gradient_tape/' + current_time + '/test'
-    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-    test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+    # current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    # train_log_dir = '../logs/gradient_tape/' + current_time + '/train'
+    # test_log_dir = '../logs/gradient_tape/' + current_time + '/test'
+    # train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+    # test_summary_writer = tf.summary.create_file_writer(test_log_dir)
 
     @tf.function
     def train_step(x, y1, y2):
@@ -1107,7 +1204,6 @@ def evaluate_source_sep(train_generator, validation_generator,
         loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
         return loss
 
-    # tf.profiler.experimental.start('logdir')
     print('Going into training now...')
     history = {'loss': [], 'val_loss': []}
     for epoch in range(epochs):
@@ -1116,12 +1212,13 @@ def evaluate_source_sep(train_generator, validation_generator,
         train_steps_per_epoch=math.ceil(num_train / batch_size)
         val_steps_per_epoch=math.ceil(num_val / batch_size)
 
+        # TEST FLOAT16
         train_dataset = tf.data.Dataset.from_generator(
-                make_gen_callable(train_generator), output_types=(tf.float16), 
+                make_gen_callable(train_generator), output_types=(tf.float32), 
                 output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
         )
         val_dataset = tf.data.Dataset.from_generator(
-            make_gen_callable(validation_generator), output_types=(tf.float16), 
+            make_gen_callable(validation_generator), output_types=(tf.float32), 
             output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
         )
         # Input pipeline optimizations
@@ -1133,8 +1230,8 @@ def evaluate_source_sep(train_generator, validation_generator,
         val_dataset.cache()
         train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
         val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
-        print('TRAIN DATASET TYPE (should be BatchDataset):', train_dataset)
-        print('VALID DATASET TYPE (should be BatchDataset):', val_dataset)
+        # print('TRAIN DATASET TYPE (should be BatchDataset):', train_dataset)
+        # print('VALID DATASET TYPE (should be BatchDataset):', val_dataset)
 
         train_iter = iter(train_dataset)
         val_iter = iter(val_dataset)
@@ -1147,19 +1244,20 @@ def evaluate_source_sep(train_generator, validation_generator,
             # profile no more than 10 steps @ a time - save memory
             # avoid profiling first few batches for accuracy
             # if step % 2 == 0 and step > 1:
-                # with tf.profiler.experimental.Trace('train', step_num=step, _r=1):
-            x_batch_train, y1_batch_train, y2_batch_train = next(train_iter)
+            #     with tf.profiler.experimental.Trace('train', step_num=step, _r=1):
+            #         x_batch_train, y1_batch_train, y2_batch_train = next(train_iter)
 
-            if epoch == 0 and step == 0:
-                tf.summary.trace_on(graph=True, profiler=True)
-                loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train)
-                with train_summary_writer.as_default():
-                    tf.summary.trace_export(
-                        name='train_trace',
-                        step=step,
-                        profiler_outdir=train_log_dir)
-            else:
-                loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train)
+            # # if epoch == 0 and step == 0:
+            #     # tf.summary.trace_on(graph=True, profiler=True)
+            #         loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train)
+            #     # with train_summary_writer.as_default():
+            #     #     tf.summary.trace_export(
+            #     #         name='train_trace',
+            #     #         step=step,
+            #     #         profiler_outdir=train_log_dir)
+            # else:
+            x_batch_train, y1_batch_train, y2_batch_train = next(train_iter)
+            loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train)
             
             # loss_tensor = train_step_func(x_batch_train, y1_batch_train, y2_batch_train,
             #                               model, loss_const, optimizer)
@@ -1204,25 +1302,28 @@ def evaluate_source_sep(train_generator, validation_generator,
         history['loss'].append(avg_train_loss)
 
         # Tensorboard
-        with train_summary_writer.as_default():
-            tf.summary.scalar("Loss", avg_train_loss, step=epoch)
+        # with train_summary_writer.as_default():
+        #     tf.summary.scalar("Loss", avg_train_loss, step=epoch)
 
         # VALIDATION LOOP
         total_loss, num_batches = 0.0, 0
         # for step, (x_batch_val, y1_batch_val, y2_batch_val) in enumerate(validation_generator):
         for step in range(val_steps_per_epoch):
             # if step % 2 == 0 and step > 1:
-                # with tf.profiler.experimental.Trace('val', step_num=step, _r=1):
+            #     with tf.profiler.experimental.Trace('val', step_num=step, _r=1):
+            #         x_batch_val, y1_batch_val, y2_batch_val = next(val_iter)
+
+            # # tf.summary.trace_on(graph=True, profiler=True)
+            #         loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val)
+            # # with test_summary_writer.as_default():
+            # #     tf.summary.trace_export(
+            # #         name='val_trace',
+            # #         step=step,
+            # #         profiler_outdir=test_log_dir)
+
+            # else:
             x_batch_val, y1_batch_val, y2_batch_val = next(val_iter)
-
-            # tf.summary.trace_on(graph=True, profiler=True)
             loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val)
-            # with test_summary_writer.as_default():
-            #     tf.summary.trace_export(
-            #         name='val_trace',
-            #         step=step,
-            #         profiler_outdir=test_log_dir)
-
             # loss_tensor = test_step_func(x_batch_val, y1_batch_val, y2_batch_val,
             #                              model, loss_const)
             # loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val,
@@ -1236,30 +1337,14 @@ def evaluate_source_sep(train_generator, validation_generator,
             print('(' + str(readable_step) + ')', end="")
             if readable_step == val_steps_per_epoch:
                 break
-            # else:
-            #     x_batch_train, y1_batch_train, y2_batch_train = next(val_iter)
-            #     # loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val)
-            #     # loss_tensor = test_step_func(x_batch_val, y1_batch_val, y2_batch_val,
-            #     #                              model, loss_const)
-            #     # loss_tensor = test_step(x_batch_val, y1_batch_val, y2_batch_val,
-            #     #                         model, loss_const)
-            #     total_loss += tf.math.reduce_mean(loss_tensor).numpy()
-            #     num_batches += 1
-
-            #     readable_step = step + 1
-            #     if step == 0:
-            #         print('Validate execution (steps):', end = " ")
-            #     print('(' + str(readable_step) + ')', end="")
-            #     if readable_step == val_steps_per_epoch:
-            #         break
 
         avg_val_loss = total_loss / num_batches
         print(' - epoch val. loss:', avg_val_loss)        
         history['val_loss'].append(avg_val_loss)
 
         # Tensorboard
-        with test_summary_writer.as_default():
-            tf.summary.scalar("Loss", avg_val_loss, step=epoch)
+        # with test_summary_writer.as_default():
+        #     tf.summary.scalar("Loss", avg_val_loss, step=epoch)
     
         # # else:
         #     # From docs: batch size must be equal to global batch size (refactor earlier if needed)
@@ -1392,6 +1477,8 @@ def evaluate_source_sep(train_generator, validation_generator,
                 break
 
     # tf.profiler.experimental.stop()
+    # tf.profiler.experimental.client.trace('grpc://localhost:6009',
+    #                                   'gs://logdir', 2000)
     # Not necessary for HPC (can't run on HPC)
     # tf.keras.utils.plot_model(model, 
     #                        (gs_path + 'model' + str(grid_search_iter) + 'of' + str(combos) + '.png'
@@ -1515,6 +1602,13 @@ def get_hp_configs(bare_config_path, pc_run=False):
     #                   (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
     #                   ]
     # FYI - Best seen: clipvalue=10, lr=0.0005 - keep in mind for 2nd honed-in GS
+    # # FLOAT16
+    # optimizer_optns = [
+    #                   (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
+    #                   (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
+    #                   (tf.keras.optimizers.Adam(learning_rate=0.0001, epsilon=1e-4), -1, 0.0001, 'Adam'),
+    #                   (tf.keras.optimizers.Adam(clipvalue=10, epsilon=1e-4), 10, 0.001, 'Adam')
+    #                   ]
     optimizer_optns = [
                       (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
                       (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
@@ -1525,14 +1619,14 @@ def get_hp_configs(bare_config_path, pc_run=False):
     train_configs = {'batch_size': batch_size_optns, 'epochs': epochs_optns,
                      'loss_const': loss_const_optns, 'optimizer': optimizer_optns}
     
-    # dropout_optns = [(0.0,0.0), (0.2,0.2), (0.2,0.5), (0.5,0.2), (0.5,0.5)]   # For RNN only
-    dropout_optns = [(0.0,0.0), (0.25,0.25)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
-    scale_optns = [True, False]
-    rnn_skip_optns = [True, False]
+    # REPL TEST - arch config, all config, optiizer config
+    dropout_optns = [(0.0,0.0)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
+    scale_optns = [False]
+    rnn_skip_optns = [False]
     bias_rnn_optns = [True]     # False
     bias_dense_optns = [True]   # False
-    bidir_optns = [True, False]
-    bn_optns = [True, False]                    # For Dense only
+    bidir_optns = [True]
+    bn_optns = [False]                    # For Dense only
     # TEST - failed - OOM on PC
     # rnn_optns = ['LSTM'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model              
     rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
@@ -1540,11 +1634,32 @@ def get_hp_configs(bare_config_path, pc_run=False):
         # TEST PC
         # with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
         with open(bare_config_path + 'hp_arch_config_final.json') as hp_file:
-            bare_config_optns = json.load(hp_file)['archs']
+            bare_config_optns = [json.load(hp_file)['archs'][3]]
     else:
         # with open(bare_config_path + 'hp_arch_config_largedim.json') as hp_file:
         with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
+
+    # # dropout_optns = [(0.0,0.0), (0.2,0.2), (0.2,0.5), (0.5,0.2), (0.5,0.5)]   # For RNN only
+    # dropout_optns = [(0.0,0.0), (0.25,0.25)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
+    # scale_optns = [True, False]
+    # rnn_skip_optns = [True, False]
+    # bias_rnn_optns = [True]     # False
+    # bias_dense_optns = [True]   # False
+    # bidir_optns = [True, False]
+    # bn_optns = [True, False]                    # For Dense only
+    # # TEST - failed - OOM on PC
+    # # rnn_optns = ['LSTM'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model              
+    # rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
+    # if pc_run:
+    #     # TEST PC
+    #     # with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+    #     with open(bare_config_path + 'hp_arch_config_final.json') as hp_file:
+    #         bare_config_optns = json.load(hp_file)['archs']
+    # else:
+    #     # with open(bare_config_path + 'hp_arch_config_largedim.json') as hp_file:
+    #     with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+    #         bare_config_optns = json.load(hp_file)['archs']
     
     arch_config_optns = []
     for config in bare_config_optns:    
@@ -1575,9 +1690,13 @@ def get_hp_configs(bare_config_path, pc_run=False):
     return train_configs, arch_config_optns
 
 
-def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
+# def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
+def grid_search(x_train_files, y1_train_files, y2_train_files, 
+                x_val_files, y1_val_files, y2_val_files,
                 # train_step_func, test_step_func,
-                n_feat, n_seq, wdw_size, epsilon, max_sig_len, t_mean, t_std,
+                n_feat, n_seq, 
+                # wdw_size, epsilon, max_sig_len, 
+                t_mean, t_std,
                 train_configs, arch_config_optns,
                 # arch_config_path, 
                 gsres_path, early_stop_pat=3, pc_run=False, 
@@ -1793,16 +1912,22 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
                             #     batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
 
                             # print('DEBUG Batch Size in Grid Search:', batch_size)
-                            train_generator = my_generator(y1_train_files, y2_train_files, 
-                                    num_train,
-                                    batch_size=batch_size, train_seq=n_seq,
-                                    train_feat=n_feat, wdw_size=wdw_size, 
-                                    epsilon=epsilon, pad_len=max_sig_len)
-                            validation_generator = my_generator(y1_val_files, y2_val_files, 
-                                    num_val,
-                                    batch_size=batch_size, train_seq=n_seq,
-                                    train_feat=n_feat, wdw_size=wdw_size, 
-                                    epsilon=epsilon, pad_len=max_sig_len)
+                            # train_generator = my_generator(y1_train_files, y2_train_files, 
+                            #         num_train,
+                            #         batch_size=batch_size, train_seq=n_seq,
+                            #         train_feat=n_feat, wdw_size=wdw_size, 
+                            #         epsilon=epsilon, pad_len=max_sig_len)
+                            # validation_generator = my_generator(y1_val_files, y2_val_files, 
+                            #         num_val,
+                            #         batch_size=batch_size, train_seq=n_seq,
+                            #         train_feat=n_feat, wdw_size=wdw_size, 
+                            #         epsilon=epsilon, pad_len=max_sig_len)
+                            train_generator = my_generator(
+                                    x_train_files,y1_train_files, y2_train_files, num_train,
+                                    batch_size=batch_size, train_seq=n_seq, train_feat=n_feat)
+                            validation_generator = my_generator(
+                                    x_val_files, y1_val_files, y2_val_files, num_val,
+                                    batch_size=batch_size, train_seq=n_seq, train_feat=n_feat)
 
                             _, losses, val_losses = evaluate_source_sep(train_generator,
                                                                     validation_generator,
@@ -2076,10 +2201,16 @@ def main():
         train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run)
 
         # Load in train/validation data
-        piano_label_filepath_prefix = ((data_path + 'final_piano_data/psource')
-            if use_dmged_piano else (data_path + 'final_piano_data/psource'))
-        noise_label_filepath_prefix = ((data_path + 'final_noise_data/nsource')
-            if use_artificial_noise else (data_path + 'final_noise_data/nsource'))
+        # piano_label_filepath_prefix = ((data_path + 'final_piano_data/psource')
+        #     if use_dmged_piano else (data_path + 'final_piano_data/psource'))
+        # noise_label_filepath_prefix = ((data_path + 'final_noise_data/nsource')
+        #     if use_artificial_noise else (data_path + 'final_noise_data/nsource'))
+        noise_piano_filepath_prefix = ((data_path + 'piano_noise_numpy/mixed')
+            if use_artificial_noise else (data_path + 'piano_noise_numpy/mixed'))
+        piano_label_filepath_prefix = ((data_path + 'piano_source_numpy/psource')
+            if use_dmged_piano else (data_path + 'piano_source_numpy/psource'))
+        noise_label_filepath_prefix = ((data_path + 'noise_source_numpy/nsource')
+            if use_artificial_noise else (data_path + 'noise_source_numpy/nsource'))
 
         # TRAIN & INFER
         if mode == 't':
@@ -2112,30 +2243,30 @@ def main():
                 # DEBUG
                 random.shuffle(sample_indices)
 
-            # x_files = np.array([(noisy_piano_filepath_prefix + str(i) + '.wav')
-            #             for i in sample_indices])
+            x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.wav')
+                        for i in sample_indices])
             y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.wav')
                         for i in sample_indices])
             y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.wav')
                         for i in sample_indices])
             
-            # Temp - do to calc max len for padding - it's 3081621 (for youtube src data)
-            # it's 3784581 (for Spotify/Youtube Final Data)
-            # MAX_SIG_LEN = None
-            # for x_file in x_files:
-            #     _, sig = wavfile.read(x_file)
-            #     if MAX_SIG_LEN is None or len(sig) > MAX_SIG_LEN:
-            #         MAX_SIG_LEN = len(sig)
-            # print('MAX SIG LEN:', MAX_SIG_LEN)
-            max_sig_len = MAX_SIG_LEN
+            # # Temp - do to calc max len for padding - it's 3081621 (for youtube src data)
+            # # it's 3784581 (for Spotify/Youtube Final Data)
+            # # MAX_SIG_LEN = None
+            # # for x_file in x_files:
+            # #     _, sig = wavfile.read(x_file)
+            # #     if MAX_SIG_LEN is None or len(sig) > MAX_SIG_LEN:
+            # #         MAX_SIG_LEN = len(sig)
+            # # print('MAX SIG LEN:', MAX_SIG_LEN)
+            # max_sig_len = MAX_SIG_LEN
 
             # Validation & Training Split
             indices = list(range(actual_samples))
             val_indices = indices[:math.ceil(actual_samples * val_split)]
-            # x_train_files = np.delete(x_files, val_indices)
+            x_train_files = np.delete(x_files, val_indices)
             y1_train_files = np.delete(y1_files, val_indices)
             y2_train_files = np.delete(y2_files, val_indices)
-            # x_val_files = x_files[val_indices]
+            x_val_files = x_files[val_indices]
             y1_val_files = y1_files[val_indices]
             y2_val_files = y2_files[val_indices]
             num_train, num_val = len(y1_train_files), len(y1_val_files)
@@ -2162,14 +2293,18 @@ def main():
             print('N Feat:', train_feat, 'Seq Len:', train_seq, 'Batch Size:', train_batch_size)
 
             # Create data generators, evaluate model with them, and infer
-            train_generator = my_generator(y1_train_files, y2_train_files, num_train,
-                                batch_size=train_batch_size, train_seq=train_seq,
-                                train_feat=train_feat, wdw_size=wdw_size, 
-                                epsilon=epsilon, pad_len=max_sig_len)
-            validation_generator = my_generator(y1_val_files, y2_val_files, num_val,
-                                batch_size=train_batch_size, train_seq=train_seq,
-                                train_feat=train_feat, wdw_size=wdw_size, 
-                                epsilon=epsilon, pad_len=max_sig_len)
+            # train_generator = my_generator(y1_train_files, y2_train_files, num_train,
+            #                     batch_size=train_batch_size, train_seq=train_seq,
+            #                     train_feat=train_feat, wdw_size=wdw_size, 
+            #                     epsilon=epsilon, pad_len=max_sig_len)
+            # validation_generator = my_generator(y1_val_files, y2_val_files, num_val,
+            #                     batch_size=train_batch_size, train_seq=train_seq,
+            #                     train_feat=train_feat, wdw_size=wdw_size, 
+            #                     epsilon=epsilon, pad_len=max_sig_len)
+            train_generator = fixed_data_generator(x_train_files, y1_train_files, y2_train_files, num_train,
+                                batch_size=train_batch_size, train_seq=train_seq, train_feat=train_feat)
+            validation_generator = fixed_data_generator(x_val_files, y1_val_files, y2_val_files, num_val,
+                                batch_size=train_batch_size, train_seq=train_seq, train_feat=train_feat)
 
             # if pc_run:
             #     # TEST PC
@@ -2250,14 +2385,17 @@ def main():
             # #                                     # Append updated config
             # #                                     arch_config_optns.append(curr_config) 
 
+            # REPL TEST - arch config, all config, optiizer config
             if random_hps:
                 # Index into random arch config, and other random HPs
-                arch_rand_index = random.randint(0, len(arch_config_optns)-1)
+                # arch_rand_index = random.randint(0, len(arch_config_optns)-1)
+                arch_rand_index = 0
                 # print('ARCH RAND INDEX:', arch_rand_index)
                 training_arch_config = arch_config_optns[arch_rand_index]
                 for hp, optns in train_configs.items():
                     # print('HP:', hp, 'OPTNS:', optns)
-                    hp_rand_index = random.randint(0, len(optns)-1)
+                    # hp_rand_index = random.randint(0, len(optns)-1)
+                    hp_rand_index = 0
                     if hp == 'batch_size':
                         # print('BATCH SIZE RAND INDEX:', hp_rand_index)
                         train_batch_size = optns[hp_rand_index]
@@ -2268,6 +2406,7 @@ def main():
                         # print('LOSS CONST RAND INDEX:', hp_rand_index)
                         train_loss_const = optns[hp_rand_index]
                     elif hp == 'optimizer':
+                        hp_rand_index = 2
                         # print('OPT RAND INDEX:', hp_rand_index)
                         train_optimizer, clip_val, lr, opt_name = (
                             optns[hp_rand_index]
@@ -2275,7 +2414,7 @@ def main():
 
                 # Early stop for random HPs
                 # TIME TEST
-                patience = 4
+                # patience = 4
                 # training_arch_config = arch_config_optns[0]
                 print('RANDOM TRAIN ARCH FOR USE:')
                 print(training_arch_config)
@@ -2343,17 +2482,21 @@ def main():
             sample_indices = list(range(TOTAL_SMPLS))
             random.shuffle(sample_indices)
 
+            x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.wav')
+                        for i in sample_indices])
             y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.wav')
                         for i in sample_indices])
             y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.wav')
                         for i in sample_indices])
-            max_sig_len = MAX_SIG_LEN
+            # max_sig_len = MAX_SIG_LEN
 
             # Validation & Training Split
             indices = list(range(actual_samples))
             val_indices = indices[:math.ceil(actual_samples * val_split)]
+            x_train_files = np.delete(x_files, val_indices)
             y1_train_files = np.delete(y1_files, val_indices)
             y2_train_files = np.delete(y2_files, val_indices)
+            x_val_files = x_files[val_indices]
             y1_val_files = y1_files[val_indices]
             y2_val_files = y2_files[val_indices]
 
@@ -2376,12 +2519,12 @@ def main():
             # Train Mean: 1728.2116672701493 Train Std: 6450.4985228518635 - 10/18/20
             train_mean, train_std = TRAIN_MEAN, TRAIN_STD
 
-            grid_res, grid_res_val = grid_search(y1_train_files, y2_train_files,
-                                        y1_val_files, y2_val_files,
+            grid_res, grid_res_val = grid_search(x_train_files, y1_train_files, y2_train_files,
+                                        x_val_files, y1_val_files, y2_val_files,
                                         # train_step_func, test_step_func,
                                         n_feat=train_feat, n_seq=train_seq,
-                                        wdw_size=wdw_size, epsilon=epsilon,
-                                        max_sig_len=max_sig_len, 
+                                        # wdw_size=wdw_size, epsilon=epsilon,
+                                        # max_sig_len=max_sig_len, 
                                         t_mean=train_mean, t_std=train_std,
                                         train_configs=train_configs,
                                         arch_config_optns=arch_config_optns,
