@@ -2207,10 +2207,10 @@ def main():
         #     if use_artificial_noise else (data_path + 'final_noise_data/nsource'))
         noise_piano_filepath_prefix = ((data_path + 'piano_noise_numpy/mixed')
             if use_artificial_noise else (data_path + 'piano_noise_numpy/mixed'))
-        piano_label_filepath_prefix = ((data_path + 'piano_source_numpy/psource')
-            if use_dmged_piano else (data_path + 'piano_source_numpy/psource'))
-        noise_label_filepath_prefix = ((data_path + 'noise_source_numpy/nsource')
-            if use_artificial_noise else (data_path + 'noise_source_numpy/nsource'))
+        piano_label_filepath_prefix = ((data_path + 'piano_source_numpy/piano')
+            if use_dmged_piano else (data_path + 'piano_source_numpy/piano'))
+        noise_label_filepath_prefix = ((data_path + 'noise_source_numpy/noise')
+            if use_artificial_noise else (data_path + 'noise_source_numpy/noise'))
 
         # TRAIN & INFER
         if mode == 't':
@@ -2243,11 +2243,11 @@ def main():
                 # DEBUG
                 random.shuffle(sample_indices)
 
-            x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.wav')
+            x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.npy')
                         for i in sample_indices])
-            y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.wav')
+            y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.npy')
                         for i in sample_indices])
-            y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.wav')
+            y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.npy')
                         for i in sample_indices])
             
             # # Temp - do to calc max len for padding - it's 3081621 (for youtube src data)
