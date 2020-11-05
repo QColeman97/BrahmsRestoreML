@@ -2,6 +2,7 @@ __pycache__/
 
 /BrahmsRestoreDLNN/dlnn_data/
 /BrahmsRestoreDLNN/tensorflow/
+/BrahmsRestoreDLNN/tf-nightly/
 /BrahmsRestoreDLNN/recent_model/
 /BrahmsRestoreDLNN/output_grid_search/
 /BrahmsRestoreDLNN/src/subclass_model_example.py
