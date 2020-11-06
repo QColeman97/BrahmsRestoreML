@@ -1109,7 +1109,7 @@ def evaluate_source_sep(train_generator, validation_generator,
                                                     global_batch_size=batch_size)
                                                     # global_batch_size=global_batch_size)
 
-            # Put functions inside scope
+            # Called once per replica
             def train_step_for_dist(inputs):
                 x, y1, y2 = inputs
                 with tf.GradientTape() as tape:
@@ -1120,7 +1120,7 @@ def evaluate_source_sep(train_generator, validation_generator,
                 grads = tape.gradient(loss, model.trainable_weights)
                 optimizer.apply_gradients(zip(grads, model.trainable_weights))
                 return loss
-
+            # Called once per replica
             def test_step_for_dist(inputs):
                 x, y1, y2 = inputs
                 val_logits1, val_logits2 = model(x, training=False)
@@ -1620,10 +1620,10 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
                         if restart or (gs_iter > last_done):
 
                             # CUSTOM TRAINING
-                            if not pc_run:
-                                og_batch_size = batch_size
-                                batch_size_per_replica = batch_size // 2
-                                batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
+                            # if not pc_run:
+                            #     og_batch_size = batch_size
+                            #     batch_size_per_replica = batch_size // 2
+                            #     batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
 
                             # print('DEBUG Batch Size in Grid Search:', batch_size)
                             train_generator = my_generator(y1_train_files, y2_train_files, 
@@ -1637,23 +1637,8 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
                                     train_feat=n_feat, wdw_size=wdw_size, 
                                     epsilon=epsilon, pad_len=max_sig_len)
 
-                            if pc_run:
-                                _, losses, val_losses = evaluate_source_sep(train_generator,
-                                                                        validation_generator,
-                                                                        num_train, num_val,
-                                                                        n_feat, n_seq, 
-                                                                        batch_size, loss_const,
-                                                                        epochs, opt, 
-                                                                        patience=early_stop_pat,
-                                                                        epsilon=epsilon,
-                                                                        config=arch_config, pc_run=pc_run,
-                                                                        t_mean=t_mean, t_std=t_std,
-                                                                        grid_search_iter=gs_iter,
-                                                                        gs_path=gsres_path,
-                                                                        combos=combos)
-                            else:
-                                with mirrored_strategy.scope():
-                                    _, losses, val_losses = evaluate_source_sep(train_generator,
+                            # if pc_run:
+                            _, losses, val_losses = evaluate_source_sep(train_generator,
                                                                     validation_generator,
                                                                     num_train, num_val,
                                                                     n_feat, n_seq, 
@@ -1666,10 +1651,25 @@ def grid_search(y1_train_files, y2_train_files, y1_val_files, y2_val_files,
                                                                     grid_search_iter=gs_iter,
                                                                     gs_path=gsres_path,
                                                                     combos=combos)
+                            # else:
+                            #     with mirrored_strategy.scope():
+                            #         _, losses, val_losses = evaluate_source_sep(train_generator,
+                            #                                         validation_generator,
+                            #                                         num_train, num_val,
+                            #                                         n_feat, n_seq, 
+                            #                                         batch_size, loss_const,
+                            #                                         epochs, opt, 
+                            #                                         patience=early_stop_pat,
+                            #                                         epsilon=epsilon,
+                            #                                         config=arch_config, pc_run=pc_run,
+                            #                                         t_mean=t_mean, t_std=t_std,
+                            #                                         grid_search_iter=gs_iter,
+                            #                                         gs_path=gsres_path,
+                            #                                         combos=combos)
 
                             # CUSTOM TRAINING
-                            if not pc_run:
-                                batch_size = og_batch_size
+                            # if not pc_run:
+                            #     batch_size = og_batch_size
 
                             # Do multiple runs of eval_src_sep to avg over randomness?
                             curr_basic_loss = {'batch_size': batch_size, 
@@ -1843,25 +1843,7 @@ def restore_audio_file(output_path, model, wdw_size, epsilon, #loss_const, optim
 #   - CHOSE Copy weights from fit network to a newly created network
 
 
-# MAIN FUNCTION
-def main():
-    # PROGRAM ARGUMENTS #
-    if len(sys.argv) < 3:
-        print('\nUsage: dlnn_brahms_restore.py <mode> <PC> [-f] [gs_id]')
-        print('Parameter Options:')
-        print('Mode     t               - Train model, then restore brahms with model')
-        print('         g               - Perform grid search (default: starts where last left off)')
-        print('         r               - Restore brahms with last-trained model')
-        print('PC       true            - Uses HPs for lower GPU-memory consumption (< 4GB)')
-        print('         false           - Uses HPs for higher GPU-memory limit (PC HPs + nonPC HPs = total for now)')
-        print('-f                       - (Optional) Force restart grid search (grid search mode) OR force random HPs (train mode)')
-        print('gs_id    <single digit>  - (Optional) grid search unique ID for running concurrently')
-        print('\nTIP: Keep IDs different for PC/non-PC runs on same machine')
-        sys.exit(1)
-
-
-    mode = sys.argv[1] 
-    pc_run = True if (sys.argv[2].lower() == 'true') else False
+def main_function(argv, mode, pc_run):
     use_dmged_piano = False
     use_artificial_noise = False
     test_on_synthetic = False
@@ -1930,8 +1912,8 @@ def main():
         # TRAIN & INFER
         if mode == 't':
             random_hps = False
-            if len(sys.argv) == 4:
-                if sys.argv[3] == '-f':
+            if len(argv) == 4:
+                if argv[3] == '-f':
                     random_hps = True
                     print('\nTRAINING TO USE RANDOM (NON-EMPIRICALLY-OPTIMAL) HP\'S\n')
 
@@ -2000,9 +1982,9 @@ def main():
             train_seq, train_feat = TRAIN_SEQ_LEN, TRAIN_FEAT_LEN
 
             # CUSTOM TRAINING Dist training needs a "global_batch_size"
-            if not pc_run:
-                batch_size_per_replica = train_batch_size // 2
-                train_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
+            # if not pc_run:
+            #     batch_size_per_replica = train_batch_size // 2
+            #     train_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
 
             print('Train Input Stats:')
             print('N Feat:', train_feat, 'Seq Len:', train_seq, 'Batch Size:', train_batch_size)
@@ -2120,9 +2102,9 @@ def main():
                         )
                         
                 # CUSTOM TRAINING Dist training needs a "global_batch_size"
-                if not pc_run:
-                    batch_size_per_replica = train_batch_size // 2
-                    train_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
+                # if not pc_run:
+                #     batch_size_per_replica = train_batch_size // 2
+                #     train_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
 
 
                 # Early stop for random HPs
@@ -2147,23 +2129,23 @@ def main():
             # Train Mean: 1728.2116672701493 Train Std: 6450.4985228518635 - 10/18/20
             train_mean, train_std = TRAIN_MEAN, TRAIN_STD
 
-            if pc_run:
-                model, _, _ = evaluate_source_sep(train_generator, validation_generator, num_train, num_val,
-                                        n_feat=train_feat, n_seq=train_seq, 
-                                        batch_size=train_batch_size, 
-                                        loss_const=train_loss_const, epochs=train_epochs,
-                                        optimizer=train_optimizer, patience=patience, epsilon=epsilon,
-                                        recent_model_path=recent_model_path, pc_run=pc_run,
-                                        config=training_arch_config, t_mean=train_mean, t_std=train_std)
-            else:
-                with mirrored_strategy.scope():
-                    model, _, _ = evaluate_source_sep(train_generator, validation_generator, num_train, num_val,
+            # if pc_run:
+            model, _, _ = evaluate_source_sep(train_generator, validation_generator, num_train, num_val,
                                     n_feat=train_feat, n_seq=train_seq, 
                                     batch_size=train_batch_size, 
                                     loss_const=train_loss_const, epochs=train_epochs,
                                     optimizer=train_optimizer, patience=patience, epsilon=epsilon,
                                     recent_model_path=recent_model_path, pc_run=pc_run,
                                     config=training_arch_config, t_mean=train_mean, t_std=train_std)
+            # else:
+            #     with mirrored_strategy.scope():
+            #         model, _, _ = evaluate_source_sep(train_generator, validation_generator, num_train, num_val,
+            #                         n_feat=train_feat, n_seq=train_seq, 
+            #                         batch_size=train_batch_size, 
+            #                         loss_const=train_loss_const, epochs=train_epochs,
+            #                         optimizer=train_optimizer, patience=patience, epsilon=epsilon,
+            #                         recent_model_path=recent_model_path, pc_run=pc_run,
+            #                         config=training_arch_config, t_mean=train_mean, t_std=train_std)
             
             if sample:
                 restore_audio_file(infer_output_path, model, wdw_size, epsilon, 
@@ -2184,17 +2166,17 @@ def main():
             #       1) uses a generator in fit
             #       2) uses my custom loss as the score - no need
             restart, gs_id = False, ''
-            if len(sys.argv) == 4:
-                if sys.argv[3] == '-f':
+            if len(argv) == 4:
+                if argv[3] == '-f':
                     restart = True
                     print('\nGRID SEARCH TO FORCE RESTART\n')
-                elif sys.argv[3].isdigit() and len(sys.argv[3]) == 1:
-                    gs_id = sys.argv[3]
+                elif argv[3].isdigit() and len(argv[3]) == 1:
+                    gs_id = argv[3]
                     print('GRID SEARCH ID:', gs_id, '\n')
 
-            if len(sys.argv) == 5:
-                if sys.argv[4].isdigit() and len(sys.argv[4]) == 1:
-                    gs_id = sys.argv[4]
+            if len(argv) == 5:
+                if argv[4].isdigit() and len(argv[4]) == 1:
+                    gs_id = argv[4]
                     print('GRID SEARCH ID:', gs_id, '\n')
             
             early_stop_pat = 5
@@ -2251,6 +2233,32 @@ def main():
                                         restart=restart)
             
             analyze_grid_search_results(grid_res, grid_res_val)
+
+
+# MAIN FUNCTION
+def main():
+    # PROGRAM ARGUMENTS #
+    if len(sys.argv) < 3:
+        print('\nUsage: dlnn_brahms_restore.py <mode> <PC> [-f] [gs_id]')
+        print('Parameter Options:')
+        print('Mode     t               - Train model, then restore brahms with model')
+        print('         g               - Perform grid search (default: starts where last left off)')
+        print('         r               - Restore brahms with last-trained model')
+        print('PC       true            - Uses HPs for lower GPU-memory consumption (< 4GB)')
+        print('         false           - Uses HPs for higher GPU-memory limit (PC HPs + nonPC HPs = total for now)')
+        print('-f                       - (Optional) Force restart grid search (grid search mode) OR force random HPs (train mode)')
+        print('gs_id    <single digit>  - (Optional) grid search unique ID for running concurrently')
+        print('\nTIP: Keep IDs different for PC/non-PC runs on same machine')
+        sys.exit(1)
+
+    mode = sys.argv[1] 
+    pc_run = True if (sys.argv[2].lower() == 'true') else False
+
+    if pc_run:
+        main_function(sys.argv, mode, pc_run)
+    else:
+        with mirrored_strategy.scope():
+            main_function(sys.argv, mode, pc_run)
 
 
 if __name__ == '__main__':
