@@ -12,18 +12,19 @@
 ##############
 
 from scipy.io import wavfile
-import scipy.signal as sg
+# import scipy.signal as sg
 import matplotlib.pyplot as plt
 import tensorflow as tf
 # from tensorflow import keras
 # from tensorflow.keras.losses import Loss
-from tensorflow.keras.layers import Input, SimpleRNN, Dense, Lambda, TimeDistributed, Layer, LSTM, Bidirectional, BatchNormalization, Concatenate
+from tensorflow.keras.layers import Input, SimpleRNN, Dense, Lambda, TimeDistributed, Layer, LSTM, Bidirectional, BatchNormalization, Concatenate, Activation
 from tensorflow.keras.models import Model
 # from tensorflow.keras.utils import Sequence
 from tensorflow.keras.activations import relu
-# from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
-import tensorboard
+# TF-NIGHTLY
+# from tensorflow.keras import mixed_precision
 import numpy as np
 import datetime
 import math
@@ -34,6 +35,7 @@ import sys
 import re
 # from copy import deepcopy
 
+print(tf.__version__)
 
 # TODO: See if both processes allow mem growth, is it faster or does GPU just work less hard?
 #       if faster, keep both proc using mem growth
@@ -51,11 +53,15 @@ print("GPUs Available: ", gpus)
 
 # TEST - 2 GS's at same time? SUCCESS!!!
 # BUT, set_memory_growth has perf disadvantages (slower) - give main GS full power
-# tf.config.experimental.set_memory_growth(gpus[0], True)
+# GPU Mem as func of HP test
+tf.config.experimental.set_memory_growth(gpus[0], True)
 
 # MIXED PRECISION
 policy = mixed_precision.Policy('mixed_float16')
-mixed_precision.set_policy(policy)
+# TODO Move this to into logic, for non-PC run
+# mixed_precision.set_policy(policy)
+# print('Compute dtype: %s' % policy.compute_dtype)
+# print('Variable dtype: %s' % policy.variable_dtype)
 
 # if gpus:
 #   # Restrict TensorFlow to only allocate 1GB of memory on the first GPU
@@ -200,6 +206,7 @@ def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False):
 
     # Safety measure to avoid overflow
     # TEST FLOAT16
+    # MIXED PRECISION - hail mary try
     spectrogram = np.clip(spectrogram, np.finfo('float32').min, np.finfo('float32').max)
     # Spectrogram matrix w/ correct orientation (orig orient.)
     spectrogram = spectrogram.astype('float32')     # T Needed? (don't think so, only for plotting)
@@ -379,38 +386,48 @@ def convert_sig_16bit_to_8bit(sig):
 
 
 ## NEURAL NETWORK DATA GENERATOR
-def fixed_data_generator(x_files, y1_files, y2_files, num_samples, batch_size, 
-                         train_seq, train_feat):
-    for offset in range(0, num_samples, batch_size):
-        x_batch_labels = x_files[offset:offset+batch_size]
-        y1_batch_labels = y1_files[offset:offset+batch_size]
-        y2_batch_labels = y2_files[offset:offset+batch_size]
-        if (num_samples / batch_size == 0):
-            # TEST FLOAT16
-            actual_batch_size = batch_size
-            x, y1, y2 = (np.empty((batch_size, train_seq, train_feat)).astype('float32'),
-                         np.empty((batch_size, train_seq, train_feat)).astype('float32'),
-                         np.empty((batch_size, train_seq, train_feat)).astype('float32'))
-        else:
-            actual_batch_size = len(x_batch_labels)
-            x, y1, y2 = (np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'),
-                         np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'),
-                         np.empty((actual_batch_size, train_seq, train_feat)).astype('float32'))
-        
-        for i in range(actual_batch_size):
-            pn_filepath = x_batch_labels[i]
-            pl_filepath = y1_batch_labels[i]
-            nl_filepath = y2_batch_labels[i]
+def fixed_data_generator(x_files, y1_files, y2_files, num_samples, batch_size, num_seq, num_feat):
+    while True: # Loop forever so the generator never terminates
+        for i in range(num_samples):
+        # for offset in range(0, num_samples, batch_size):
+        #     x_batch_labels = x_files[offset:offset+batch_size]
+        #     y1_batch_labels = y1_files[offset:offset+batch_size]
+        #     y2_batch_labels = y2_files[offset:offset+batch_size]
+        #     if (num_samples / batch_size == 0):
+        #         # TEST FLOAT16
+        #         # MIXED PRECISION - hail mary try
+        #         actual_batch_size = batch_size
+        #         x, y1, y2 = (np.empty((batch_size, num_seq, num_feat)).astype('float32'),
+        #                     np.empty((batch_size, num_seq, num_feat)).astype('float32'),
+        #                     np.empty((batch_size, num_seq, num_feat)).astype('float32'))
+        #     else:
+        #         actual_batch_size = len(x_batch_labels)
+        #         x, y1, y2 = (np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'),
+        #                     np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'),
+        #                     np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'))
+            
+        #     for i in range(actual_batch_size):
+                # pn_filepath = x_batch_labels[i]
+                # pl_filepath = y1_batch_labels[i]
+                # nl_filepath = y2_batch_labels[i]
+            pn_filepath = x_files[i]
+            pl_filepath = y1_files[i]
+            nl_filepath = y2_files[i]
 
-            noise_piano_spgm = np.load(pn_filepath)
-            piano_label_spgm = np.load(pl_filepath)
-            noise_label_spgm = np.load(nl_filepath)
+            # MIXED PRECISION - hail mary try
+            noise_piano_spgm = np.load(pn_filepath)# .astype('float32')
+            piano_label_spgm = np.load(pl_filepath)# .astype('float32')
+            noise_label_spgm = np.load(nl_filepath)# .astype('float32')
 
-            x[i] = noise_piano_spgm
-            y1[i] = piano_label_spgm
-            y2[i] = noise_label_spgm
-        
-        yield x, y1, y2
+            #     x[i] = noise_piano_spgm
+            #     y1[i] = piano_label_spgm
+            #     y2[i] = noise_label_spgm
+            
+            print('YIELDING SHAPE:', noise_piano_spgm.shape, piano_label_spgm.shape, noise_label_spgm.shape)
+            print('YIELDING TYPES:', noise_piano_spgm.dtype, piano_label_spgm.dtype, noise_label_spgm.dtype)
+
+            # yield x, y1, y2
+            yield noise_piano_spgm, piano_label_spgm, noise_label_spgm
 
 
 # # Have a train dir, a val dir, and (a test dir?)
@@ -776,9 +793,9 @@ class TimeFreqMasking(Layer):
         # TEST FLOAT16
         # kwargs['autocast'] = False
         # MIXED PRECISION - output layer needs to produce float32
-        # kwargs['dtype'] = 'float32' - or actually try in __init__ below
-        super(TimeFreqMasking, self).__init__(dtype='float32', **kwargs)
-        # super(TimeFreqMasking, self).__init__(**kwargs)
+        # kwargs['dtype'] = 'float32' # - or actually try in __init__ below
+        # super(TimeFreqMasking, self).__init__(dtype='float32', **kwargs)
+        super(TimeFreqMasking, self).__init__(**kwargs)
         # self.piano_flag = piano_flag
         self.epsilon = epsilon
 
@@ -790,10 +807,10 @@ class TimeFreqMasking(Layer):
         # self.total.assign_add(tf.reduce_sum(inputs, axis=0))
         # return self.total
 
-        y_hat_self, y_hat_other, x_mixed = inputs[0], inputs[1], inputs[2]
+        # y_hat_self, y_hat_other, x_mixed = inputs[0], inputs[1], inputs[2]
+        y_hat_self, y_hat_other, x_mixed = inputs
 
         # print('TYPES IN TF MASKING:', y_hat_self.dtype, y_hat_other.dtype, x_mixed.dtype)
-
 
         mask = tf.abs(y_hat_self) / (tf.abs(y_hat_self) + tf.abs(y_hat_other) + self.epsilon)
         # print('Mask Shape:', mask.shape)
@@ -806,13 +823,13 @@ class TimeFreqMasking(Layer):
         return y_tilde_self
     
     # config only contains things in __init__
-    # def get_config(self):
-    #     config = super(TimeFreqMasking, self).get_config()
-    #     config.update({'piano_flag': self.piano_flag})
-    #     return config
+    def get_config(self):
+        config = super(TimeFreqMasking, self).get_config()
+        config.update({'epsilon': self.epsilon})
+        return config
     
-    # def from_config(cls, config):
-    #     return cls(**config)
+    def from_config(cls, config):
+        return cls(**config)
 
 
 # In TF 2.0, if loss has extra arg, need add_loss() - Chollet
@@ -866,11 +883,18 @@ def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_con
 
 
 def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
-                    config=None, t_mean=None, t_std=None, test=0):
+                    loss_const=0.05, config=None, t_mean=None, t_std=None, 
+                    optimizer=tf.keras.optimizers.RMSprop(),
+                    # GPU mem as func of HP TEST
+                    test=3, 
+                    # test=0, 
+                    pc_run=False,
+                    keras_fit=False):
     # TEST FLOAT16
     # MIXED PRECISION
-    input_layer = Input(shape=(sequences, features), dtype='float16', 
-                        name='piano_noise_mixed')
+    input_layer = Input(shape=(sequences, features), name='piano_noise_mixed')
+    # input_layer = Input(shape=(sequences, features), dtype='float32', 
+    #                     name='piano_noise_mixed')
 
     if config is not None:
         num_layers = len(config['layers'])
@@ -1026,9 +1050,13 @@ def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
         piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
         noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
     piano_pred = TimeFreqMasking(epsilon=epsilon, 
-                                 name='piano_pred') ([piano_hat, noise_hat, input_layer])
+                                 name='piano_pred') ((piano_hat, noise_hat, input_layer))
     noise_pred = TimeFreqMasking(epsilon=epsilon, 
-                                 name='noise_pred') ([noise_hat, piano_hat, input_layer])
+                                 name='noise_pred') ((noise_hat, piano_hat, input_layer))
+    # MIXED PRECISION
+    if not pc_run:
+        piano_pred = Activation('linear', dtype='float32') (piano_pred)
+        noise_pred = Activation('linear', dtype='float32') (noise_pred)
 
     model = Model(inputs=input_layer, outputs=[piano_pred, noise_pred])
 
@@ -1084,7 +1112,27 @@ def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
     # # print([layer.name for layer in model.layers])
     # # ['piano_noise_mixed', 'simple_rnn', 'simple_rnn_1', 'piano_hat', 'noise_hat', 'piano_pred', 'noise_pred']    
     
-    return model
+    disc_loss = None
+    if keras_fit:
+        piano_true = Input(shape=(sequences, features), dtype='float32', 
+                        name='piano_true')
+        noise_true = Input(shape=(sequences, features), dtype='float32', 
+                        name='noise_true')
+        model = Model(inputs=[input_layer, piano_true, noise_true],
+                  outputs=[piano_pred, noise_pred])
+
+        last_dim = noise_pred.shape[1] * noise_pred.shape[2]
+        disc_loss = (
+            tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+            (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+            tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+            (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
+        )
+        model.add_loss(disc_loss)
+        model.compile(optimizer=optimizer)
+        # print('KERAS LOSS TENSOR (in make model):', disc_loss)
+
+    return model, disc_loss
 
 
 # CUSTOM TRAINING LOOP
@@ -1164,53 +1212,35 @@ def make_gen_callable(_gen):
             yield x,y,z
     return gen
 
-
-# MODEL TRAIN & EVAL FUNCTION - Training Loop From Scratch
-def evaluate_source_sep(train_generator, validation_generator,
-                        # train_step_func, test_step_func,
-                        num_train, num_val, n_feat, n_seq, batch_size, 
-                        loss_const, epochs=20, 
-                        optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.75),
-                        patience=100, epsilon=10 ** (-10), config=None, recent_model_path=None, pc_run=False,
-                        t_mean=None, t_std=None, grid_search_iter=None, gs_path=None, combos=None, gs_id=''):
-    # print('X shape:', X.shape, 'y1 shape:', y1.shape, 'y2 shape:', y2.shape)
-    # print('X shape:', X.shape)
-    # tf.profiler.experimental.server.start(6009)
-    # tf.profiler.experimental.start('logdir')
-    print('Making model...')
-    # if pc_run:
-    model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
-                            config=config, t_mean=t_mean, t_std=t_std)
-        # optimizer = optimizer
-    # else:
-    #     with mirrored_strategy.scope():
-    #         model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
-    #                                 config=config, t_mean=t_mean, t_std=t_std)
-    #         optimizer = optimizer
-    print(model.summary())
-
-    # MIXED PRECISION
-    optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')
-
-    # current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    # train_log_dir = '../logs/gradient_tape/' + current_time + '/train'
-    # test_log_dir = '../logs/gradient_tape/' + current_time + '/test'
-    # train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-    # test_summary_writer = tf.summary.create_file_writer(test_log_dir)
-
+def custom_fit(model, train_dataset, val_dataset,
+                # train_step_func, test_step_func,
+               num_train, num_val, n_feat, n_seq, batch_size, 
+               loss_const, epochs=20, 
+               optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.75),
+               patience=100, epsilon=10 ** (-10), config=None, recent_model_path=None, pc_run=False,
+               t_mean=None, t_std=None, grid_search_iter=None, gs_path=None, combos=None, gs_id=''):
     @tf.function
-    def train_step(x, y1, y2):
+    def mixed_prec_train_step(x, y1, y2):
         with tf.GradientTape() as tape:
             logits1, logits2 = model(x, training=True)
             loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
             # MIXED PRECISION
             scaled_loss = optimizer.get_scaled_loss(loss)
         # grads = tape.gradient(loss, model.trainable_weights)
-        scaled_grads = tape.gradient(scaled_loss, model.trainable_weights)
+        scaled_grads = tape.gradient(scaled_loss, model.trainable_variables)
         grads = optimizer.get_unscaled_gradients(scaled_grads)
+        # optimizer.apply_gradients(zip(grads, model.trainable_weights))
+        optimizer.apply_gradients(zip(grads, model.trainable_variables))
+        return loss
+
+    @tf.function
+    def train_step(x, y1, y2):
+        with tf.GradientTape() as tape:
+            logits1, logits2 = model(x, training=True)
+            loss = discriminative_loss(y1, y2, logits1, logits2, loss_const)
+        grads = tape.gradient(loss, model.trainable_weights)
         optimizer.apply_gradients(zip(grads, model.trainable_weights))
         return loss
-        # return train_step
 
     # def get_test_step_func():
     @tf.function
@@ -1219,34 +1249,12 @@ def evaluate_source_sep(train_generator, validation_generator,
         loss = discriminative_loss(y1, y2, val_logits1, val_logits2, loss_const)
         return loss
 
-    print('Going into training now...')
     history = {'loss': [], 'val_loss': []}
     for epoch in range(epochs):
         print('EPOCH:', epoch + 1)
 
         train_steps_per_epoch=math.ceil(num_train / batch_size)
         val_steps_per_epoch=math.ceil(num_val / batch_size)
-
-        # TEST FLOAT16
-        train_dataset = tf.data.Dataset.from_generator(
-                make_gen_callable(train_generator), output_types=(tf.float32), 
-                output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
-        )
-        val_dataset = tf.data.Dataset.from_generator(
-            make_gen_callable(validation_generator), output_types=(tf.float32), 
-            output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
-        )
-        # Input pipeline optimizations
-        # TODO - parallelize pre-processing -> move preprocessing to tf first
-        # Vectorize pre-processing, by batching before & transform whole batch of data
-        # If doing this ^, do it before call to cache()
-        # BUT if transformed data (sig->spgm) to big for cache, call cache() after
-        train_dataset.cache()
-        val_dataset.cache()
-        train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
-        val_dataset.prefetch(tf.data.experimental.AUTOTUNE)
-        # print('TRAIN DATASET TYPE (should be BatchDataset):', train_dataset)
-        # print('VALID DATASET TYPE (should be BatchDataset):', val_dataset)
 
         train_iter = iter(train_dataset)
         val_iter = iter(val_dataset)
@@ -1272,8 +1280,10 @@ def evaluate_source_sep(train_generator, validation_generator,
             #     #         profiler_outdir=train_log_dir)
             # else:
             x_batch_train, y1_batch_train, y2_batch_train = next(train_iter)
-            loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train)
-            
+            if pc_run:
+                loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train)
+            else:
+                loss_tensor = mixed_prec_train_step(x_batch_train, y1_batch_train, y2_batch_train)
             # loss_tensor = train_step_func(x_batch_train, y1_batch_train, y2_batch_train,
             #                               model, loss_const, optimizer)
             # loss_tensor = train_step(x_batch_train, y1_batch_train, y2_batch_train,
@@ -1494,12 +1504,102 @@ def evaluate_source_sep(train_generator, validation_generator,
     # tf.profiler.experimental.stop()
     # tf.profiler.experimental.client.trace('grpc://localhost:6009',
     #                                   'gs://logdir', 2000)
+    return model, history
+
+
+# MODEL TRAIN & EVAL FUNCTION - Training Loop From Scratch
+def evaluate_source_sep(# train_dataset, val_dataset,
+                        train_generator, validation_generator,
+                        # train_step_func, test_step_func,
+                        num_train, num_val, n_feat, n_seq, batch_size, 
+                        loss_const, epochs=20, 
+                        optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.75),
+                        patience=100, epsilon=10 ** (-10), config=None, recent_model_path=None, pc_run=False,
+                        t_mean=None, t_std=None, grid_search_iter=None, gs_path=None, combos=None, gs_id='',
+                        keras_fit=False):
+    # TEST FLOAT16
+    # MIXED PRECISION - hail mary try
+    train_dataset = tf.data.Dataset.from_generator(
+        make_gen_callable(train_generator), 
+        output_types=(tf.float32), 
+        output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
+        # output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+    )
+    val_dataset = tf.data.Dataset.from_generator(
+        make_gen_callable(validation_generator), 
+        output_types=(tf.float32), 
+        output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
+        # output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+    )
+    print('TRAIN DATASET TYPE (should be BatchDataset):', train_dataset)
+    print('VALID DATASET TYPE (should be BatchDataset):', val_dataset)
+    # Input pipeline optimizations
+    # TODO - parallelize pre-processing -> move preprocessing to tf first
+    # Vectorize pre-processing, by batching before & transform whole batch of data
+    # If doing this ^, do it before call to cache()
+    # BUT if transformed data (sig->spgm) to big for cache, call cache() after
+    train_dataset.batch(batch_size).cache().prefetch(tf.data.experimental.AUTOTUNE)
+    val_dataset.batch(batch_size).cache().prefetch(tf.data.experimental.AUTOTUNE)
+    print('-after changes- TRAIN DATASET TYPE (should be BatchDataset):', train_dataset)
+    print('-after changes- VALID DATASET TYPE (should be BatchDataset):', val_dataset)
+    
+    # print('X shape:', X.shape, 'y1 shape:', y1.shape, 'y2 shape:', y2.shape)
+    # print('X shape:', X.shape)
+    # tf.profiler.experimental.server.start(6009)
+    # tf.profiler.experimental.start('logdir')
+    print('Making model...')
+    # if pc_run:
+    model, keras_fit_loss = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, loss_const=loss_const,
+                                            config=config, t_mean=t_mean, t_std=t_std, optimizer=optimizer,
+                                            pc_run=pc_run, keras_fit=keras_fit)
+    # print('KERAS LOSS TENSOR:', keras_fit_loss)
+    
+        # optimizer = optimizer
+    # else:
+    #     with mirrored_strategy.scope():
+    #         model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
+    #                                 config=config, t_mean=t_mean, t_std=t_std)
+    #         optimizer = optimizer
+    print(model.summary())
+
+    # MIXED PRECISION
+    if not pc_run:
+        optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')
+
+    # current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    # train_log_dir = '../logs/gradient_tape/' + current_time + '/train'
+    # test_log_dir = '../logs/gradient_tape/' + current_time + '/test'
+    # train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+    # test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+
+    print('Going into training now...')
+    if keras_fit:
+        # model.add_loss(keras_fit_loss)
+        # model.compile(optimizer=optimizer)
+        log_dir = '../logs/keras_fit/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        hist = model.fit(train_dataset,
+                     steps_per_epoch=math.ceil(num_train / batch_size),
+                     epochs=epochs,
+                     validation_data=val_dataset,
+                     validation_steps=math.ceil(num_val / batch_size),
+                     callbacks=[EarlyStopping('val_loss', patience=patience, mode='min'),
+                                TensorBoard(log_dir=log_dir, profile_batch='1,10')])
+        history = hist.history
+    else:
+        model, history = custom_fit(model, train_dataset, val_dataset,
+                                    num_train, num_val, n_feat, n_seq, batch_size, 
+                                    loss_const, epochs=20, 
+                                    optimizer=tf.keras.optimizers.RMSprop(clipvalue=0.75),
+                                    patience=100, epsilon=10 ** (-10), config=None, 
+                                    recent_model_path=None, pc_run=False, t_mean=None, t_std=None, 
+                                    grid_search_iter=None, gs_path=None, combos=None, gs_id='')
     # Not necessary for HPC (can't run on HPC)
-    # tf.keras.utils.plot_model(model, 
-    #                        (gs_path + 'model' + str(grid_search_iter) + 'of' + str(combos) + '.png'
-    #                        if grid_search_iter is not None else
-    #                        'dlnn_keras_model.png'), 
-    #                        show_shapes=True)
+    if not pc_run and grid_search_iter is None:
+        tf.keras.utils.plot_model(model, 
+                                  (gs_path + 'model' + str(grid_search_iter) + 'of' + str(combos) + '.png'
+                                  if grid_search_iter is not None else
+                                  'last_trained_model.png'), 
+                                  show_shapes=True)
  
     pc_run_str = '' if pc_run else '_noPC'
     if grid_search_iter is None:
@@ -1712,12 +1812,14 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                 x_val_files, y1_val_files, y2_val_files,
                 # train_step_func, test_step_func,
                 n_feat, n_seq, 
-                # wdw_size, epsilon, max_sig_len, 
+                # wdw_size, 
+                epsilon, 
+                # max_sig_len, 
                 t_mean, t_std,
                 train_configs, arch_config_optns,
                 # arch_config_path, 
                 gsres_path, early_stop_pat=3, pc_run=False, 
-                gs_id='', restart=False):
+                gs_id='', restart=False, keras_fit=False):
     # model = MyKerasRegressor(build_fn=make_model, 
     #                          features=n_feat, sequences=n_seq)
     # param_grid = {batch_size: batch_size, epochs: epochs}#, 
@@ -1940,11 +2042,17 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                             #         train_feat=n_feat, wdw_size=wdw_size, 
                             #         epsilon=epsilon, pad_len=max_sig_len)
                             train_generator = fixed_data_generator(
-                                    x_train_files,y1_train_files, y2_train_files, num_train,
-                                    batch_size=batch_size, train_seq=n_seq, train_feat=n_feat)
+                                    x_train_files, y1_train_files, y2_train_files, num_train,
+                                    batch_size=batch_size, num_seq=n_seq, num_feat=n_feat)
                             validation_generator = fixed_data_generator(
                                     x_val_files, y1_val_files, y2_val_files, num_val,
-                                    batch_size=batch_size, train_seq=n_seq, train_feat=n_feat)
+                                    batch_size=batch_size, num_seq=n_seq, num_feat=n_feat)
+                            # train_generator = SpgmGenerator(
+                            #         x_train_files, y1_train_files, y2_train_files, num_train,
+                            #         batch_size=batch_size, num_seq=n_seq, num_feat=n_feat)
+                            # validation_generator = SpgmGenerator(
+                            #         x_val_files, y1_val_files, y2_val_files, num_val,
+                            #         batch_size=batch_size, num_seq=n_seq, num_feat=n_feat)
 
                             _, losses, val_losses = evaluate_source_sep(train_generator,
                                                                     validation_generator,
@@ -1959,7 +2067,8 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                                                     t_mean=t_mean, t_std=t_std,
                                                                     grid_search_iter=gs_iter,
                                                                     gs_path=gsres_path,
-                                                                    combos=combos)
+                                                                    combos=combos,
+                                                                    keras_fit=keras_fit)
                             
                             # CUSTOM TRAINING
                             # if not pc_run:
@@ -2141,7 +2250,7 @@ def restore_audio_file(output_path, model, wdw_size, epsilon, #loss_const, optim
 def main():
     # PROGRAM ARGUMENTS #
     if len(sys.argv) < 3:
-        print('\nUsage: dlnn_brahms_restore.py <mode> <PC> [-f] [gs_id]')
+        print('\nUsage: dlnn_brahms_restore.py <mode> <PC> [-f] [-k] [-d] [gs_id]')
         print('Parameter Options:')
         print('Mode     t               - Train model, then restore brahms with model')
         print('         g               - Perform grid search (default: starts where last left off)')
@@ -2149,6 +2258,8 @@ def main():
         print('PC       true            - Uses HPs for lower GPU-memory consumption (< 4GB)')
         print('         false           - Uses HPs for higher GPU-memory limit (PC HPs + nonPC HPs = total for now)')
         print('-f                       - (Optional) Force restart grid search (grid search mode) OR force random HPs (train mode)')
+        print('-k                       - (Optional) Train with keras.fit() - don\'t know if it\'s supported')
+        print('-d                       - (Optional) Distribute training (over 2 GPUs on 1 machine - 1 GPU default unless -k)')
         print('gs_id    <single digit>  - (Optional) grid search unique ID for running concurrently')
         print('\nTIP: Keep IDs different for PC/non-PC runs on same machine')
         sys.exit(1)
@@ -2167,6 +2278,7 @@ def main():
     infer_output_path = '../output_restore/'
     brahms_path = '../brahms.wav'
     
+    keras_fit, dist_training = False, False
     # EMPERICALLY DERIVED HPs
     # Note: FROM PO-SEN PAPER - about loss_const
     #   Empirically, the value γ is in the range of 0.05∼0.2 in order
@@ -2215,6 +2327,11 @@ def main():
         #         print('ERROR: Couldn\'t set memory growth for GPU 2')
 
         # train_step_func, test_step_func = get_train_step_func(), get_test_step_func()
+        # Mixed precision - f35
+        if not pc_run:
+            mixed_precision.set_policy(policy)
+            print('Compute dtype: %s' % policy.compute_dtype)
+            print('Variable dtype: %s' % policy.variable_dtype)
 
         train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run)
 
@@ -2233,10 +2350,17 @@ def main():
         # TRAIN & INFER
         if mode == 't':
             random_hps = False
-            if len(sys.argv) == 4:
-                if sys.argv[3] == '-f':
-                    random_hps = True
-                    print('\nTRAINING TO USE RANDOM (NON-EMPIRICALLY-OPTIMAL) HP\'S\n')
+            for arg_i in range(4, 7):
+                if len(sys.argv) == arg_i:
+                    if sys.argv[arg_i - 1] == '-f':
+                        random_hps = True
+                        print('\nTRAINING TO USE RANDOM (NON-EMPIRICALLY-OPTIMAL) HP\'S\n')
+                    elif sys.argv[arg_i - 1] == '-k':
+                        keras_fit = True
+                        print('\nTRAINING WITH KERAS FIT\n')
+                    elif sys.argv[arg_i - 1] == '-d':
+                        dist_training = True
+                        print('\nDISTRIBUTING TRAINING OVER 2 GPU\'S\n')
 
             # Define which files to grab for training. Shuffle regardless.
             # (Currently sample is to test on 1 synthetic sample (not Brahms))
@@ -2320,9 +2444,13 @@ def main():
             #                     train_feat=train_feat, wdw_size=wdw_size, 
             #                     epsilon=epsilon, pad_len=max_sig_len)
             train_generator = fixed_data_generator(x_train_files, y1_train_files, y2_train_files, num_train,
-                                batch_size=train_batch_size, train_seq=train_seq, train_feat=train_feat)
+                                batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat)
             validation_generator = fixed_data_generator(x_val_files, y1_val_files, y2_val_files, num_val,
-                                batch_size=train_batch_size, train_seq=train_seq, train_feat=train_feat)
+                                batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat)
+            # train_generator = SpgmGenerator(x_train_files, y1_train_files, y2_train_files, num_train,
+            #                     batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat)
+            # validation_generator = SpgmGenerator(x_val_files, y1_val_files, y2_val_files, num_val,
+            #                     batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat)
 
             # if pc_run:
             #     # TEST PC
@@ -2406,14 +2534,14 @@ def main():
             # REPL TEST - arch config, all config, optiizer config
             if random_hps:
                 # Index into random arch config, and other random HPs
-                # arch_rand_index = random.randint(0, len(arch_config_optns)-1)
-                arch_rand_index = 0
+                arch_rand_index = random.randint(0, len(arch_config_optns)-1)
+                # arch_rand_index = 0
                 # print('ARCH RAND INDEX:', arch_rand_index)
                 training_arch_config = arch_config_optns[arch_rand_index]
                 for hp, optns in train_configs.items():
                     # print('HP:', hp, 'OPTNS:', optns)
-                    # hp_rand_index = random.randint(0, len(optns)-1)
-                    hp_rand_index = 0
+                    hp_rand_index = random.randint(0, len(optns)-1)
+                    # hp_rand_index = 0
                     if hp == 'batch_size':
                         # print('BATCH SIZE RAND INDEX:', hp_rand_index)
                         train_batch_size = optns[hp_rand_index]
@@ -2424,7 +2552,7 @@ def main():
                         # print('LOSS CONST RAND INDEX:', hp_rand_index)
                         train_loss_const = optns[hp_rand_index]
                     elif hp == 'optimizer':
-                        hp_rand_index = 2
+                        # hp_rand_index = 2
                         # print('OPT RAND INDEX:', hp_rand_index)
                         train_optimizer, clip_val, lr, opt_name = (
                             optns[hp_rand_index]
@@ -2432,7 +2560,7 @@ def main():
 
                 # Early stop for random HPs
                 # TIME TEST
-                # patience = 4
+                patience = 4
                 # training_arch_config = arch_config_optns[0]
                 print('RANDOM TRAIN ARCH FOR USE:')
                 print(training_arch_config)
@@ -2460,7 +2588,8 @@ def main():
                                     loss_const=train_loss_const, epochs=train_epochs,
                                     optimizer=train_optimizer, patience=patience, epsilon=epsilon,
                                     recent_model_path=recent_model_path, pc_run=pc_run,
-                                    config=training_arch_config, t_mean=train_mean, t_std=train_std)
+                                    config=training_arch_config, t_mean=train_mean, t_std=train_std,
+                                    keras_fit=keras_fit)
             
             if sample:
                 restore_audio_file(infer_output_path, model, wdw_size, epsilon, 
@@ -2480,20 +2609,28 @@ def main():
             # - To use SKLearn GridSearchCV, make class inheriting from kerasregressor that
             #       1) uses a generator in fit
             #       2) uses my custom loss as the score - no need
-            restart, gs_id = False, ''
-            if len(sys.argv) == 4:
-                if sys.argv[3] == '-f':
-                    restart = True
-                    print('\nGRID SEARCH TO FORCE RESTART\n')
-                elif sys.argv[3].isdigit() and len(sys.argv[3]) == 1:
-                    gs_id = sys.argv[3]
-                    print('GRID SEARCH ID:', gs_id, '\n')
 
-            if len(sys.argv) == 5:
-                if sys.argv[4].isdigit() and len(sys.argv[4]) == 1:
-                    gs_id = sys.argv[4]
-                    print('GRID SEARCH ID:', gs_id, '\n')
-            
+            restart, gs_id = False, ''
+            for arg_i in range(4, 7):
+                if len(sys.argv) == arg_i:
+                    if sys.argv[arg_i - 1] == '-f':
+                        restart = True
+                        print('\nGRID SEARCH TO FORCE RESTART\n')
+                    elif sys.argv[arg_i - 1] == '-k':
+                        keras_fit = True
+                        print('\nTRAINING WITH KERAS FIT\n')
+                    elif sys.argv[arg_i - 1] == '-d':
+                        dist_training = True
+                        print('\nDISTRIBUTING TRAINING OVER 2 GPU\'S\n')
+                    elif sys.argv[arg_i - 1].isdigit() and len(sys.argv[arg_i - 1]) == 1:
+                        gs_id = sys.argv[arg_i - 1]
+                        print('GRID SEARCH ID:', gs_id, '\n')
+
+                if len(sys.argv) == (arg_i + 1):
+                    if sys.argv[arg_i].isdigit() and len(sys.argv[arg_i]) == 1:
+                        gs_id = sys.argv[arg_i]
+                        print('GRID SEARCH ID:', gs_id, '\n')
+
             early_stop_pat = 5
             # Define which files to grab for training. Shuffle regardless.
             actual_samples = TOTAL_SMPLS
@@ -2541,7 +2678,8 @@ def main():
                                         x_val_files, y1_val_files, y2_val_files,
                                         # train_step_func, test_step_func,
                                         n_feat=train_feat, n_seq=train_seq,
-                                        # wdw_size=wdw_size, epsilon=epsilon,
+                                        # wdw_size=wdw_size, 
+                                        epsilon=epsilon,
                                         # max_sig_len=max_sig_len, 
                                         t_mean=train_mean, t_std=train_std,
                                         train_configs=train_configs,
@@ -2550,7 +2688,8 @@ def main():
                                         gsres_path=gs_output_path,
                                         early_stop_pat=early_stop_pat, 
                                         pc_run=pc_run, gs_id=gs_id, 
-                                        restart=restart)
+                                        restart=restart,
+                                        keras_fit=keras_fit)
             
             analyze_grid_search_results(grid_res, grid_res_val)
 
