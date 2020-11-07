@@ -19,7 +19,7 @@ import tensorflow as tf
 # from tensorflow.keras.losses import Loss
 from tensorflow.keras.layers import Input, SimpleRNN, Dense, Lambda, TimeDistributed, Layer, LSTM, Bidirectional, BatchNormalization, Concatenate, Activation
 from tensorflow.keras.models import Model
-# from tensorflow.keras.utils import Sequence
+from tensorflow.keras.utils import Sequence
 from tensorflow.keras.activations import relu
 from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
@@ -54,7 +54,7 @@ print("GPUs Available: ", gpus)
 # TEST - 2 GS's at same time? SUCCESS!!!
 # BUT, set_memory_growth has perf disadvantages (slower) - give main GS full power
 # GPU Mem as func of HP test
-tf.config.experimental.set_memory_growth(gpus[0], True)
+# tf.config.experimental.set_memory_growth(gpus[0], True)
 
 # MIXED PRECISION
 policy = mixed_precision.Policy('mixed_float16')
@@ -386,48 +386,97 @@ def convert_sig_16bit_to_8bit(sig):
 
 
 ## NEURAL NETWORK DATA GENERATOR
+# But not a dataset
+# class RestoreDataSequence(Sequence):
+#     def __init__(self, x_files, y1_files, y2_files, batch_size):
+#         self.x_files, self.y1_files, self.y2_files = x_files, y1_files, y2_files
+#         self.batch_size = batch_size
+
+#     def __len__(self):
+#         return math.ceil(len(self.x_files) / self.batch_size)
+
+#     def __getitem__(self, index):
+#         batch_x = self.x_files[index * self.batch_size: (index + 1) * self.batch_size]
+#         batch_y1 = self.y1_files[index * self.batch_size: (index + 1) * self.batch_size]
+#         batch_y2 = self.y2_files[index * self.batch_size: (index + 1) * self.batch_size]
+#         return 
+
+class ArtificialDataset(tf.data.Dataset):
+    def _generator(self, num_samples):
+        # Opening the file
+        # time.sleep(0.03)
+
+        for sample_idx in range(num_samples):
+            # Reading data (line, record) from the file
+            # time.sleep(0.015)
+
+            yield (sample_idx,)
+
+    def __new__(cls, num_samples=3):
+        # return tf.data.Dataset.from_generator(
+        #     cls._generator,
+        #     output_types=tf.dtypes.int64,
+        #     output_shapes=(1,),
+        #     args=(num_samples,)
+        # )
+        return tf.data.Dataset.from_generator(
+        cls._generator, 
+        output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
+                      {'piano_pred': tf.float32, 'noise_pred': tf.float32})
+        )
+
+# In order for this generator (unique output) to work w/ fit & cust training - batch it
 def fixed_data_generator(x_files, y1_files, y2_files, num_samples, batch_size, num_seq, num_feat):
     while True: # Loop forever so the generator never terminates
-        for i in range(num_samples):
-        # for offset in range(0, num_samples, batch_size):
-        #     x_batch_labels = x_files[offset:offset+batch_size]
-        #     y1_batch_labels = y1_files[offset:offset+batch_size]
-        #     y2_batch_labels = y2_files[offset:offset+batch_size]
-        #     if (num_samples / batch_size == 0):
-        #         # TEST FLOAT16
-        #         # MIXED PRECISION - hail mary try
-        #         actual_batch_size = batch_size
-        #         x, y1, y2 = (np.empty((batch_size, num_seq, num_feat)).astype('float32'),
-        #                     np.empty((batch_size, num_seq, num_feat)).astype('float32'),
-        #                     np.empty((batch_size, num_seq, num_feat)).astype('float32'))
-        #     else:
-        #         actual_batch_size = len(x_batch_labels)
-        #         x, y1, y2 = (np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'),
-        #                     np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'),
-        #                     np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'))
+        # for i in range(num_samples):
+        for offset in range(0, num_samples, batch_size):
+            x_batch_labels = x_files[offset:offset+batch_size]
+            y1_batch_labels = y1_files[offset:offset+batch_size]
+            y2_batch_labels = y2_files[offset:offset+batch_size]
+            if (num_samples / batch_size == 0):
+                # TEST FLOAT16
+                # MIXED PRECISION - hail mary try
+                actual_batch_size = batch_size
+                x, y1, y2 = (np.empty((batch_size, num_seq, num_feat)).astype('float32'),
+                            np.empty((batch_size, num_seq, num_feat)).astype('float32'),
+                            np.empty((batch_size, num_seq, num_feat)).astype('float32'))
+            else:
+                actual_batch_size = len(x_batch_labels)
+                x, y1, y2 = (np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'),
+                            np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'),
+                            np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'))
             
-        #     for i in range(actual_batch_size):
-                # pn_filepath = x_batch_labels[i]
-                # pl_filepath = y1_batch_labels[i]
-                # nl_filepath = y2_batch_labels[i]
-            pn_filepath = x_files[i]
-            pl_filepath = y1_files[i]
-            nl_filepath = y2_files[i]
+            for i in range(actual_batch_size):
+                pn_filepath = x_batch_labels[i]
+                pl_filepath = y1_batch_labels[i]
+                nl_filepath = y2_batch_labels[i]
+            # pn_filepath = x_files[i]
+            # pl_filepath = y1_files[i]
+            # nl_filepath = y2_files[i]
 
-            # MIXED PRECISION - hail mary try
-            noise_piano_spgm = np.load(pn_filepath)# .astype('float32')
-            piano_label_spgm = np.load(pl_filepath)# .astype('float32')
-            noise_label_spgm = np.load(nl_filepath)# .astype('float32')
+                # MIXED PRECISION - hail mary try
+                noise_piano_spgm = np.load(pn_filepath)# .astype('float32')
+                piano_label_spgm = np.load(pl_filepath)# .astype('float32')
+                noise_label_spgm = np.load(nl_filepath)# .astype('float32')
 
-            #     x[i] = noise_piano_spgm
-            #     y1[i] = piano_label_spgm
-            #     y2[i] = noise_label_spgm
+                x[i] = noise_piano_spgm
+                y1[i] = piano_label_spgm
+                y2[i] = noise_label_spgm
             
-            print('YIELDING SHAPE:', noise_piano_spgm.shape, piano_label_spgm.shape, noise_label_spgm.shape)
-            print('YIELDING TYPES:', noise_piano_spgm.dtype, piano_label_spgm.dtype, noise_label_spgm.dtype)
+            # print('YIELDING SHAPE:', noise_piano_spgm.shape, piano_label_spgm.shape, noise_label_spgm.shape)
+            # print('YIELDING TYPES:', noise_piano_spgm.dtype, piano_label_spgm.dtype, noise_label_spgm.dtype)
 
             # yield x, y1, y2
-            yield noise_piano_spgm, piano_label_spgm, noise_label_spgm
+            # yield noise_piano_spgm, piano_label_spgm, noise_label_spgm
+            # yield ({'piano_noise_mixed': noise_piano_spgm, 'piano_true': piano_label_spgm, 'noise_true': noise_label_spgm}, 
+            #        piano_label_spgm, noise_label_spgm)
+            # MAKE THIS WORK FOR FIT & CUSTOM TRAIN - docs return tuple of lists or tuple of dicts - use lists for max freedom
+            # yield ([noise_piano_spgm, piano_label_spgm, noise_label_spgm], [piano_label_spgm, noise_label_spgm])
+            # yield ({'piano_noise_mixed': noise_piano_spgm, 'piano_true': piano_label_spgm, 'noise_true': noise_label_spgm}, 
+            #        {'piano_pred': piano_label_spgm, 'noise_pred': noise_label_spgm})
+            # print('GEN YIELDING')
+            yield ({'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, 
+                   {'piano_pred': y1, 'noise_pred': y2})
 
 
 # # Have a train dir, a val dir, and (a test dir?)
@@ -848,8 +897,6 @@ class TimeFreqMasking(Layer):
 # def l2_norm_squared(a, b, last_dim):
 #     return tf.math.reduce_sum(tf.reshape(a - b, shape=(-1, last_dim)) ** 2, axis=-1)
 
-
-
 # Prefer native TF API over Keras backend API whenever possible, mostly
 # https://stackoverflow.com/questions/59361689/redundancies-in-tf-keras-backend-and-tensorflow-libraries
 # AND for TF simplicity, dont put loss calc in a function
@@ -861,6 +908,22 @@ class TimeFreqMasking(Layer):
 #     (loss_const * tf.math.reduce_sum(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
 # )
 
+# TRY - B/C tf.function is symbolic tensors - no error there
+# Assign loss to each output -> keras should average/sum it
+# FIX - only return one value = custom loss needs to return a tf scalar?
+# @tf.function
+# def custom_loss(self_true, self_pred, other_true, other_pred, loss_const):
+#     # @tf.function
+#     def closure(self_true, self_pred):
+#         last_dim = other_pred.shape[1] * other_pred.shape[2]
+#         return (
+#             tf.math.reduce_mean(tf.reshape(self_pred - self_true, shape=(-1, last_dim)) ** 2) - 
+#             (loss_const * tf.math.reduce_mean(tf.reshape(self_pred - other_true, shape=(-1, last_dim)) ** 2)) +
+#             tf.math.reduce_mean(tf.reshape(other_pred - other_true, shape=(-1, last_dim)) ** 2) -
+#             (loss_const * tf.math.reduce_mean(tf.reshape(other_pred - self_true, shape=(-1, last_dim)) ** 2))
+#         )
+#     return closure(self_true, self_pred)
+
 # Loss function for subclassed model
 def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
     # print('TYPES:', piano_true.dtype, noise_true.dtype, piano_pred.dtype, noise_pred.dtype)
@@ -871,7 +934,7 @@ def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_con
         tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) -
         (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1))
     )
-# # FIX - only return one value = less memory taken
+# # FIX - only return one value = less memory taken?
 # def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
 #     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
 #     return (
@@ -882,11 +945,12 @@ def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_con
 #     )
 
 
-def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
+def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     loss_const=0.05, config=None, t_mean=None, t_std=None, 
                     optimizer=tf.keras.optimizers.RMSprop(),
+                    pre_trained_wgts=None,
                     # GPU mem as func of HP TEST
-                    test=3, 
+                    test=0, 
                     # test=0, 
                     pc_run=False,
                     keras_fit=False):
@@ -1112,15 +1176,19 @@ def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
     # # print([layer.name for layer in model.layers])
     # # ['piano_noise_mixed', 'simple_rnn', 'simple_rnn_1', 'piano_hat', 'noise_hat', 'piano_pred', 'noise_pred']    
     
-    disc_loss = None
-    if keras_fit:
+    # disc_loss = None
+    if pre_trained_wgts is not None:
+            print('Only loading pre-trained weights for prediction')
+            model.set_weights(pre_trained_wgts)
+    elif keras_fit:
         piano_true = Input(shape=(sequences, features), dtype='float32', 
                         name='piano_true')
         noise_true = Input(shape=(sequences, features), dtype='float32', 
                         name='noise_true')
         model = Model(inputs=[input_layer, piano_true, noise_true],
-                  outputs=[piano_pred, noise_pred])
+                outputs=[piano_pred, noise_pred])
 
+        loss_const = tf.constant(loss_const) # For performance/less mem
         last_dim = noise_pred.shape[1] * noise_pred.shape[2]
         disc_loss = (
             tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
@@ -1130,9 +1198,45 @@ def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
         )
         model.add_loss(disc_loss)
         model.compile(optimizer=optimizer)
-        # print('KERAS LOSS TENSOR (in make model):', disc_loss)
+    
+        # TRY - B/C tf.function is symbolic tensors - no error there
+        # Assign loss to each output -> keras should average/sum it
+        # # Problematic, returns a func or eager func, not a tensor
+        # @tf.function
+        # def piano_loss(noise_true, noise_pred, loss_const):
+        #     def closure(piano_true, piano_pred):
+        #         last_dim = noise_pred.shape[1] * noise_pred.shape[2]
+        #         return (
+        #             tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+        #             (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+        #             tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+        #             (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
+        #         )
+        #     return closure
 
-    return model, disc_loss
+        # @tf.function
+        # def noise_loss(piano_true, piano_pred, loss_const):
+        #     def closure(noise_true, noise_pred):
+        #         last_dim = piano_pred.shape[1] * piano_pred.shape[2]
+        #         return (
+        #             tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+        #             (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+        #             tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+        #             (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1))
+        #         )
+        #     return closure
+
+        # model.compile(optimizer=optimizer,
+        #               loss={
+        #                     'piano_pred': custom_loss(piano_true, piano_pred, noise_true, noise_pred, loss_const),
+        #                     'noise_pred': custom_loss(noise_true, noise_pred, piano_true, piano_pred, loss_const)
+        #                    })
+        #                 #   loss={
+        #                 #       'piano_pred': piano_loss(noise_true, noise_pred, loss_const),
+        #                 #       'noise_pred': noise_loss(piano_true, piano_pred, loss_const)
+        #                 #        })
+
+    return model    #, disc_loss
 
 
 # CUSTOM TRAINING LOOP
@@ -1208,8 +1312,8 @@ def make_bare_model(features, sequences, name='Model', epsilon=10 ** (-10),
 
 def make_gen_callable(_gen):
     def gen():
-        for x,y,z in _gen:
-            yield x,y,z
+        for x,y in _gen:
+            yield x,y
     return gen
 
 def custom_fit(model, train_dataset, val_dataset,
@@ -1517,31 +1621,56 @@ def evaluate_source_sep(# train_dataset, val_dataset,
                         patience=100, epsilon=10 ** (-10), config=None, recent_model_path=None, pc_run=False,
                         t_mean=None, t_std=None, grid_search_iter=None, gs_path=None, combos=None, gs_id='',
                         keras_fit=False):
+    # Generator returns tuple of lists ~ ([3 len], [2 len])
+    # TODO maybe initialize the generator in here too? Would need to make generator callable first
     # TEST FLOAT16
     # MIXED PRECISION - hail mary try
     train_dataset = tf.data.Dataset.from_generator(
         make_gen_callable(train_generator), 
-        output_types=(tf.float32), 
-        output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
+        output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
+                      {'piano_pred': tf.float32, 'noise_pred': tf.float32}),
+        # output_types=([tf.float32, tf.float32, tf.float32], [tf.float32, tf.float32]),
+        # output_types=(tf.float32),
+        output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
+                       {'piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
+        # output_shapes=({'piano_noise_mixed': tf.TensorShape([n_seq, n_feat]), 'piano_true': tf.TensorShape([n_seq, n_feat]), 'noise_true': tf.TensorShape([n_seq, n_feat])}, 
+        #                {'piano_pred': tf.TensorShape([n_seq, n_feat]), 'noise_pred': tf.TensorShape([n_seq, n_feat])}),      # For keras functional API & custom training
+        # output_shapes=([tf.TensorShape(None), tf.TensorShape(None), tf.TensorShape(None)], 
+        #                [tf.TensorShape(None), tf.TensorShape(None)])    # For keras functional API & custom training
+        # output_shapes=([(n_seq, n_feat), (n_seq, n_feat), (n_seq, n_feat)], 
+        #                [(n_seq, n_feat), (n_seq, n_feat)])    # For keras functional API & custom training
+        # output_shapes=([tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat])], 
+        #                [tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat])])    # For keras functional API & custom training
+        # output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
         # output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
     )
     val_dataset = tf.data.Dataset.from_generator(
         make_gen_callable(validation_generator), 
-        output_types=(tf.float32), 
-        output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
+        output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
+                      {'piano_pred': tf.float32, 'noise_pred': tf.float32}),
+        output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
+                       {'piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
+        # output_shapes=([tf.TensorShape(None), tf.TensorShape(None), tf.TensorShape(None)], 
+        #                [tf.TensorShape(None), tf.TensorShape(None)])    # For keras functional API & custom training
+        # output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
         # output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
     )
-    print('TRAIN DATASET TYPE (should be BatchDataset):', train_dataset)
-    print('VALID DATASET TYPE (should be BatchDataset):', val_dataset)
+    print('TRAIN DATASET ELEMENTS:', train_dataset.element_spec)
+    print('VALID DATASET ELEMENTS:', val_dataset.element_spec)
+    print('TRAIN DATASET TYPE:', train_dataset)
+    print('VALID DATASET TYPE:', val_dataset)
     # Input pipeline optimizations
     # TODO - parallelize pre-processing -> move preprocessing to tf first
     # Vectorize pre-processing, by batching before & transform whole batch of data
     # If doing this ^, do it before call to cache()
     # BUT if transformed data (sig->spgm) to big for cache, call cache() after
-    train_dataset.batch(batch_size).cache().prefetch(tf.data.experimental.AUTOTUNE)
-    val_dataset.batch(batch_size).cache().prefetch(tf.data.experimental.AUTOTUNE)
-    print('-after changes- TRAIN DATASET TYPE (should be BatchDataset):', train_dataset)
-    print('-after changes- VALID DATASET TYPE (should be BatchDataset):', val_dataset)
+    # Batch dataset method does not work with MY generator dataset was made with
+    train_dataset.cache().prefetch(tf.data.experimental.AUTOTUNE)
+    val_dataset.cache().prefetch(tf.data.experimental.AUTOTUNE)
+    # train_dataset.batch(batch_size).cache().prefetch(tf.data.experimental.AUTOTUNE)
+    # val_dataset.batch(batch_size).cache().prefetch(tf.data.experimental.AUTOTUNE)
+    # print('-after changes- TRAIN DATASET TYPE:', train_dataset)
+    # print('-after changes- VALID DATASET TYPE:', val_dataset)
     
     # print('X shape:', X.shape, 'y1 shape:', y1.shape, 'y2 shape:', y2.shape)
     # print('X shape:', X.shape)
@@ -1549,15 +1678,15 @@ def evaluate_source_sep(# train_dataset, val_dataset,
     # tf.profiler.experimental.start('logdir')
     print('Making model...')
     # if pc_run:
-    model, keras_fit_loss = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, loss_const=loss_const,
-                                            config=config, t_mean=t_mean, t_std=t_std, optimizer=optimizer,
-                                            pc_run=pc_run, keras_fit=keras_fit)
+    model = make_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, loss_const=loss_const,
+                            config=config, t_mean=t_mean, t_std=t_std, optimizer=optimizer,
+                            pc_run=pc_run, keras_fit=keras_fit)
     # print('KERAS LOSS TENSOR:', keras_fit_loss)
     
         # optimizer = optimizer
     # else:
     #     with mirrored_strategy.scope():
-    #         model = make_bare_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
+    #         model = make_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, 
     #                                 config=config, t_mean=t_mean, t_std=t_std)
     #         optimizer = optimizer
     print(model.summary())
@@ -1574,16 +1703,14 @@ def evaluate_source_sep(# train_dataset, val_dataset,
 
     print('Going into training now...')
     if keras_fit:
-        # model.add_loss(keras_fit_loss)
-        # model.compile(optimizer=optimizer)
         log_dir = '../logs/keras_fit/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         hist = model.fit(train_dataset,
                      steps_per_epoch=math.ceil(num_train / batch_size),
                      epochs=epochs,
                      validation_data=val_dataset,
                      validation_steps=math.ceil(num_val / batch_size),
-                     callbacks=[EarlyStopping('val_loss', patience=patience, mode='min'),
-                                TensorBoard(log_dir=log_dir, profile_batch='1,10')])
+                     callbacks=[EarlyStopping('val_loss', patience=patience, mode='min'),#])#,
+                                TensorBoard(log_dir=log_dir, profile_batch='2, 10')])   # by default, profiles 2nd batch
         history = hist.history
     else:
         model, history = custom_fit(model, train_dataset, val_dataset,
@@ -2148,37 +2275,37 @@ def analyze_grid_search_results(grid_res, grid_res_val):
 
 
 # MODEL INFERENCE FUNCTION
-def infer(X, phases, wdw_size, model, #loss_const, optimizer, seq_len, 
-          n_feat, batch_size, output_path, sr, orig_sig_type):
-        #   config=None, t_mean=None, t_std=None):
-    # Must make new model, b/c TF-Masking depends on batch size
-    X = np.expand_dims(X, axis=0)   # Give a samples dimension (1 sample)
-    print('X shape to be predicted on:', X.shape)
-    # print('Inference Model:')
-    # model = make_model(n_feat, seq_len, loss_const, optimizer,
-    #                    pre_trained_wgts=model.get_weights(), name='Inference Model',
-    #                    config=config, t_mean=t_mean, t_std=t_std)
-    # print(model.summary())
+def infer(x, phases, wdw_size, model, loss_const, optimizer, seq_len, 
+          n_feat, batch_size, epsilon, output_path, sr, orig_sig_type,
+          config=None, t_mean=None, t_std=None, pc_run=False):
+    # Must make new model, b/c Brahms spgm has different num timesteps
+    x = np.expand_dims(x, axis=0)   # Give a samples dimension (1 sample)
+    print('x shape to be predicted on:', x.shape)
+    print('Inference Model:')
+    model = make_model(n_feat, seq_len, loss_const=loss_const, optimizer=optimizer,
+                       pre_trained_wgts=model.get_weights(), name='Inference Model',
+                       epsilon=epsilon, config=config, t_mean=t_mean, t_std=t_std,
+                       pc_run=pc_run)
+    print(model.summary())
 
     # For small amts of input that fit in one batch: __call__ > predict - didn't work :/
-    # clear_spgm, noise_spgm = model([X, X, X], batch_size=batch_size, training=False)
-    clear_spgm, noise_spgm = model.predict([X, X, X], batch_size=batch_size)
+    # clear_spgm, noise_spgm = model([x, x, x], batch_size=batch_size, training=False)
+    clear_spgm, noise_spgm = model.predict([x, x, x], batch_size=batch_size)
     # print('RAW PREDICTIONS -- Clear Spgm Shape:', clear_spgm.shape, 
     #       '\nNoise Spgm Shape:', noise_spgm.shape)
     clear_spgm = clear_spgm.reshape(-1, n_feat)
     noise_spgm = noise_spgm.reshape(-1, n_feat)
-    print('Clear Spgm Shape:', clear_spgm.shape)
-    print('Noise Spgm Shape:', noise_spgm.shape)
-    print('NaN in clear spgm?', True in np.isnan(clear_spgm))
-    print('NaN in noise spgm?', True in np.isnan(noise_spgm))
-    print('Clear spgm contents (timestep 1000):\n', clear_spgm[1000])
+    # print('Clear Spgm Shape:', clear_spgm.shape)
+    # print('Noise Spgm Shape:', noise_spgm.shape)
+    # print('NaN in clear spgm?', True in np.isnan(clear_spgm))
+    # print('NaN in noise spgm?', True in np.isnan(noise_spgm))
+    # print('Clear spgm contents (timestep 1000):\n', clear_spgm[1000])
 
     plot_matrix(clear_spgm, name='clear_output_spgm', ylabel='Frequency (Hz)', 
                ratio=SPGM_BRAHMS_RATIO)
     plot_matrix(noise_spgm, name='noise_output_spgm', ylabel='Frequency (Hz)', 
                ratio=SPGM_BRAHMS_RATIO)
 
-    # Transpose the spgm, b/c func expects transposed spgm (fix eventually)
     synthetic_sig = make_synthetic_signal(clear_spgm, phases, wdw_size, 
                                           orig_sig_type, ova=True, debug=False)
     wavfile.write(output_path + 'restore.wav', sr, synthetic_sig)
@@ -2189,9 +2316,9 @@ def infer(X, phases, wdw_size, model, #loss_const, optimizer, seq_len,
 
 
 # BRAHMS RESTORATION FUNCTION (USES INFERENCE)
-def restore_audio_file(output_path, model, wdw_size, epsilon, #loss_const, optimizer,
-                       test_filepath=None, test_sig=None, test_sr=None):#, 
-                       #config=None, t_mean=None, t_std=None):
+def restore_audio_file(output_path, model, wdw_size, epsilon, loss_const, optimizer,
+                       test_filepath=None, test_sig=None, test_sr=None, 
+                       config=None, t_mean=None, t_std=None, pc_run=False):
     if test_filepath:
         # Load in testing data - only use sr of test
         print('Restoring audio of file:', test_filepath)
@@ -2209,7 +2336,7 @@ def restore_audio_file(output_path, model, wdw_size, epsilon, #loss_const, optim
     #     new_test_phases.append(phases)
     # test_phases = new_test_phases
     # print('Numpy Epsilon:', np.finfo(np.float32).eps)
-    print('Our epsilon:', epsilon)
+    # print('Our epsilon:', epsilon)
     # print('Test phases len:', len(test_phases))
 
     # NaN TEST
@@ -2233,11 +2360,11 @@ def restore_audio_file(output_path, model, wdw_size, epsilon, #loss_const, optim
 
     print('Test Spgm contents (timestep 1000):\n', test_spgm[1000])
 
-    infer(test_spgm, test_phases, wdw_size, model, #loss_const=loss_const,
-        # optimizer=optimizer, seq_len=test_seq, 
-        n_feat=test_feat, batch_size=test_batch_size, 
-        output_path=output_path, sr=test_sr, orig_sig_type=test_sig_type)#,
-        # config=config, t_mean=t_mean, t_std=t_std)
+    infer(test_spgm, test_phases, wdw_size, model, loss_const=loss_const,
+        optimizer=optimizer, seq_len=test_seq, 
+        n_feat=test_feat, batch_size=test_batch_size, epsilon=epsilon,
+        output_path=output_path, sr=test_sr, orig_sig_type=test_sig_type,
+        config=config, t_mean=t_mean, t_std=t_std, pc_run=pc_run)
 
 # https://machinelearningmastery.com/use-different-batch-sizes-training-predicting-python-keras/
 # Only want to predict one batch = 1 song, solutions:
@@ -2308,9 +2435,9 @@ def main():
         else:
             print(model.summary())
             restore_audio_file(infer_output_path, model, wdw_size, epsilon,
-                            # loss_const, optimizer, 
-                            brahms_path)#,
-                            # t_mean=TRAIN_MEAN, t_std=TRAIN_STD)
+                               train_loss_const, train_optimizer, 
+                               brahms_path,
+                               t_mean=TRAIN_MEAN, t_std=TRAIN_STD, pc_run=pc_run)
     else:
         # CUSTOM TRAINING HACK - FAILED
         # if not pc_run:
@@ -2350,15 +2477,15 @@ def main():
         # TRAIN & INFER
         if mode == 't':
             random_hps = False
-            for arg_i in range(4, 7):
-                if len(sys.argv) == arg_i:
-                    if sys.argv[arg_i - 1] == '-f':
+            for arg_i in range(3, 6):
+                if arg_i < len(sys.argv):
+                    if sys.argv[arg_i] == '-f':
                         random_hps = True
                         print('\nTRAINING TO USE RANDOM (NON-EMPIRICALLY-OPTIMAL) HP\'S\n')
-                    elif sys.argv[arg_i - 1] == '-k':
+                    elif sys.argv[arg_i] == '-k':
                         keras_fit = True
                         print('\nTRAINING WITH KERAS FIT\n')
-                    elif sys.argv[arg_i - 1] == '-d':
+                    elif sys.argv[arg_i] == '-d':
                         dist_training = True
                         print('\nDISTRIBUTING TRAINING OVER 2 GPU\'S\n')
 
@@ -2534,14 +2661,14 @@ def main():
             # REPL TEST - arch config, all config, optiizer config
             if random_hps:
                 # Index into random arch config, and other random HPs
-                arch_rand_index = random.randint(0, len(arch_config_optns)-1)
-                # arch_rand_index = 0
+                # arch_rand_index = random.randint(0, len(arch_config_optns)-1)
+                arch_rand_index = 0
                 # print('ARCH RAND INDEX:', arch_rand_index)
                 training_arch_config = arch_config_optns[arch_rand_index]
                 for hp, optns in train_configs.items():
                     # print('HP:', hp, 'OPTNS:', optns)
-                    hp_rand_index = random.randint(0, len(optns)-1)
-                    # hp_rand_index = 0
+                    # hp_rand_index = random.randint(0, len(optns)-1)
+                    hp_rand_index = 0
                     if hp == 'batch_size':
                         # print('BATCH SIZE RAND INDEX:', hp_rand_index)
                         train_batch_size = optns[hp_rand_index]
@@ -2552,7 +2679,7 @@ def main():
                         # print('LOSS CONST RAND INDEX:', hp_rand_index)
                         train_loss_const = optns[hp_rand_index]
                     elif hp == 'optimizer':
-                        # hp_rand_index = 2
+                        hp_rand_index = 2
                         # print('OPT RAND INDEX:', hp_rand_index)
                         train_optimizer, clip_val, lr, opt_name = (
                             optns[hp_rand_index]
@@ -2560,7 +2687,7 @@ def main():
 
                 # Early stop for random HPs
                 # TIME TEST
-                patience = 4
+                # patience = 4
                 # training_arch_config = arch_config_optns[0]
                 print('RANDOM TRAIN ARCH FOR USE:')
                 print(training_arch_config)
@@ -2593,15 +2720,15 @@ def main():
             
             if sample:
                 restore_audio_file(infer_output_path, model, wdw_size, epsilon, 
-                                # loss_const, optimizer, 
+                                train_loss_const, train_optimizer, 
                                 test_filepath=None, 
-                                test_sig=test_sig, test_sr=test_sr)#,
-                                # config=config, t_mean=train_mean, t_std=train_std)
+                                test_sig=test_sig, test_sr=test_sr,
+                                config=training_arch_config, t_mean=train_mean, t_std=train_std, pc_run=pc_run)
             else:
                 restore_audio_file(infer_output_path, model, wdw_size, epsilon,
-                                # loss_const, optimizer, 
-                                test_filepath=brahms_path)#,
-                                # config=config, t_mean=train_mean, t_std=train_std)
+                                train_loss_const, train_optimizer, 
+                                test_filepath=brahms_path,
+                                config=training_arch_config, t_mean=train_mean, t_std=train_std, pc_run=pc_run)
 
         # GRID SEARCH
         elif mode == 'g':
@@ -2611,23 +2738,18 @@ def main():
             #       2) uses my custom loss as the score - no need
 
             restart, gs_id = False, ''
-            for arg_i in range(4, 7):
-                if len(sys.argv) == arg_i:
-                    if sys.argv[arg_i - 1] == '-f':
+            for arg_i in range(3, 7):
+                if arg_i < len(sys.argv):
+                    if sys.argv[arg_i] == '-f':
                         restart = True
                         print('\nGRID SEARCH TO FORCE RESTART\n')
-                    elif sys.argv[arg_i - 1] == '-k':
+                    elif sys.argv[arg_i] == '-k':
                         keras_fit = True
                         print('\nTRAINING WITH KERAS FIT\n')
-                    elif sys.argv[arg_i - 1] == '-d':
+                    elif sys.argv[arg_i] == '-d':
                         dist_training = True
                         print('\nDISTRIBUTING TRAINING OVER 2 GPU\'S\n')
-                    elif sys.argv[arg_i - 1].isdigit() and len(sys.argv[arg_i - 1]) == 1:
-                        gs_id = sys.argv[arg_i - 1]
-                        print('GRID SEARCH ID:', gs_id, '\n')
-
-                if len(sys.argv) == (arg_i + 1):
-                    if sys.argv[arg_i].isdigit() and len(sys.argv[arg_i]) == 1:
+                    elif sys.argv[arg_i].isdigit() and len(sys.argv[arg_i]) == 1:
                         gs_id = sys.argv[arg_i]
                         print('GRID SEARCH ID:', gs_id, '\n')
 
