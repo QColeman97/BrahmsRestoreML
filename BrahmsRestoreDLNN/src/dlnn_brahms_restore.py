@@ -54,11 +54,12 @@ print("GPUs Available: ", gpus)
 # TEST - 2 GS's at same time? SUCCESS!!!
 # BUT, set_memory_growth has perf disadvantages (slower) - give main GS full power
 # GPU Mem as func of HP test
-# tf.config.experimental.set_memory_growth(gpus[0], True)
+tf.config.experimental.set_memory_growth(gpus[0], True)
 
-# MIXED PRECISION
+# policy = None
+# MIXED PRECISION - only used on f35 (V100s)
 policy = mixed_precision.Policy('mixed_float16')
-# TODO Move this to into logic, for non-PC run
+# Moved this to into logic, for non-PC run
 # mixed_precision.set_policy(policy)
 # print('Compute dtype: %s' % policy.compute_dtype)
 # print('Variable dtype: %s' % policy.variable_dtype)
@@ -401,32 +402,32 @@ def convert_sig_16bit_to_8bit(sig):
 #         batch_y2 = self.y2_files[index * self.batch_size: (index + 1) * self.batch_size]
 #         return 
 
-class ArtificialDataset(tf.data.Dataset):
-    def _generator(self, num_samples):
-        # Opening the file
-        # time.sleep(0.03)
+# class ArtificialDataset(tf.data.Dataset):
+#     def _generator(self, num_samples):
+#         # Opening the file
+#         # time.sleep(0.03)
 
-        for sample_idx in range(num_samples):
-            # Reading data (line, record) from the file
-            # time.sleep(0.015)
+#         for sample_idx in range(num_samples):
+#             # Reading data (line, record) from the file
+#             # time.sleep(0.015)
 
-            yield (sample_idx,)
+#             yield (sample_idx,)
 
-    def __new__(cls, num_samples=3):
-        # return tf.data.Dataset.from_generator(
-        #     cls._generator,
-        #     output_types=tf.dtypes.int64,
-        #     output_shapes=(1,),
-        #     args=(num_samples,)
-        # )
-        return tf.data.Dataset.from_generator(
-        cls._generator, 
-        output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
-                      {'piano_pred': tf.float32, 'noise_pred': tf.float32})
-        )
+#     def __new__(cls, num_samples=3):
+#         # return tf.data.Dataset.from_generator(
+#         #     cls._generator,
+#         #     output_types=tf.dtypes.int64,
+#         #     output_shapes=(1,),
+#         #     args=(num_samples,)
+#         # )
+#         return tf.data.Dataset.from_generator(
+#         cls._generator, 
+#         output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
+#                       {'piano_pred': tf.float32, 'noise_pred': tf.float32})
+#         )
 
 # In order for this generator (unique output) to work w/ fit & cust training - batch it
-def fixed_data_generator(x_files, y1_files, y2_files, num_samples, batch_size, num_seq, num_feat):
+def fixed_data_generator(x_files, y1_files, y2_files, num_samples, batch_size, num_seq, num_feat, pc_run):
     while True: # Loop forever so the generator never terminates
         # for i in range(num_samples):
         for offset in range(0, num_samples, batch_size):
@@ -475,9 +476,14 @@ def fixed_data_generator(x_files, y1_files, y2_files, num_samples, batch_size, n
             # yield ({'piano_noise_mixed': noise_piano_spgm, 'piano_true': piano_label_spgm, 'noise_true': noise_label_spgm}, 
             #        {'piano_pred': piano_label_spgm, 'noise_pred': noise_label_spgm})
             # print('GEN YIELDING')
-            yield ({'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, 
-                   {'piano_pred': y1, 'noise_pred': y2})
-
+            # MIXED PRECISION
+            # if policy is None:
+            if pc_run:
+                yield ({'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, 
+                       {'piano_pred': y1, 'noise_pred': y2})
+            else:
+                yield ({'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, 
+                       {'mp_piano_pred': y1, 'mp_noise_pred': y2})
 
 # # Have a train dir, a val dir, and (a test dir?)
 # # Generator that returns samples and two targets each (TF-matrices)
@@ -950,14 +956,14 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     optimizer=tf.keras.optimizers.RMSprop(),
                     pre_trained_wgts=None,
                     # GPU mem as func of HP TEST
+                    # test=16, 
                     test=0, 
-                    # test=0, 
                     pc_run=False,
                     keras_fit=False):
     # TEST FLOAT16
     # MIXED PRECISION
     input_layer = Input(shape=(sequences, features), name='piano_noise_mixed')
-    # input_layer = Input(shape=(sequences, features), dtype='float32', 
+    # input_layer = Input(shape=(sequences, features), dtype='float16', 
     #                     name='piano_noise_mixed')
 
     if config is not None:
@@ -1054,7 +1060,6 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
             prev_layer_type = curr_layer_type
     
     elif test > 0:
-        # The difference in mem use between test 1 @ 2 is much an long a rnn takes
         if test == 1:
             x = SimpleRNN(features // 2, 
                       activation='relu', 
@@ -1062,42 +1067,169 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
             x = SimpleRNN(features // 2, 
                       activation='relu', 
                       return_sequences=True) (x) 
+            x = SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (x) 
             piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
             noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        # The difference in mem use between test 1 @ 2 is much an long a rnn takes
         if test == 2:
+            x = SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            x = SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (x) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        if test == 3:
             x = SimpleRNN(features // 2, 
                       activation='relu', 
                       return_sequences=True) (input_layer) 
             piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
             noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
-        # The difference in mem use between test 2 @ 4 is how much more an lstm takes
-        if test == 3:
+        if test == 4:
             x = LSTM(features // 2, 
                       activation='relu', 
                       return_sequences=True) (input_layer) 
+            x = LSTM(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (x)
             x = LSTM(features // 2, 
                       activation='relu', 
                       return_sequences=True) (x) 
             piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
             noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
-        if test == 4:
+        # The difference in mem use between test 2 @ 4 is how much more an lstm takes
+        if test == 5:
             x = LSTM(features // 2, 
                       activation='relu', 
-                      return_sequences=True) (input_layer)
-            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
-            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
-        # The difference in mem use between test 6 & 2 is what doubling dim red does to mem usage
-        if test == 5:
-            x = SimpleRNN(features // 4, 
-                      activation='relu', 
                       return_sequences=True) (input_layer) 
-            x = SimpleRNN(features // 4, 
+            x = LSTM(features // 2, 
                       activation='relu', 
                       return_sequences=True) (x) 
             piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
             noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
         if test == 6:
+            x = LSTM(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer)
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        if test == 7:
             x = SimpleRNN(features // 4, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            x = SimpleRNN(features // 4, 
+                      activation='relu', 
+                      return_sequences=True) (x) 
+            x = SimpleRNN(features // 4, 
+                      activation='relu', 
+                      return_sequences=True) (x) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        # The difference in mem use between test 6 & 2 is what doubling dim red does to mem usage
+        if test == 8:
+            x = SimpleRNN(features // 4, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            x = SimpleRNN(features // 4, 
+                      activation='relu', 
+                      return_sequences=True) (x) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        if test == 9:
+            x = SimpleRNN(features // 4, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        
+        if test == 10:
+            x = SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            x = SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (x) 
+            x = SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (x)
+            x = Concatenate() ([x, input_layer])
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        # The difference in mem use between test 1 @ 2 is much an long a rnn takes
+        if test == 11:
+            x = SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            x = SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (x) 
+            x = Concatenate() ([x, input_layer])
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        if test == 12:
+            x = SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            x = Concatenate() ([x, input_layer])
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+
+        if test == 13:
+            x = Bidirectional(SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True)) (input_layer) 
+            x = Bidirectional(SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True)) (x) 
+            x = Bidirectional(SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True)) (x) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        # The difference in mem use between test 1 @ 2 is much an long a rnn takes
+        if test == 14:
+            x = Bidirectional(SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True)) (input_layer) 
+            x = Bidirectional(SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True)) (x) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        if test == 15:
+            x = Bidirectional(SimpleRNN(features // 2, 
+                      activation='relu', 
+                      return_sequences=True)) (input_layer) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+
+        if test == 16:
+            x = SimpleRNN(features - 1, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            x = SimpleRNN(features - 1, 
+                      activation='relu', 
+                      return_sequences=True) (x) 
+            x = SimpleRNN(features - 1, 
+                      activation='relu', 
+                      return_sequences=True) (x) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        # The difference in mem use between test 6 & 2 is what doubling dim red does to mem usage
+        if test == 17:
+            x = SimpleRNN(features - 1, 
+                      activation='relu', 
+                      return_sequences=True) (input_layer) 
+            x = SimpleRNN(features - 1, 
+                      activation='relu', 
+                      return_sequences=True) (x) 
+            piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
+            noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        if test == 18:
+            x = SimpleRNN(features - 1, 
                       activation='relu', 
                       return_sequences=True) (input_layer) 
             piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
@@ -1118,9 +1250,10 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
     noise_pred = TimeFreqMasking(epsilon=epsilon, 
                                  name='noise_pred') ((noise_hat, piano_hat, input_layer))
     # MIXED PRECISION
+    # if policy is not None:
     if not pc_run:
-        piano_pred = Activation('linear', dtype='float32') (piano_pred)
-        noise_pred = Activation('linear', dtype='float32') (noise_pred)
+        piano_pred = Activation('linear', name='mp_piano_pred', dtype='float32') (piano_pred)
+        noise_pred = Activation('linear', name='mp_noise_pred', dtype='float32') (noise_pred)
 
     model = Model(inputs=input_layer, outputs=[piano_pred, noise_pred])
 
@@ -1181,21 +1314,37 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
             print('Only loading pre-trained weights for prediction')
             model.set_weights(pre_trained_wgts)
     elif keras_fit:
-        piano_true = Input(shape=(sequences, features), dtype='float32', 
-                        name='piano_true')
-        noise_true = Input(shape=(sequences, features), dtype='float32', 
-                        name='noise_true')
+        # print('MODEL OUTPUT TYPES:', piano_pred.dtype, noise_pred.dtype)
+        # print('MODEL TARGETS:', piano_pred.dtype, noise_pred.dtype)
+        # TEST FLOAT16
+        piano_true = Input(shape=(sequences, features), name='piano_true')
+        noise_true = Input(shape=(sequences, features), name='noise_true')
+        # piano_true = Input(shape=(sequences, features), dtype='float32', 
+        #                 name='piano_true')
+        # noise_true = Input(shape=(sequences, features), dtype='float32', 
+        #                 name='noise_true')
         model = Model(inputs=[input_layer, piano_true, noise_true],
                 outputs=[piano_pred, noise_pred])
 
         loss_const = tf.constant(loss_const) # For performance/less mem
+        # FLOAT16 TEST
+        # loss_const = tf.dtypes.cast(loss_const, tf.float16)
+        # print('MODEL LOSS_CONST:', loss_const.dtype)
+        # 1 val instead of 1 val/batch makes for less mem used
         last_dim = noise_pred.shape[1] * noise_pred.shape[2]
         disc_loss = (
-            tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-            (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-            tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-            (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1))
+            tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2) - 
+            (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2)) +
+            tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2) -
+            (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2))
         )
+        # # FLOAT16 TEST
+        # disc_loss = (
+        #     tf.dtypes.cast(tf.math.reduce_mean(tf.dtypes.cast(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)), tf.float16) ** 2, axis=-1), tf.float16) - 
+        #     (loss_const * tf.dtypes.cast(tf.math.reduce_mean(tf.dtypes.cast(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)), tf.float16) ** 2, axis=-1), tf.float16)) +
+        #     tf.dtypes.cast(tf.math.reduce_mean(tf.dtypes.cast(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)), tf.float16) ** 2, axis=-1), tf.float16) -
+        #     (loss_const * tf.dtypes.cast(tf.math.reduce_mean(tf.dtypes.cast(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)), tf.float16) ** 2, axis=-1), tf.float16))
+        # )
         model.add_loss(disc_loss)
         model.compile(optimizer=optimizer)
     
@@ -1625,40 +1774,57 @@ def evaluate_source_sep(# train_dataset, val_dataset,
     # TODO maybe initialize the generator in here too? Would need to make generator callable first
     # TEST FLOAT16
     # MIXED PRECISION - hail mary try
-    train_dataset = tf.data.Dataset.from_generator(
-        make_gen_callable(train_generator), 
-        output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
-                      {'piano_pred': tf.float32, 'noise_pred': tf.float32}),
-        # output_types=([tf.float32, tf.float32, tf.float32], [tf.float32, tf.float32]),
-        # output_types=(tf.float32),
-        output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
-                       {'piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
-        # output_shapes=({'piano_noise_mixed': tf.TensorShape([n_seq, n_feat]), 'piano_true': tf.TensorShape([n_seq, n_feat]), 'noise_true': tf.TensorShape([n_seq, n_feat])}, 
-        #                {'piano_pred': tf.TensorShape([n_seq, n_feat]), 'noise_pred': tf.TensorShape([n_seq, n_feat])}),      # For keras functional API & custom training
-        # output_shapes=([tf.TensorShape(None), tf.TensorShape(None), tf.TensorShape(None)], 
-        #                [tf.TensorShape(None), tf.TensorShape(None)])    # For keras functional API & custom training
-        # output_shapes=([(n_seq, n_feat), (n_seq, n_feat), (n_seq, n_feat)], 
-        #                [(n_seq, n_feat), (n_seq, n_feat)])    # For keras functional API & custom training
-        # output_shapes=([tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat])], 
-        #                [tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat])])    # For keras functional API & custom training
-        # output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
-        # output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
-    )
-    val_dataset = tf.data.Dataset.from_generator(
-        make_gen_callable(validation_generator), 
-        output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
-                      {'piano_pred': tf.float32, 'noise_pred': tf.float32}),
-        output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
-                       {'piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
-        # output_shapes=([tf.TensorShape(None), tf.TensorShape(None), tf.TensorShape(None)], 
-        #                [tf.TensorShape(None), tf.TensorShape(None)])    # For keras functional API & custom training
-        # output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
-        # output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
-    )
-    print('TRAIN DATASET ELEMENTS:', train_dataset.element_spec)
-    print('VALID DATASET ELEMENTS:', val_dataset.element_spec)
-    print('TRAIN DATASET TYPE:', train_dataset)
-    print('VALID DATASET TYPE:', val_dataset)
+    # if policy is None:
+    if pc_run:
+        train_dataset = tf.data.Dataset.from_generator(
+            make_gen_callable(train_generator), 
+            output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
+                        {'piano_pred': tf.float32, 'noise_pred': tf.float32}),
+            # output_types=([tf.float32, tf.float32, tf.float32], [tf.float32, tf.float32]),
+            # output_types=(tf.float32),
+            output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
+                        {'piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
+            # output_shapes=({'piano_noise_mixed': tf.TensorShape([n_seq, n_feat]), 'piano_true': tf.TensorShape([n_seq, n_feat]), 'noise_true': tf.TensorShape([n_seq, n_feat])}, 
+            #                {'piano_pred': tf.TensorShape([n_seq, n_feat]), 'noise_pred': tf.TensorShape([n_seq, n_feat])}),      # For keras functional API & custom training
+            # output_shapes=([tf.TensorShape(None), tf.TensorShape(None), tf.TensorShape(None)], 
+            #                [tf.TensorShape(None), tf.TensorShape(None)])    # For keras functional API & custom training
+            # output_shapes=([(n_seq, n_feat), (n_seq, n_feat), (n_seq, n_feat)], 
+            #                [(n_seq, n_feat), (n_seq, n_feat)])    # For keras functional API & custom training
+            # output_shapes=([tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat])], 
+            #                [tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat])])    # For keras functional API & custom training
+            # output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
+            # output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+        )
+        val_dataset = tf.data.Dataset.from_generator(
+            make_gen_callable(validation_generator), 
+            output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
+                        {'piano_pred': tf.float32, 'noise_pred': tf.float32}),
+            output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
+                        {'piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
+            # output_shapes=([tf.TensorShape(None), tf.TensorShape(None), tf.TensorShape(None)], 
+            #                [tf.TensorShape(None), tf.TensorShape(None)])    # For keras functional API & custom training
+            # output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
+            # output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+        )
+    else:
+        train_dataset = tf.data.Dataset.from_generator(
+            make_gen_callable(train_generator), 
+            output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
+                        {'mp_piano_pred': tf.float32, 'mp_noise_pred': tf.float32}),
+            output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
+                        {'mp_piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'mp_noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
+        )
+        val_dataset = tf.data.Dataset.from_generator(
+            make_gen_callable(validation_generator), 
+            output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
+                        {'mp_piano_pred': tf.float32, 'mp_noise_pred': tf.float32}),
+            output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
+                        {'mp_piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'mp_noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
+        )
+    # print('TRAIN DATASET ELEMENTS:', train_dataset.element_spec)
+    # print('VALID DATASET ELEMENTS:', val_dataset.element_spec)
+    # print('TRAIN DATASET TYPE:', train_dataset)
+    # print('VALID DATASET TYPE:', val_dataset)
     # Input pipeline optimizations
     # TODO - parallelize pre-processing -> move preprocessing to tf first
     # Vectorize pre-processing, by batching before & transform whole batch of data
@@ -1710,7 +1876,7 @@ def evaluate_source_sep(# train_dataset, val_dataset,
                      validation_data=val_dataset,
                      validation_steps=math.ceil(num_val / batch_size),
                      callbacks=[EarlyStopping('val_loss', patience=patience, mode='min'),#])#,
-                                TensorBoard(log_dir=log_dir, profile_batch='2, 10')])   # by default, profiles 2nd batch
+                                TensorBoard(log_dir=log_dir, profile_batch='2, 4')])   # 10' # by default, profiles 2nd batch
         history = hist.history
     else:
         model, history = custom_fit(model, train_dataset, val_dataset,
@@ -1795,7 +1961,8 @@ def evaluate_source_sep(# train_dataset, val_dataset,
 
 def get_hp_configs(bare_config_path, pc_run=False):
     # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
-    # MIXED PRECISION   - double batch size, for V100: multiple of 8
+    # TEST FLOAT16 - double batch size
+    # MIXED PRECISION   - double batch size (can't on PC still b/c OOM), for V100: multiple of 8
     batch_size_optns = [3] if pc_run else [16, 24]  
     # batch_size_optns = [3] if pc_run else [5, 10]  
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
@@ -1863,35 +2030,14 @@ def get_hp_configs(bare_config_path, pc_run=False):
     train_configs = {'batch_size': batch_size_optns, 'epochs': epochs_optns,
                      'loss_const': loss_const_optns, 'optimizer': optimizer_optns}
     
-    # REPL TEST - arch config, all config, optiizer config
-    dropout_optns = [(0.0,0.0)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
-    scale_optns = [False]
-    rnn_skip_optns = [False]
-    bias_rnn_optns = [True]     # False
-    bias_dense_optns = [True]   # False
-    bidir_optns = [True]
-    bn_optns = [False]                    # For Dense only
-    # TEST - failed - OOM on PC
-    # rnn_optns = ['LSTM'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model              
-    rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
-    if pc_run:
-        # TEST PC
-        # with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
-        with open(bare_config_path + 'hp_arch_config_final.json') as hp_file:
-            bare_config_optns = [json.load(hp_file)['archs'][3]]
-    else:
-        # with open(bare_config_path + 'hp_arch_config_largedim.json') as hp_file:
-        with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
-            bare_config_optns = json.load(hp_file)['archs']
-
-    # # dropout_optns = [(0.0,0.0), (0.2,0.2), (0.2,0.5), (0.5,0.2), (0.5,0.5)]   # For RNN only
-    # dropout_optns = [(0.0,0.0), (0.25,0.25)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
-    # scale_optns = [True, False]
-    # rnn_skip_optns = [True, False]
+    # # REPL TEST - arch config, all config, optiizer config
+    # dropout_optns = [(0.0,0.0)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
+    # scale_optns = [False]
+    # rnn_skip_optns = [False]
     # bias_rnn_optns = [True]     # False
     # bias_dense_optns = [True]   # False
-    # bidir_optns = [True, False]
-    # bn_optns = [True, False]                    # For Dense only
+    # bidir_optns = [True]
+    # bn_optns = [False]                    # For Dense only
     # # TEST - failed - OOM on PC
     # # rnn_optns = ['LSTM'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model              
     # rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
@@ -1899,11 +2045,32 @@ def get_hp_configs(bare_config_path, pc_run=False):
     #     # TEST PC
     #     # with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
     #     with open(bare_config_path + 'hp_arch_config_final.json') as hp_file:
-    #         bare_config_optns = json.load(hp_file)['archs']
+    #         bare_config_optns = [json.load(hp_file)['archs'][3]]
     # else:
     #     # with open(bare_config_path + 'hp_arch_config_largedim.json') as hp_file:
     #     with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
     #         bare_config_optns = json.load(hp_file)['archs']
+
+    # dropout_optns = [(0.0,0.0), (0.2,0.2), (0.2,0.5), (0.5,0.2), (0.5,0.5)]   # For RNN only
+    dropout_optns = [(0.0,0.0), (0.25,0.25)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
+    scale_optns = [True, False]
+    rnn_skip_optns = [True, False]
+    bias_rnn_optns = [True]     # False
+    bias_dense_optns = [True]   # False
+    bidir_optns = [True, False]
+    bn_optns = [True, False]                    # For Dense only
+    # TEST - failed - OOM on PC
+    # rnn_optns = ['LSTM'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model              
+    rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
+    if pc_run:
+        # TEST PC
+        # with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+        with open(bare_config_path + 'hp_arch_config_final.json') as hp_file:
+            bare_config_optns = json.load(hp_file)['archs']
+    else:
+        # with open(bare_config_path + 'hp_arch_config_largedim.json') as hp_file:
+        with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
+            bare_config_optns = json.load(hp_file)['archs']
     
     arch_config_optns = []
     for config in bare_config_optns:    
@@ -2170,10 +2337,10 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                             #         epsilon=epsilon, pad_len=max_sig_len)
                             train_generator = fixed_data_generator(
                                     x_train_files, y1_train_files, y2_train_files, num_train,
-                                    batch_size=batch_size, num_seq=n_seq, num_feat=n_feat)
+                                    batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, pc_run=pc_run)
                             validation_generator = fixed_data_generator(
                                     x_val_files, y1_val_files, y2_val_files, num_val,
-                                    batch_size=batch_size, num_seq=n_seq, num_feat=n_feat)
+                                    batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, pc_run=pc_run)
                             # train_generator = SpgmGenerator(
                             #         x_train_files, y1_train_files, y2_train_files, num_train,
                             #         batch_size=batch_size, num_seq=n_seq, num_feat=n_feat)
@@ -2411,6 +2578,8 @@ def main():
     #   Empirically, the value γ is in the range of 0.05∼0.2 in order
     #   to achieve SIR improvements and maintain SAR and SDR.
     # Orig batch size 5, orig loss const 0.05, orig clipval 0.9 - Colab
+    # HP TEST
+    # train_batch_size = 6 if pc_run else 4   # Batchsize is even to dist on 2 GPUs?
     train_batch_size = 3 if pc_run else 4   # Batchsize is even to dist on 2 GPUs?
     train_loss_const = 0.05
     train_epochs = 10
@@ -2455,6 +2624,7 @@ def main():
 
         # train_step_func, test_step_func = get_train_step_func(), get_test_step_func()
         # Mixed precision - f35
+        # if policy is not None:
         if not pc_run:
             mixed_precision.set_policy(policy)
             print('Compute dtype: %s' % policy.compute_dtype)
@@ -2571,9 +2741,9 @@ def main():
             #                     train_feat=train_feat, wdw_size=wdw_size, 
             #                     epsilon=epsilon, pad_len=max_sig_len)
             train_generator = fixed_data_generator(x_train_files, y1_train_files, y2_train_files, num_train,
-                                batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat)
+                                batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat, pc_run=pc_run)
             validation_generator = fixed_data_generator(x_val_files, y1_val_files, y2_val_files, num_val,
-                                batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat)
+                                batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat, pc_run=pc_run)
             # train_generator = SpgmGenerator(x_train_files, y1_train_files, y2_train_files, num_train,
             #                     batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat)
             # validation_generator = SpgmGenerator(x_val_files, y1_val_files, y2_val_files, num_val,
@@ -2661,14 +2831,14 @@ def main():
             # REPL TEST - arch config, all config, optiizer config
             if random_hps:
                 # Index into random arch config, and other random HPs
-                # arch_rand_index = random.randint(0, len(arch_config_optns)-1)
-                arch_rand_index = 0
+                arch_rand_index = random.randint(0, len(arch_config_optns)-1)
+                # arch_rand_index = 0
                 # print('ARCH RAND INDEX:', arch_rand_index)
                 training_arch_config = arch_config_optns[arch_rand_index]
                 for hp, optns in train_configs.items():
                     # print('HP:', hp, 'OPTNS:', optns)
-                    # hp_rand_index = random.randint(0, len(optns)-1)
-                    hp_rand_index = 0
+                    hp_rand_index = random.randint(0, len(optns)-1)
+                    # hp_rand_index = 0
                     if hp == 'batch_size':
                         # print('BATCH SIZE RAND INDEX:', hp_rand_index)
                         train_batch_size = optns[hp_rand_index]
@@ -2679,7 +2849,7 @@ def main():
                         # print('LOSS CONST RAND INDEX:', hp_rand_index)
                         train_loss_const = optns[hp_rand_index]
                     elif hp == 'optimizer':
-                        hp_rand_index = 2
+                        # hp_rand_index = 2
                         # print('OPT RAND INDEX:', hp_rand_index)
                         train_optimizer, clip_val, lr, opt_name = (
                             optns[hp_rand_index]
@@ -2687,7 +2857,7 @@ def main():
 
                 # Early stop for random HPs
                 # TIME TEST
-                # patience = 4
+                patience = 4
                 # training_arch_config = arch_config_optns[0]
                 print('RANDOM TRAIN ARCH FOR USE:')
                 print(training_arch_config)
