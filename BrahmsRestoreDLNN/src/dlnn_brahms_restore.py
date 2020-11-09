@@ -2254,6 +2254,7 @@ def get_hp_configs(bare_config_path, pc_run=False):
         with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
     
+    iter_hp = 0 # test
     arch_config_optns = []
     for config in bare_config_optns:    
         for scale_optn in scale_optns:
@@ -2277,8 +2278,11 @@ def get_hp_configs(bare_config_path, pc_run=False):
                                             for i, layer in enumerate(config['layers']):
                                                 if layer['type'] == 'RNN':
                                                     curr_config['layers'][i]['type'] = rnn_optn
+                                        if iter_hp == 0:
+                                            print('Iter 0 should have RNN:', rnn_optn, curr_config)
                                         # Append updated config
                                         arch_config_optns.append(curr_config) 
+                                        iter_hp += 1
 
     return train_configs, arch_config_optns
 
@@ -3035,6 +3039,9 @@ def main():
                 # arch_rand_index = 0
                 # print('ARCH RAND INDEX:', arch_rand_index)
                 training_arch_config = arch_config_optns[arch_rand_index]
+                # print('ARCH CONFIGS AT PREV & NEXT INDICES:\n', arch_config_optns[arch_rand_index-1], 
+                #       '---\n', arch_config_optns[arch_rand_index+1])
+                print('FIRST ARCH CONFIG OPTION SHOULD HAVE RNN:\n', arch_config_optns[0])
                 for hp, optns in train_configs.items():
                     # print('HP:', hp, 'OPTNS:', optns)
                     hp_rand_index = random.randint(0, len(optns)-1)
