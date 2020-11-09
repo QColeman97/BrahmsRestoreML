@@ -1038,7 +1038,7 @@ class TimeFreqMasking(Layer):
 #     return closure(self_true, self_pred)
 
 # Loss function for subclassed model
-def discriminative_loss_bad(piano_true, noise_true, piano_pred, noise_pred, loss_const):
+def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
     # print('TYPES:', piano_true.dtype, noise_true.dtype, piano_pred.dtype, noise_pred.dtype)
     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
     return (
@@ -1061,8 +1061,8 @@ def discriminative_loss_bad(piano_true, noise_true, piano_pred, noise_pred, loss
 # y_preds = Concatenate() ([piano_pred, noise_pred, loss_const_tensor])
 def discrim_loss(y_true, y_pred):
     piano_true, noise_true = tf.split(y_true, num_or_size_splits=2, axis=-1)
-    loss_const = y_pred[:, :, -1][0][0]
-    piano_pred, noise_pred = tf.split(y_pred[:, :, :-1], num_or_size_splits=2, axis=-1)
+    loss_const = y_pred[-1, :, :][0][0]
+    piano_pred, noise_pred = tf.split(y_pred[:-1, :, :], num_or_size_splits=2, axis=0)
 
     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
     return (
@@ -1441,8 +1441,8 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
     
     # disc_loss = None
     if pre_trained_wgts is not None:
-            loss_const_tensor = tf.reshape(tf.constant(loss_const), [None, sequences, 1])
-            preds_and_lc = Concatenate() ([piano_pred, noise_pred, loss_const_tensor])
+            loss_const_tensor = tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
+            preds_and_lc = Concatenate(axis=0) ([piano_pred, noise_pred, loss_const_tensor])
             model = Model(inputs=input_layer, outputs=preds_and_lc)
 
             print('Only loading pre-trained weights for prediction')
@@ -1483,8 +1483,8 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
         # # model.add_loss(disc_loss)
         # # model.compile(optimizer=optimizer, loss={'piano_pred': 'mse', 'noise_pred': 'mse'})
 
-        loss_const_tensor = tf.reshape(tf.constant(loss_const), [None, sequences, 1])
-        preds_and_lc = Concatenate() ([piano_pred, noise_pred, loss_const_tensor])
+        loss_const_tensor = tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
+        preds_and_lc = Concatenate(axis=0) ([piano_pred, noise_pred, loss_const_tensor])
 
         model = Model(inputs=input_layer, outputs=preds_and_lc)
         # model = Model(inputs=input_layer, outputs=output)
@@ -1970,13 +1970,13 @@ def evaluate_source_sep(# train_dataset, val_dataset,
 
     train_dataset = tf.data.Dataset.from_generator(
         make_gen_callable(train_generator), 
-        output_types=([tf.float32, tf.float32]),
-        output_shapes=([tf.TensorShape([None, n_seq, n_feat]), tf.TensorShape([None, n_seq, n_feat*2])]),
+        output_types=(tf.float32, tf.float32),
+        output_shapes=((None, n_seq, n_feat), (None, n_seq, n_feat*2)),
     )
     val_dataset = tf.data.Dataset.from_generator(
         make_gen_callable(validation_generator), 
-        output_types=([tf.float32, tf.float32]),
-        output_shapes=([tf.TensorShape([None, n_seq, n_feat]), tf.TensorShape([None, n_seq, n_feat*2])]),
+        output_types=(tf.float32, tf.float32),
+        output_shapes=((None, n_seq, n_feat), (None, n_seq, n_feat*2)),
     )
 
     # print('TRAIN DATASET ELEMENTS:', train_dataset.element_spec)
@@ -2122,7 +2122,7 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
     # TEST FLOAT16 - double batch size
     # MIXED PRECISION   - double batch size (can't on PC still b/c OOM), for V100: multiple of 8
-    batch_size_optns = [3] if pc_run else [8, 16] # [16, 24] OOM on f35 
+    batch_size_optns = [3] if pc_run else [16, 24] # [8, 16] OOM on f35 w/ old addloss model
     # batch_size_optns = [3] if pc_run else [5, 10]  
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
@@ -2630,11 +2630,13 @@ def infer(x, phases, wdw_size, model, loss_const, optimizer, seq_len,
 
     # For small amts of input that fit in one batch: __call__ > predict - didn't work :/
     # clear_spgm, noise_spgm = model([x, x, x], batch_size=batch_size, training=False)
-    clear_spgm, noise_spgm = model.predict([x, x, x], batch_size=batch_size)
+    result_spgms = model.predict(x, batch_size=batch_size)
+    clear_spgm, noise_spgm = tf.split(result_spgms[:-1, :, :], num_or_size_splits=2, axis=0)
+    # clear_spgm, noise_spgm = model.predict([x, x, x], batch_size=batch_size)
     # print('RAW PREDICTIONS -- Clear Spgm Shape:', clear_spgm.shape, 
     #       '\nNoise Spgm Shape:', noise_spgm.shape)
-    clear_spgm = clear_spgm.reshape(-1, n_feat)
-    noise_spgm = noise_spgm.reshape(-1, n_feat)
+    clear_spgm = clear_spgm.numpy().reshape(-1, n_feat)
+    noise_spgm = noise_spgm.numpy().reshape(-1, n_feat)
     # print('Clear Spgm Shape:', clear_spgm.shape)
     # print('Noise Spgm Shape:', noise_spgm.shape)
     # print('NaN in clear spgm?', True in np.isnan(clear_spgm))
