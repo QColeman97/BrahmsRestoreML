@@ -1858,8 +1858,8 @@ def evaluate_source_sep(# train_dataset, val_dataset,
     print(model.summary())
 
     # MIXED PRECISION
-    if not pc_run:
-        optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')
+    # if not pc_run:
+        # optimizer = mixed_precision.LossScaleOptimizer(optimizer, loss_scale='dynamic')
 
     # current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     # train_log_dir = '../logs/gradient_tape/' + current_time + '/train'
@@ -1886,7 +1886,7 @@ def evaluate_source_sep(# train_dataset, val_dataset,
                                     patience=100, epsilon=10 ** (-10), config=None, 
                                     recent_model_path=None, pc_run=False, t_mean=None, t_std=None, 
                                     grid_search_iter=None, gs_path=None, combos=None, gs_id='')
-    # Not necessary for HPC (can't run on HPC)
+    # Not necessary for f35 (can't run on f35)
     if not pc_run and grid_search_iter is None:
         tf.keras.utils.plot_model(model, 
                                   (gs_path + 'model' + str(grid_search_iter) + 'of' + str(combos) + '.png'
@@ -2233,7 +2233,7 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
     # # dropout_optns = [(0.0,0.0)]
     # # arch_config_optns = []   # Add variations of each bare config to official
     # # for config in bare_config_optns[:1]:
-    # #     # TEMP - 2 tests @ once: 1 for hpc test, 2 for diff scalinng methods
+    # #     # TEMP - 2 tests @ once: 1 for f35 test, 2 for diff scalinng methods
     # #     for scale_optn in [False]:    # TODO: Be skeptical of scaling, b/c must scale at end before activation
     # #         for rnn_skip_optn in [True]:
     # #             for bias_rnn_optn in [False]:
