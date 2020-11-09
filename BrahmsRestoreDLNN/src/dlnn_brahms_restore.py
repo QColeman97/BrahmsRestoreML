@@ -41,9 +41,9 @@ print(tf.__version__)
 #       if faster, keep both proc using mem growth
 # For run-out-of-memory error
 # gpus = tf.config.experimental.list_physical_devices('GPU')
-gpus = tf.config.list_physical_devices('GPU')
-print("Num GPUs Available: ", len(gpus))
-print("GPUs Available: ", gpus)
+# gpus = tf.config.list_physical_devices('GPU')
+# print("Num GPUs Available: ", len(gpus))
+# print("GPUs Available: ", gpus)
 
 # mirrored_strategy = tf.distribute.MirroredStrategy()
 # print("Num GPUs Available (according to mirrored strategy): ", mirrored_strategy.num_replicas_in_sync, "\n")
@@ -54,8 +54,8 @@ print("GPUs Available: ", gpus)
 # TEST - 2 GS's at same time? SUCCESS!!!
 # BUT, set_memory_growth has perf disadvantages (slower) - give main GS full power
 # GPU Mem as func of HP test
-for i in range(len(gpus)):
-    tf.config.experimental.set_memory_growth(gpus[i], True)
+# for i in range(len(gpus)):
+#     tf.config.experimental.set_memory_growth(gpus[i], True)
 
 # policy = None
 # MIXED PRECISION - only used on f35 (V100s)
@@ -2778,6 +2778,14 @@ def main():
     # TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 1847, 2049
     TRAIN_MEAN, TRAIN_STD = 1728.2116672701493, 6450.4985228518635
     TOTAL_SMPLS = 61 # 60 # Performance: Make divisible by batch_size (actual total = 61) ... questionable
+
+    # System-dependant changes
+    gpus = tf.config.list_physical_devices('GPU')
+    print("Num GPUs Available: ", len(gpus))
+    print("GPUs Available: ", gpus)
+    if not pc_run:
+        for i in range(len(gpus)):
+            tf.config.experimental.set_memory_growth(gpus[i], True)
 
     # INFER ONLY
     if mode == 'r':
