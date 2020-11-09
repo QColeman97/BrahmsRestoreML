@@ -33,7 +33,7 @@ import json
 import os
 import sys
 import re
-# from copy import deepcopy
+from copy import deepcopy
 
 print(tf.__version__)
 
@@ -2254,9 +2254,9 @@ def get_hp_configs(bare_config_path, pc_run=False):
         with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
     
-    iter_hp = 0 # test
+    # iter_hp = 0 # test
     arch_config_optns = []
-    for config in bare_config_optns:    
+    for config in bare_config_optns:  
         for scale_optn in scale_optns:
             for rnn_skip_optn in rnn_skip_optns:
                 for bias_rnn_optn in bias_rnn_optns:
@@ -2266,7 +2266,7 @@ def get_hp_configs(bare_config_path, pc_run=False):
                                 for bn_optn in bn_optns:   
                                     for rnn_optn in rnn_optns:
                                         # Make a unique copy for each factor combo
-                                        curr_config = config.copy()
+                                        curr_config = deepcopy(config)  
                                         curr_config['scale'] = scale_optn
                                         curr_config['rnn_res_cntn'] = rnn_skip_optn
                                         curr_config['bias_rnn'] = bias_rnn_optn
@@ -2278,12 +2278,14 @@ def get_hp_configs(bare_config_path, pc_run=False):
                                             for i, layer in enumerate(config['layers']):
                                                 if layer['type'] == 'RNN':
                                                     curr_config['layers'][i]['type'] = rnn_optn
-                                        if iter_hp == 0:
-                                            print('Iter 0 should have RNN:', rnn_optn, curr_config)
+                                        # if iter_hp < 5:
+                                        #     print('Iter even number should have RNN:', iter_hp, rnn_optn, curr_config)
                                         # Append updated config
                                         arch_config_optns.append(curr_config) 
-                                        iter_hp += 1
-
+                                        # if iter_hp < 3:
+                                        #     print('arch_config_optns:', arch_config_optns)
+                                        # iter_hp += 1
+    # print('About to return first index:', arch_config_optns[0])
     return train_configs, arch_config_optns
 
 
@@ -2827,6 +2829,7 @@ def main():
         #     print('Variable dtype: %s' % policy.variable_dtype)
 
         train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run)
+        # print('First arch config optn after return:', arch_config_optns[0])
 
         # Load in train/validation data
         noise_piano_filepath_prefix = ((data_path + 'dmged_mix_numpy/mixed')
@@ -3041,7 +3044,8 @@ def main():
                 training_arch_config = arch_config_optns[arch_rand_index]
                 # print('ARCH CONFIGS AT PREV & NEXT INDICES:\n', arch_config_optns[arch_rand_index-1], 
                 #       '---\n', arch_config_optns[arch_rand_index+1])
-                print('FIRST ARCH CONFIG OPTION SHOULD HAVE RNN:\n', arch_config_optns[0])
+                # print('In random HPs section, rand_index:', arch_rand_index)
+                # print('FIRST ARCH CONFIG OPTION SHOULD HAVE RNN:\n', arch_config_optns[0])
                 for hp, optns in train_configs.items():
                     # print('HP:', hp, 'OPTNS:', optns)
                     hp_rand_index = random.randint(0, len(optns)-1)
