@@ -54,7 +54,8 @@ print("GPUs Available: ", gpus)
 # TEST - 2 GS's at same time? SUCCESS!!!
 # BUT, set_memory_growth has perf disadvantages (slower) - give main GS full power
 # GPU Mem as func of HP test
-tf.config.experimental.set_memory_growth(gpus[0], True)
+for i in range(len(gpus)):
+    tf.config.experimental.set_memory_growth(gpus[i], True)
 
 # policy = None
 # MIXED PRECISION - only used on f35 (V100s)
