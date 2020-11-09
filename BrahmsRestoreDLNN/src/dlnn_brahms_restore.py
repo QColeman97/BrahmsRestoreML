@@ -2122,7 +2122,7 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
     # TEST FLOAT16 - double batch size
     # MIXED PRECISION   - double batch size (can't on PC still b/c OOM), for V100: multiple of 8
-    batch_size_optns = [3] if pc_run else [16, 24] # [8, 16] OOM on f35 w/ old addloss model
+    batch_size_optns = [3] if pc_run else [8, 16] # [16, 24] OOM on f35 w/ old addloss model
     # batch_size_optns = [3] if pc_run else [5, 10]  
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
