@@ -2036,15 +2036,15 @@ def evaluate_source_sep(# train_dataset, val_dataset,
 
     print('Going into training now...')
     if keras_fit:
-        log_dir = '../logs/keras_fit/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        # log_dir = '../logs/keras_fit/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         hist = model.fit(train_dataset,
                      steps_per_epoch=math.ceil(num_train / batch_size),
                      epochs=epochs,
                      validation_data=val_dataset,
                      validation_steps=math.ceil(num_val / batch_size),
-                     callbacks=[EarlyStopping('val_loss', patience=patience, mode='min'),#])#,
+                     callbacks=[EarlyStopping('val_loss', patience=patience, mode='min')])#,
                                 # Done memory profiling
-                                TensorBoard(log_dir=log_dir, profile_batch='2, 4')])   # 10' # by default, profiles 2nd batch
+                                # TensorBoard(log_dir=log_dir, profile_batch='2, 4')])   # 10' # by default, profiles 2nd batch
         history = hist.history
     else:
         model, history = custom_fit(model, train_dataset, val_dataset,
