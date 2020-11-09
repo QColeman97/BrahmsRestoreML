@@ -2070,7 +2070,7 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
     # TEST FLOAT16 - double batch size
     # MIXED PRECISION   - double batch size (can't on PC still b/c OOM), for V100: multiple of 8
-    batch_size_optns = [3] if pc_run else [16, 24]  
+    batch_size_optns = [3] if pc_run else [8, 16] # [16, 24] OOM on f35 
     # batch_size_optns = [3] if pc_run else [5, 10]  
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
@@ -2127,12 +2127,25 @@ def get_hp_configs(bare_config_path, pc_run=False):
     #                   (tf.keras.optimizers.Adam(learning_rate=0.0001, epsilon=1e-4), -1, 0.0001, 'Adam'),
     #                   (tf.keras.optimizers.Adam(clipvalue=10, epsilon=1e-4), 10, 0.001, 'Adam')
     #                   ]
-    optimizer_optns = [
-                      (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
-                      (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-                      (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
-                      (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
-                      ]
+    # MIXED PRECISION - doesn't support gradient clipping or specifically clipvalue
+    if pc_run:
+        optimizer_optns = [
+                        (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
+                        (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
+                        (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
+                        (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
+                        ]
+    else:
+        optimizer_optns = [
+                        (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
+                        (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
+                        ]
+    # optimizer_optns = [
+    #                   (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
+    #                   (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
+    #                   (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
+    #                   (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
+    #                   ]
 
     train_configs = {'batch_size': batch_size_optns, 'epochs': epochs_optns,
                      'loss_const': loss_const_optns, 'optimizer': optimizer_optns}
@@ -2168,7 +2181,8 @@ def get_hp_configs(bare_config_path, pc_run=False):
     bn_optns = [True, False]                    # For Dense only
     # TEST - failed - OOM on PC
     # rnn_optns = ['LSTM'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model              
-    rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
+    # rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
+    rnn_optns = ['RNN'] # F35 OOM
     if pc_run:
         # TEST PC
         # with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
