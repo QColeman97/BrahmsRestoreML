@@ -1078,7 +1078,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     pre_trained_wgts=None,
                     # GPU mem as func of HP TEST
                     # test=16, 
-                    test=0, 
+                    test=4, 
                     pc_run=False,
                     keras_fit=False):
     # TEST FLOAT16
@@ -1441,8 +1441,12 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
     
     # disc_loss = None
     if pre_trained_wgts is not None:
-            loss_const_tensor = tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
-            preds_and_lc = Concatenate(axis=0) ([piano_pred, noise_pred, loss_const_tensor])
+            # loss_const_tensor = tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
+            preds_and_lc = Concatenate(axis=0) ([piano_pred, 
+                                                 noise_pred, 
+                                                #  loss_const_tensor
+                                                 tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
+                                                ])
             model = Model(inputs=input_layer, outputs=preds_and_lc)
 
             print('Only loading pre-trained weights for prediction')
@@ -1483,8 +1487,12 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
         # # model.add_loss(disc_loss)
         # # model.compile(optimizer=optimizer, loss={'piano_pred': 'mse', 'noise_pred': 'mse'})
 
-        loss_const_tensor = tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
-        preds_and_lc = Concatenate(axis=0) ([piano_pred, noise_pred, loss_const_tensor])
+        # loss_const_tensor = tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
+        preds_and_lc = Concatenate(axis=0) ([piano_pred, 
+                                             noise_pred, 
+                                            #  loss_const_tensor
+                                             tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
+                                             ])
 
         model = Model(inputs=input_layer, outputs=preds_and_lc)
         # model = Model(inputs=input_layer, outputs=output)
@@ -2027,15 +2035,15 @@ def evaluate_source_sep(# train_dataset, val_dataset,
 
     print('Going into training now...')
     if keras_fit:
-        # log_dir = '../logs/keras_fit/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        log_dir = '../logs/keras_fit/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         hist = model.fit(train_dataset,
                      steps_per_epoch=math.ceil(num_train / batch_size),
                      epochs=epochs,
                      validation_data=val_dataset,
                      validation_steps=math.ceil(num_val / batch_size),
-                     callbacks=[EarlyStopping('val_loss', patience=patience, mode='min')])#,
+                     callbacks=[EarlyStopping('val_loss', patience=patience, mode='min'),#])#,
                                 # Done memory profiling
-                                # TensorBoard(log_dir=log_dir, profile_batch='2, 4')])   # 10' # by default, profiles 2nd batch
+                                TensorBoard(log_dir=log_dir, profile_batch='2, 4')])   # 10' # by default, profiles 2nd batch
         history = hist.history
     else:
         model, history = custom_fit(model, train_dataset, val_dataset,
