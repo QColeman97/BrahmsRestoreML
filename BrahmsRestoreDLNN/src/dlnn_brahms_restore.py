@@ -1993,13 +1993,13 @@ def evaluate_source_sep(# train_dataset, val_dataset,
                                     patience=100, epsilon=10 ** (-10), config=None, 
                                     recent_model_path=None, pc_run=False, t_mean=None, t_std=None, 
                                     grid_search_iter=None, gs_path=None, combos=None, gs_id='')
-    # Not necessary for f35 (can't run on f35)
-    if not pc_run and grid_search_iter is None:
-        tf.keras.utils.plot_model(model, 
-                                  (gs_path + 'model' + str(grid_search_iter) + 'of' + str(combos) + '.png'
-                                  if grid_search_iter is not None else
-                                  'last_trained_model.png'), 
-                                  show_shapes=True)
+    # Need to install additional unnecessary libs
+    # if not pc_run and grid_search_iter is None:
+    #     tf.keras.utils.plot_model(model, 
+    #                               (gs_path + 'model' + str(grid_search_iter) + 'of' + str(combos) + '.png'
+    #                               if grid_search_iter is not None else
+    #                               'last_trained_model.png'), 
+    #                               show_shapes=True)
  
     pc_run_str = '' if pc_run else '_noPC'
     if grid_search_iter is None:
