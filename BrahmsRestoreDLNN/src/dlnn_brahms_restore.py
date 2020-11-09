@@ -1037,7 +1037,7 @@ class TimeFreqMasking(Layer):
 #     return closure(self_true, self_pred)
 
 # Loss function for subclassed model
-def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_const):
+def discriminative_loss_bad(piano_true, noise_true, piano_pred, noise_pred, loss_const):
     # print('TYPES:', piano_true.dtype, noise_true.dtype, piano_pred.dtype, noise_pred.dtype)
     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
     return (
@@ -1056,6 +1056,20 @@ def discriminative_loss(piano_true, noise_true, piano_pred, noise_pred, loss_con
 #         (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2))
 #     )
 
+# output = Concatenate() ([piano_true, noise_true])
+# y_preds = Concatenate() ([piano_pred, noise_pred, loss_const_tensor])
+def discrim_loss(y_true, y_pred):
+    piano_true, noise_true = tf.split(y_true, num_or_size_splits=2, axis=-1)
+    loss_const = y_pred[:, :, -1][0][0]
+    piano_pred, noise_pred = tf.split(y_pred[:, :, :-1], num_or_size_splits=2, axis=-1)
+
+    last_dim = piano_pred.shape[1] * piano_pred.shape[2]
+    return (
+        tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
+        (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
+        tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) -
+        (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1))
+    )
 
 def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     loss_const=0.05, config=None, t_mean=None, t_std=None, 
@@ -1420,40 +1434,48 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
             print('Only loading pre-trained weights for prediction')
             model.set_weights(pre_trained_wgts)
     elif keras_fit:
-        # print('MODEL OUTPUT TYPES:', piano_pred.dtype, noise_pred.dtype)
-        # print('MODEL TARGETS:', piano_pred.dtype, noise_pred.dtype)
-        # TEST FLOAT16
-        piano_true = Input(shape=(sequences, features), name='piano_true')
-        noise_true = Input(shape=(sequences, features), name='noise_true')
-        # piano_true = Input(shape=(sequences, features), dtype='float32', 
-        #                 name='piano_true')
-        # noise_true = Input(shape=(sequences, features), dtype='float32', 
-        #                 name='noise_true')
-        model = Model(inputs=[input_layer, piano_true, noise_true],
-                outputs=[piano_pred, noise_pred])
+        # # print('MODEL OUTPUT TYPES:', piano_pred.dtype, noise_pred.dtype)
+        # # print('MODEL TARGETS:', piano_pred.dtype, noise_pred.dtype)
+        # # TEST FLOAT16
+        # piano_true = Input(shape=(sequences, features), name='piano_true')
+        # noise_true = Input(shape=(sequences, features), name='noise_true')
+        # # piano_true = Input(shape=(sequences, features), dtype='float32', 
+        # #                 name='piano_true')
+        # # noise_true = Input(shape=(sequences, features), dtype='float32', 
+        # #                 name='noise_true')
+        # model = Model(inputs=[input_layer, piano_true, noise_true],
+        #         outputs=[piano_pred, noise_pred])
 
-        loss_const = tf.constant(loss_const) # For performance/less mem
-        # FLOAT16 TEST
-        # loss_const = tf.dtypes.cast(loss_const, tf.float16)
-        # print('MODEL LOSS_CONST:', loss_const.dtype)
-        # 1 val instead of 1 val/batch makes for less mem used
-        last_dim = noise_pred.shape[1] * noise_pred.shape[2]
-        disc_loss = (
-            tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2) - 
-            (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2)) +
-            tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2) -
-            (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2))
-        )
+        # loss_const = tf.constant(loss_const) # For performance/less mem
         # # FLOAT16 TEST
+        # # loss_const = tf.dtypes.cast(loss_const, tf.float16)
+        # # print('MODEL LOSS_CONST:', loss_const.dtype)
+        # # 1 val instead of 1 val/batch makes for less mem used
+        # last_dim = noise_pred.shape[1] * noise_pred.shape[2]
         # disc_loss = (
-        #     tf.dtypes.cast(tf.math.reduce_mean(tf.dtypes.cast(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)), tf.float16) ** 2, axis=-1), tf.float16) - 
-        #     (loss_const * tf.dtypes.cast(tf.math.reduce_mean(tf.dtypes.cast(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)), tf.float16) ** 2, axis=-1), tf.float16)) +
-        #     tf.dtypes.cast(tf.math.reduce_mean(tf.dtypes.cast(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)), tf.float16) ** 2, axis=-1), tf.float16) -
-        #     (loss_const * tf.dtypes.cast(tf.math.reduce_mean(tf.dtypes.cast(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)), tf.float16) ** 2, axis=-1), tf.float16))
+        #     tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2) - 
+        #     (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2)) +
+        #     tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2) -
+        #     (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2))
         # )
-        model.add_loss(disc_loss)
-        model.compile(optimizer=optimizer)
-    
+        # # # FLOAT16 TEST
+        # # disc_loss = (
+        # #     tf.dtypes.cast(tf.math.reduce_mean(tf.dtypes.cast(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)), tf.float16) ** 2, axis=-1), tf.float16) - 
+        # #     (loss_const * tf.dtypes.cast(tf.math.reduce_mean(tf.dtypes.cast(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)), tf.float16) ** 2, axis=-1), tf.float16)) +
+        # #     tf.dtypes.cast(tf.math.reduce_mean(tf.dtypes.cast(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)), tf.float16) ** 2, axis=-1), tf.float16) -
+        # #     (loss_const * tf.dtypes.cast(tf.math.reduce_mean(tf.dtypes.cast(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)), tf.float16) ** 2, axis=-1), tf.float16))
+        # # )
+        # # OOM BUG TEST - change one factor - loss
+        # # model.add_loss(disc_loss)
+        # # model.compile(optimizer=optimizer, loss={'piano_pred': 'mse', 'noise_pred': 'mse'})
+
+        model = Model(inputs=input_layer, outputs=output)
+
+        # Combine piano_pred, noise_pred & loss_const into models output!
+        loss_const_tensor = tf.reshape(tf.constant(loss_const), [None, sequences, 1])
+        output = Concatenate() ([piano_pred, noise_pred, loss_const_tensor])
+
+        model.compile(optimizer=optimizer, loss=discrim_loss)
         # TRY - B/C tf.function is symbolic tensors - no error there
         # Assign loss to each output -> keras should average/sum it
         # # Problematic, returns a func or eager func, not a tensor
@@ -2589,10 +2611,11 @@ def infer(x, phases, wdw_size, model, loss_const, optimizer, seq_len,
     # print('NaN in noise spgm?', True in np.isnan(noise_spgm))
     # print('Clear spgm contents (timestep 1000):\n', clear_spgm[1000])
 
-    plot_matrix(clear_spgm, name='clear_output_spgm', ylabel='Frequency (Hz)', 
-               ratio=SPGM_BRAHMS_RATIO)
-    plot_matrix(noise_spgm, name='noise_output_spgm', ylabel='Frequency (Hz)', 
-               ratio=SPGM_BRAHMS_RATIO)
+    if pc_run:
+        plot_matrix(clear_spgm, name='clear_output_spgm', ylabel='Frequency (Hz)', 
+                ratio=SPGM_BRAHMS_RATIO)
+        plot_matrix(noise_spgm, name='noise_output_spgm', ylabel='Frequency (Hz)', 
+                ratio=SPGM_BRAHMS_RATIO)
 
     synthetic_sig = make_synthetic_signal(clear_spgm, phases, wdw_size, 
                                           orig_sig_type, ova=True, debug=False)
