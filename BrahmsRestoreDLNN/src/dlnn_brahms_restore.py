@@ -59,7 +59,7 @@ for i in range(len(gpus)):
 
 # policy = None
 # MIXED PRECISION - only used on f35 (V100s)
-policy = mixed_precision.Policy('mixed_float16')
+# policy = mixed_precision.Policy('mixed_float16')
 # Moved this to into logic, for non-PC run
 # mixed_precision.set_policy(policy)
 # print('Compute dtype: %s' % policy.compute_dtype)
@@ -1442,8 +1442,8 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                                                  tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
                                                 ])
             # MIXED PRECISION - not sure if test case is necessary
-            if not pc_run:
-                preds_and_lc = Activation('linear', name='mp_output', dtype='float32') (preds_and_lc)
+            # if not pc_run:
+            #     preds_and_lc = Activation('linear', name='mp_output', dtype='float32') (preds_and_lc)
 
             model = Model(inputs=input_layer, outputs=preds_and_lc)
 
@@ -1492,8 +1492,8 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                                              tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
                                              ])
         # MIXED PRECISION
-        if not pc_run:
-            preds_and_lc = Activation('linear', name='mp_output', dtype='float32') (preds_and_lc)
+        # if not pc_run:
+        #     preds_and_lc = Activation('linear', name='mp_output', dtype='float32') (preds_and_lc)
 
         model = Model(inputs=input_layer, outputs=preds_and_lc)
         # model = Model(inputs=input_layer, outputs=output)
@@ -2131,8 +2131,8 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
     # TEST FLOAT16 - double batch size
     # MIXED PRECISION   - double batch size (can't on PC still b/c OOM), for V100: multiple of 8
-    batch_size_optns = [3] if pc_run else [8, 16] # [16, 24] OOM on f35 w/ old addloss model
-    # batch_size_optns = [3] if pc_run else [5, 10]  
+    # batch_size_optns = [3] if pc_run else [8] # [16, 24] OOM on f35 w/ old addloss model
+    batch_size_optns = [3] if pc_run else [6, 12]  
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
@@ -2189,18 +2189,18 @@ def get_hp_configs(bare_config_path, pc_run=False):
     #                   (tf.keras.optimizers.Adam(clipvalue=10, epsilon=1e-4), 10, 0.001, 'Adam')
     #                   ]
     # MIXED PRECISION - doesn't support gradient clipping or specifically clipvalue
-    if pc_run:
-        optimizer_optns = [
-                        (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
-                        (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-                        (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
-                        (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
-                        ]
-    else:
-        optimizer_optns = [
-                        (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
-                        (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
-                        ]
+    # if pc_run:
+    optimizer_optns = [
+                    (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
+                    (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
+                    (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
+                    (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
+                    ]
+    # else:
+    #     optimizer_optns = [
+    #                     (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
+    #                     (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
+    #                     ]
     # optimizer_optns = [
     #                   (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
     #                   (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
@@ -2240,10 +2240,10 @@ def get_hp_configs(bare_config_path, pc_run=False):
     bias_dense_optns = [True]   # False
     bidir_optns = [True, False]
     bn_optns = [True, False]                    # For Dense only
-    # TEST - failed - OOM on PC
-    # rnn_optns = ['LSTM'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model              
-    # rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
-    rnn_optns = ['RNN'] # F35 OOM
+    rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model  
+    # MIXED PRECISION combat NaNs            
+    # rnn_optns = ['RNN'] if pc_run else ['LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
+    # rnn_optns = ['RNN'] # F35 OOM w/ mixed precision BUT batch size too high?
     if pc_run:
         # TEST PC
         # with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
@@ -2809,10 +2809,10 @@ def main():
         # train_step_func, test_step_func = get_train_step_func(), get_test_step_func()
         # Mixed precision - f35
         # if policy is not None:
-        if not pc_run:
-            mixed_precision.set_policy(policy)
-            print('Compute dtype: %s' % policy.compute_dtype)
-            print('Variable dtype: %s' % policy.variable_dtype)
+        # if not pc_run:
+        #     mixed_precision.set_policy(policy)
+        #     print('Compute dtype: %s' % policy.compute_dtype)
+        #     print('Variable dtype: %s' % policy.variable_dtype)
 
         train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run)
 
@@ -3049,7 +3049,7 @@ def main():
 
                 # Early stop for random HPs
                 # TIME TEST
-                patience = 4
+                # patience = 4
                 # training_arch_config = arch_config_optns[0]
                 print('RANDOM TRAIN ARCH FOR USE:')
                 print(training_arch_config)
