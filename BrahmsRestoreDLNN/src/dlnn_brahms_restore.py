@@ -427,7 +427,8 @@ def convert_sig_16bit_to_8bit(sig):
 #         )
 
 # In order for this generator (unique output) to work w/ fit & cust training - batch it
-def fixed_data_generator(x_files, y1_files, y2_files, num_samples, batch_size, num_seq, num_feat, pc_run):
+def fixed_data_generator(x_files, y1_files, y2_files, num_samples, batch_size, num_seq, num_feat, pc_run, 
+                         dmged_piano_artificial_noise=False, pad_len=-1, wdw_size=4096, epsilon=10 ** (-10)):
     while True: # Loop forever so the generator never terminates
         # for i in range(num_samples):
         for offset in range(0, num_samples, batch_size):
@@ -454,11 +455,115 @@ def fixed_data_generator(x_files, y1_files, y2_files, num_samples, batch_size, n
             # pn_filepath = x_files[i]
             # pl_filepath = y1_files[i]
             # nl_filepath = y2_files[i]
+                
+                if dmged_piano_artificial_noise:
+                    # Get number from filename
+                    file_num_str = list(re.findall(r'\d+', pl_filepath))[-1]
 
-                # MIXED PRECISION - hail mary try
-                noise_piano_spgm = np.load(pn_filepath)# .astype('float32')
-                piano_label_spgm = np.load(pl_filepath)# .astype('float32')
-                noise_label_spgm = np.load(nl_filepath)# .astype('float32')
+                    pn_sr, noise_piano_sig = wavfile.read(pn_filepath)
+                    noise_piano_sig = noise_piano_sig.astype('float64')
+                    pl_sr, piano_label_sig = wavfile.read(pl_filepath)
+                    nl_sr, noise_label_sig = wavfile.read(nl_filepath)
+                    pl_orig_type, nl_orig_type = piano_label_sig.dtype, noise_label_sig.dtype 
+                    piano_label_sig, noise_label_sig = piano_label_sig.astype('float64'), noise_label_sig.astype('float64')
+                    assert len(noise_piano_sig) == len(noise_label_sig) == len(piano_label_sig)   
+                    # assert len(noise_label_sig) == len(piano_label_sig)  
+                    # Stereo audio safety check
+                    if isinstance(noise_piano_sig[0], np.ndarray):   # Stereo signal = 2 channels
+                        # piano_label_sig = np.array([((x[0] + x[1]) / 2) for x in piano_label_sig.astype('float32')]).astype(p_type)
+                        noise_piano_sig = np.average(noise_piano_sig, axis=-1)
+                    if isinstance(piano_label_sig[0], np.ndarray):   # Stereo signal = 2 channels
+                        # piano_label_sig = np.array([((x[0] + x[1]) / 2) for x in piano_label_sig.astype('float32')]).astype(p_type)
+                        piano_label_sig = np.average(piano_label_sig, axis=-1)
+                    if isinstance(noise_label_sig[0], np.ndarray):   # Stereo signal = 2 channels
+                        # noise_label_sig = np.array([((x[0] + x[1]) / 2) for x in noise_label_sig.astype('float32')]).astype(n_type)
+                        noise_label_sig = np.average(noise_label_sig, axis=-1)
+
+                    # if i == 0:
+                    #     print('Filenames:', pl_filepath, nl_filepath)
+                    #     print('Piano Sig:', piano_label_sig[1000:1010], 'type:', piano_label_sig.dtype)
+                    #     print('Noise Sig:', noise_label_sig[1000:1010], 'type:', noise_label_sig.dtype)
+
+                    # NEW - create features w/ signal data augmentation
+                    # 1) Do amplitude variation aug on each source
+                    # DEBUG
+                    # piano_amp_factor = random.uniform(src_amp_low, src_amp_high)
+                    # noise_amp_factor = random.uniform(src_amp_low, src_amp_high)
+                    # piano_label_sig *= piano_amp_factor
+                    # Done for the debug wavfile.write()
+                    # piano_label_sig = np.clip(piano_label_sig, 
+                    #                           np.iinfo(pl_orig_type).min, 
+                    #                           np.iinfo(pl_orig_type).max)
+                    # piano_label_sig = np.around(piano_label_sig).astype(pl_orig_type)
+
+                    # noise_label_sig *= noise_amp_factor
+                    # noise_label_sig = np.clip(noise_label_sig, 
+                    #                           np.iinfo(nl_orig_type).min, 
+                    #                           np.iinfo(nl_orig_type).max)
+                    # noise_label_sig = np.around(noise_label_sig).astype(nl_orig_type)
+                    
+                    # assert len(noise_label_sig) == len(piano_label_sig)  
+
+                    # if offset == 0 and i == 0:
+                    #     wavfile.write('/content/drive/My Drive/Quinn Coleman - Thesis/DLNN_Data/output/noise_beforepert.wav', 
+                    #                   nl_sr, noise_label_sig)
+
+                    # print('LEN:', len(noise_label_sig))
+                    # 2) TODO Do frequency perturbation aug on noise source
+                    # noise_label_sig = freq_perturb(noise_label_sig, wdw_size, epsilon)
+
+                    # assert len(noise_label_sig) == len(piano_label_sig)  
+
+                    # # if offset == 0 and i == 0:
+                    # #     wavfile.write('/content/drive/My Drive/Quinn Coleman - Thesis/DLNN_Data/output/noise_afterpert.wav', 
+                    # #                   nl_sr, noise_label_sig)
+                    # # 3) Mix - NOTE sigs must be same dtype
+                    # avg_src_sum = (np.sum(piano_label_sig) + np.sum(noise_label_sig)) / 2
+                    # src_percent_1 = random.randrange(int((src_amp_low*100) // 2), int((src_amp_high*100) // 2)) / 100
+                    # src_percent_2 = 1 - src_percent_1
+                    # piano_src_is_1 = bool(random.getrandbits(1))
+                    # if piano_src_is_1:
+                    #     piano_label_sig *= src_percent_1
+                    #     noise_label_sig *= src_percent_2
+                    # else:
+                    #     piano_label_sig *= src_percent_2
+                    #     noise_label_sig *= src_percent_1
+
+                    # noise_piano_sig = piano_label_sig + noise_label_sig
+                    # noise_piano_sig *= (avg_src_sum / np.sum(noise_piano_sig))             
+                    # # piano_label_sig = piano_label_sig.astype('float64')
+                    # # noise_label_sig = noise_label_sig.astype('float64')
+                    # # noise_piano_sig = noise_piano_sig.astype('float64')
+
+                    # Preprocessing - length pad, transform into spectrograms, add eps
+                    # if isinstance(noise_piano_sig[0], np.ndarray):   # Stereo signal = 2 channels
+                    #     noise_piano_sig = np.array([((x[0] + x[1]) / 2) for x in noise_piano_sig.astype('float64')])
+                    # if isinstance(piano_label_sig[0], np.ndarray):   # Stereo signal = 2 channels
+                    #     piano_label_sig = np.array([((x[0] + x[1]) / 2) for x in piano_label_sig.astype('float64')])
+                    
+                    deficit = pad_len - len(noise_piano_sig)
+                    noise_piano_sig = np.pad(noise_piano_sig, (0,deficit))
+                    piano_label_sig = np.pad(piano_label_sig, (0,deficit))
+                    noise_label_sig = np.pad(noise_label_sig, (0,deficit))
+                    # print('We\'re just sigs!')
+
+                    # noise_piano_spgm, np_phase
+                    noise_piano_spgm, _ = make_spectrogram(noise_piano_sig, wdw_size, epsilon, 
+                                                    ova=True, debug=False)#[0].astype('float32').T
+                    piano_label_spgm, _ = make_spectrogram(piano_label_sig, wdw_size, epsilon,
+                                                    ova=True, debug=False)
+                    noise_label_spgm, _ = make_spectrogram(noise_label_sig, wdw_size, epsilon, 
+                                                    ova=True, debug=False)
+
+                    # Write to file for fixed data gen
+                    np.save('../dlnn_data/dmged_mix_numpy/mixed' + file_num_str, noise_piano_spgm)
+                    # np.save('../dlnn_data/piano_source_numpy/piano' + file_num_str, piano_label_spgm)
+                    np.save('../dlnn_data/dmged_noise_numpy/noise' + file_num_str, noise_label_spgm)
+                else:
+                    # MIXED PRECISION - hail mary try
+                    noise_piano_spgm = np.load(pn_filepath)# .astype('float32')
+                    piano_label_spgm = np.load(pl_filepath)# .astype('float32')
+                    noise_label_spgm = np.load(nl_filepath)# .astype('float32')
 
                 x[i] = noise_piano_spgm
                 y1[i] = piano_label_spgm
@@ -1869,14 +1974,15 @@ def evaluate_source_sep(# train_dataset, val_dataset,
 
     print('Going into training now...')
     if keras_fit:
-        log_dir = '../logs/keras_fit/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        # log_dir = '../logs/keras_fit/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         hist = model.fit(train_dataset,
                      steps_per_epoch=math.ceil(num_train / batch_size),
                      epochs=epochs,
                      validation_data=val_dataset,
                      validation_steps=math.ceil(num_val / batch_size),
-                     callbacks=[EarlyStopping('val_loss', patience=patience, mode='min'),#])#,
-                                TensorBoard(log_dir=log_dir, profile_batch='2, 4')])   # 10' # by default, profiles 2nd batch
+                     callbacks=[EarlyStopping('val_loss', patience=patience, mode='min')])#,
+                                # Done memory profiling
+                                # TensorBoard(log_dir=log_dir, profile_batch='2, 4')])   # 10' # by default, profiles 2nd batch
         history = hist.history
     else:
         model, history = custom_fit(model, train_dataset, val_dataset,
@@ -2561,8 +2667,7 @@ def main():
 
     mode = sys.argv[1] 
     pc_run = True if (sys.argv[2].lower() == 'true') else False
-    use_dmged_piano = False
-    use_artificial_noise = False
+    dmged_piano_artificial_noise_mix = False
     test_on_synthetic = False
     wdw_size = PIANO_WDW_SIZE
     data_path = '../dlnn_data/'
@@ -2590,8 +2695,8 @@ def main():
     epsilon, patience, val_split = 10 ** (-10), train_epochs, 0.25 #(1/3)
 
     # TRAINING DATA SPECIFIC CONSTANTS (Change when data changes) #
-    # MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
-    TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 1847, 2049
+    MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
+    # TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 1847, 2049
     TRAIN_MEAN, TRAIN_STD = 1728.2116672701493, 6450.4985228518635
     TOTAL_SMPLS = 61 # 60 # Performance: Make divisible by batch_size (actual total = 61) ... questionable
 
@@ -2633,16 +2738,12 @@ def main():
         train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run)
 
         # Load in train/validation data
-        # piano_label_filepath_prefix = ((data_path + 'final_piano_data/psource')
-        #     if use_dmged_piano else (data_path + 'final_piano_data/psource'))
-        # noise_label_filepath_prefix = ((data_path + 'final_noise_data/nsource')
-        #     if use_artificial_noise else (data_path + 'final_noise_data/nsource'))
-        noise_piano_filepath_prefix = ((data_path + 'piano_noise_numpy/mixed')
-            if use_artificial_noise else (data_path + 'piano_noise_numpy/mixed'))
-        piano_label_filepath_prefix = ((data_path + 'piano_source_numpy/piano')
-            if use_dmged_piano else (data_path + 'piano_source_numpy/piano'))
-        noise_label_filepath_prefix = ((data_path + 'noise_source_numpy/noise')
-            if use_artificial_noise else (data_path + 'noise_source_numpy/noise'))
+        noise_piano_filepath_prefix = ((data_path + 'dmged_mix_data/features')
+            if dmged_piano_artificial_noise_mix else (data_path + 'piano_noise_numpy/mixed'))
+        piano_label_filepath_prefix = ((data_path + 'final_piano_data/psource')
+            if dmged_piano_artificial_noise_mix else (data_path + 'piano_source_numpy/piano'))
+        noise_label_filepath_prefix = ((data_path + 'dmged_noise_data/nsource')
+            if dmged_piano_artificial_noise_mix else (data_path + 'noise_source_numpy/noise'))
 
         # TRAIN & INFER
         if mode == 't':
@@ -2681,13 +2782,21 @@ def main():
                 sample_indices = list(range(TOTAL_SMPLS))
                 # DEBUG
                 random.shuffle(sample_indices)
-
-            x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.npy')
-                        for i in sample_indices])
-            y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.npy')
-                        for i in sample_indices])
-            y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.npy')
-                        for i in sample_indices])
+            
+            if dmged_piano_artificial_noise_mix:
+                x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.wav')
+                            for i in sample_indices])
+                y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.wav')
+                            for i in sample_indices])
+                y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.wav')
+                            for i in sample_indices])
+            else:
+                x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.npy')
+                            for i in sample_indices])
+                y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.npy')
+                            for i in sample_indices])
+                y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.npy')
+                            for i in sample_indices])
             
             # # Temp - do to calc max len for padding - it's 3081621 (for youtube src data)
             # # it's 3784581 (for Spotify/Youtube Final Data)
@@ -2697,7 +2806,7 @@ def main():
             # #     if MAX_SIG_LEN is None or len(sig) > MAX_SIG_LEN:
             # #         MAX_SIG_LEN = len(sig)
             # # print('MAX SIG LEN:', MAX_SIG_LEN)
-            # max_sig_len = MAX_SIG_LEN
+            max_sig_len = MAX_SIG_LEN
 
             # Validation & Training Split
             indices = list(range(actual_samples))
@@ -2741,9 +2850,13 @@ def main():
             #                     train_feat=train_feat, wdw_size=wdw_size, 
             #                     epsilon=epsilon, pad_len=max_sig_len)
             train_generator = fixed_data_generator(x_train_files, y1_train_files, y2_train_files, num_train,
-                                batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat, pc_run=pc_run)
+                                batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat, pc_run=pc_run,
+                                dmged_piano_artificial_noise=dmged_piano_artificial_noise_mix,
+                                pad_len=max_sig_len)
             validation_generator = fixed_data_generator(x_val_files, y1_val_files, y2_val_files, num_val,
-                                batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat, pc_run=pc_run)
+                                batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat, pc_run=pc_run,
+                                dmged_piano_artificial_noise=dmged_piano_artificial_noise_mix,
+                                pad_len=max_sig_len)
             # train_generator = SpgmGenerator(x_train_files, y1_train_files, y2_train_files, num_train,
             #                     batch_size=train_batch_size, num_seq=train_seq, num_feat=train_feat)
             # validation_generator = SpgmGenerator(x_val_files, y1_val_files, y2_val_files, num_val,
