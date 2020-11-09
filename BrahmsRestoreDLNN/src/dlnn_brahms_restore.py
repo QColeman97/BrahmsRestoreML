@@ -2002,7 +2002,7 @@ def evaluate_source_sep(# train_dataset, val_dataset,
     #                               show_shapes=True)
  
     pc_run_str = '' if pc_run else '_noPC'
-    if grid_search_iter is None:
+    if pc_run and grid_search_iter is None:
         #  Can't for imperative models
         model.save(recent_model_path)
 
