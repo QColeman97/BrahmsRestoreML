@@ -1078,7 +1078,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     pre_trained_wgts=None,
                     # GPU mem as func of HP TEST
                     # test=16, 
-                    test=4, 
+                    test=0, 
                     pc_run=False,
                     keras_fit=False):
     # TEST FLOAT16
@@ -1379,13 +1379,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
     noise_pred = TimeFreqMasking(epsilon=epsilon, 
                                  name='noise_pred') ((noise_hat, piano_hat, input_layer))
 
-    # MIXED PRECISION
-    # if policy is not None:
-    if not pc_run:
-        piano_pred = Activation('linear', name='mp_piano_pred', dtype='float32') (piano_pred)
-        noise_pred = Activation('linear', name='mp_noise_pred', dtype='float32') (noise_pred)
-
-    model = Model(inputs=input_layer, outputs=[piano_pred, noise_pred])
+    # model = Model(inputs=input_layer, outputs=[piano_pred, noise_pred])
 
     # # Keras debug block
     # debug_piano_model = Model(
@@ -1447,6 +1441,10 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                                                 #  loss_const_tensor
                                                  tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
                                                 ])
+            # MIXED PRECISION - not sure if test case is necessary
+            if not pc_run:
+                preds_and_lc = Activation('linear', name='mp_output', dtype='float32') (preds_and_lc)
+
             model = Model(inputs=input_layer, outputs=preds_and_lc)
 
             print('Only loading pre-trained weights for prediction')
@@ -1493,6 +1491,9 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                                             #  loss_const_tensor
                                              tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
                                              ])
+        # MIXED PRECISION
+        if not pc_run:
+            preds_and_lc = Activation('linear', name='mp_output', dtype='float32') (preds_and_lc)
 
         model = Model(inputs=input_layer, outputs=preds_and_lc)
         # model = Model(inputs=input_layer, outputs=output)
