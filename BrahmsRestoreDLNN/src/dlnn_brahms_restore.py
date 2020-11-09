@@ -584,12 +584,13 @@ def fixed_data_generator(x_files, y1_files, y2_files, num_samples, batch_size, n
             # print('GEN YIELDING')
             # MIXED PRECISION
             # if policy is None:
-            if pc_run:
-                yield ({'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, 
-                       {'piano_pred': y1, 'noise_pred': y2})
-            else:
-                yield ({'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, 
-                       {'mp_piano_pred': y1, 'mp_noise_pred': y2})
+            # if pc_run:
+            #     yield ({'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, 
+            #            {'piano_pred': y1, 'noise_pred': y2})
+            # else:
+            #     yield ({'piano_noise_mixed': x, 'piano_true': y1, 'noise_true': y2}, 
+            #            {'mp_piano_pred': y1, 'mp_noise_pred': y2})
+            yield ([x, np.concatenate((y1, y2), axis=-1)])
 
 # # Have a train dir, a val dir, and (a test dir?)
 # # Generator that returns samples and two targets each (TF-matrices)
@@ -1377,6 +1378,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                                  name='piano_pred') ((piano_hat, noise_hat, input_layer))
     noise_pred = TimeFreqMasking(epsilon=epsilon, 
                                  name='noise_pred') ((noise_hat, piano_hat, input_layer))
+
     # MIXED PRECISION
     # if policy is not None:
     if not pc_run:
@@ -1439,6 +1441,10 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
     
     # disc_loss = None
     if pre_trained_wgts is not None:
+            loss_const_tensor = tf.reshape(tf.constant(loss_const), [None, sequences, 1])
+            preds_and_lc = Concatenate() ([piano_pred, noise_pred, loss_const_tensor])
+            model = Model(inputs=input_layer, outputs=preds_and_lc)
+
             print('Only loading pre-trained weights for prediction')
             model.set_weights(pre_trained_wgts)
     elif keras_fit:
@@ -1477,11 +1483,15 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
         # # model.add_loss(disc_loss)
         # # model.compile(optimizer=optimizer, loss={'piano_pred': 'mse', 'noise_pred': 'mse'})
 
-        model = Model(inputs=input_layer, outputs=output)
+        loss_const_tensor = tf.reshape(tf.constant(loss_const), [None, sequences, 1])
+        preds_and_lc = Concatenate() ([piano_pred, noise_pred, loss_const_tensor])
+
+        model = Model(inputs=input_layer, outputs=preds_and_lc)
+        # model = Model(inputs=input_layer, outputs=output)
 
         # Combine piano_pred, noise_pred & loss_const into models output!
-        loss_const_tensor = tf.reshape(tf.constant(loss_const), [None, sequences, 1])
-        output = Concatenate() ([piano_pred, noise_pred, loss_const_tensor])
+        # loss_const_tensor = tf.reshape(tf.constant(loss_const), [None, sequences, 1])
+        # output = Concatenate() ([piano_pred, noise_pred, loss_const_tensor])
 
         model.compile(optimizer=optimizer, loss=discrim_loss)
         # TRY - B/C tf.function is symbolic tensors - no error there
@@ -1911,52 +1921,64 @@ def evaluate_source_sep(# train_dataset, val_dataset,
     # TEST FLOAT16
     # MIXED PRECISION - hail mary try
     # if policy is None:
-    if pc_run:
-        train_dataset = tf.data.Dataset.from_generator(
-            make_gen_callable(train_generator), 
-            output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
-                        {'piano_pred': tf.float32, 'noise_pred': tf.float32}),
-            # output_types=([tf.float32, tf.float32, tf.float32], [tf.float32, tf.float32]),
-            # output_types=(tf.float32),
-            output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
-                        {'piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
-            # output_shapes=({'piano_noise_mixed': tf.TensorShape([n_seq, n_feat]), 'piano_true': tf.TensorShape([n_seq, n_feat]), 'noise_true': tf.TensorShape([n_seq, n_feat])}, 
-            #                {'piano_pred': tf.TensorShape([n_seq, n_feat]), 'noise_pred': tf.TensorShape([n_seq, n_feat])}),      # For keras functional API & custom training
-            # output_shapes=([tf.TensorShape(None), tf.TensorShape(None), tf.TensorShape(None)], 
-            #                [tf.TensorShape(None), tf.TensorShape(None)])    # For keras functional API & custom training
-            # output_shapes=([(n_seq, n_feat), (n_seq, n_feat), (n_seq, n_feat)], 
-            #                [(n_seq, n_feat), (n_seq, n_feat)])    # For keras functional API & custom training
-            # output_shapes=([tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat])], 
-            #                [tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat])])    # For keras functional API & custom training
-            # output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
-            # output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
-        )
-        val_dataset = tf.data.Dataset.from_generator(
-            make_gen_callable(validation_generator), 
-            output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
-                        {'piano_pred': tf.float32, 'noise_pred': tf.float32}),
-            output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
-                        {'piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
-            # output_shapes=([tf.TensorShape(None), tf.TensorShape(None), tf.TensorShape(None)], 
-            #                [tf.TensorShape(None), tf.TensorShape(None)])    # For keras functional API & custom training
-            # output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
-            # output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
-        )
-    else:
-        train_dataset = tf.data.Dataset.from_generator(
-            make_gen_callable(train_generator), 
-            output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
-                        {'mp_piano_pred': tf.float32, 'mp_noise_pred': tf.float32}),
-            output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
-                        {'mp_piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'mp_noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
-        )
-        val_dataset = tf.data.Dataset.from_generator(
-            make_gen_callable(validation_generator), 
-            output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
-                        {'mp_piano_pred': tf.float32, 'mp_noise_pred': tf.float32}),
-            output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
-                        {'mp_piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'mp_noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
-        )
+    # if pc_run:
+    #     train_dataset = tf.data.Dataset.from_generator(
+    #         make_gen_callable(train_generator), 
+    #         output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
+    #                     {'piano_pred': tf.float32, 'noise_pred': tf.float32}),
+    #         # output_types=([tf.float32, tf.float32, tf.float32], [tf.float32, tf.float32]),
+    #         # output_types=(tf.float32),
+    #         output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
+    #                     {'piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
+    #         # output_shapes=({'piano_noise_mixed': tf.TensorShape([n_seq, n_feat]), 'piano_true': tf.TensorShape([n_seq, n_feat]), 'noise_true': tf.TensorShape([n_seq, n_feat])}, 
+    #         #                {'piano_pred': tf.TensorShape([n_seq, n_feat]), 'noise_pred': tf.TensorShape([n_seq, n_feat])}),      # For keras functional API & custom training
+    #         # output_shapes=([tf.TensorShape(None), tf.TensorShape(None), tf.TensorShape(None)], 
+    #         #                [tf.TensorShape(None), tf.TensorShape(None)])    # For keras functional API & custom training
+    #         # output_shapes=([(n_seq, n_feat), (n_seq, n_feat), (n_seq, n_feat)], 
+    #         #                [(n_seq, n_feat), (n_seq, n_feat)])    # For keras functional API & custom training
+    #         # output_shapes=([tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat])], 
+    #         #                [tf.TensorShape([n_seq, n_feat]), tf.TensorShape([n_seq, n_feat])])    # For keras functional API & custom training
+    #         # output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
+    #         # output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+    #     )
+    #     val_dataset = tf.data.Dataset.from_generator(
+    #         make_gen_callable(validation_generator), 
+    #         output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
+    #                     {'piano_pred': tf.float32, 'noise_pred': tf.float32}),
+    #         output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
+    #                     {'piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
+    #         # output_shapes=([tf.TensorShape(None), tf.TensorShape(None), tf.TensorShape(None)], 
+    #         #                [tf.TensorShape(None), tf.TensorShape(None)])    # For keras functional API & custom training
+    #         # output_shapes=tf.TensorShape([3, n_seq, n_feat])    # No batch, for model.fit()
+    #         # output_shapes=tf.TensorShape([3, None, n_seq, n_feat])
+    #     )
+    # else:
+    #     train_dataset = tf.data.Dataset.from_generator(
+    #         make_gen_callable(train_generator), 
+    #         output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
+    #                     {'mp_piano_pred': tf.float32, 'mp_noise_pred': tf.float32}),
+    #         output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
+    #                     {'mp_piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'mp_noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
+    #     )
+    #     val_dataset = tf.data.Dataset.from_generator(
+    #         make_gen_callable(validation_generator), 
+    #         output_types=({'piano_noise_mixed': tf.float32, 'piano_true': tf.float32, 'noise_true': tf.float32}, 
+    #                     {'mp_piano_pred': tf.float32, 'mp_noise_pred': tf.float32}),
+    #         output_shapes=({'piano_noise_mixed': tf.TensorShape([None, n_seq, n_feat]), 'piano_true': tf.TensorShape([None, n_seq, n_feat]), 'noise_true': tf.TensorShape([None, n_seq, n_feat])}, 
+    #                     {'mp_piano_pred': tf.TensorShape([None, n_seq, n_feat]), 'mp_noise_pred': tf.TensorShape([None, n_seq, n_feat])}),      # For my gen & keras functional API & custom training
+    #     )
+
+    train_dataset = tf.data.Dataset.from_generator(
+        make_gen_callable(train_generator), 
+        output_types=([tf.float32, tf.float32]),
+        output_shapes=([tf.TensorShape([None, n_seq, n_feat]), tf.TensorShape([None, n_seq, n_feat*2])]),
+    )
+    val_dataset = tf.data.Dataset.from_generator(
+        make_gen_callable(validation_generator), 
+        output_types=([tf.float32, tf.float32]),
+        output_shapes=([tf.TensorShape([None, n_seq, n_feat]), tf.TensorShape([None, n_seq, n_feat*2])]),
+    )
+
     # print('TRAIN DATASET ELEMENTS:', train_dataset.element_spec)
     # print('VALID DATASET ELEMENTS:', val_dataset.element_spec)
     # print('TRAIN DATASET TYPE:', train_dataset)
