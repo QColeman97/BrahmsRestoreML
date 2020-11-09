@@ -2131,9 +2131,9 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # TEST FLOAT16 - double batch size
     # MIXED PRECISION   - double batch size (can't on PC still b/c OOM), for V100: multiple of 8
     # batch_size_optns = [3] if pc_run else [8] # [16, 24] OOM on f35 w/ old addloss model
-    # OOM boundary test
-    batch_size_optns = [3] if pc_run else [3, 12, 24]  
-    # batch_size_optns = [3] if pc_run else [6, 12]  
+    # OOM BOUND TEST
+    # batch_size_optns = [3] if pc_run else [12, 18]  
+    batch_size_optns = [3] if pc_run else [8, 16]  
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
@@ -2233,14 +2233,16 @@ def get_hp_configs(bare_config_path, pc_run=False):
     #     with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
     #         bare_config_optns = json.load(hp_file)['archs']
 
+    # IMPORTANT: Order arch config options by mem-intensive HPs first,
+    #           to protect against OOM on grid search
     # dropout_optns = [(0.0,0.0), (0.2,0.2), (0.2,0.5), (0.5,0.2), (0.5,0.5)]   # For RNN only
     dropout_optns = [(0.0,0.0), (0.25,0.25)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
-    scale_optns = [True, False]
-    rnn_skip_optns = [True, False]
+    scale_optns = [False, True]
+    rnn_skip_optns = [False, True]
     bias_rnn_optns = [True]     # False
     bias_dense_optns = [True]   # False
-    bidir_optns = [True, False]
-    bn_optns = [True, False]                    # For Dense only
+    bidir_optns = [False, True]
+    bn_optns = [False, True]                    # For Dense only
     rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model  
     # MIXED PRECISION combat NaNs            
     # rnn_optns = ['RNN'] if pc_run else ['LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
@@ -2258,14 +2260,14 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # iter_hp = 0 # test
     arch_config_optns = []
     for config in bare_config_optns:  
-        for scale_optn in scale_optns:
-            for rnn_skip_optn in rnn_skip_optns:
-                for bias_rnn_optn in bias_rnn_optns:
-                    for bias_dense_optn in bias_dense_optns:
-                        for bidir_optn in bidir_optns:
-                            for dropout_optn in dropout_optns:  
-                                for bn_optn in bn_optns:   
-                                    for rnn_optn in rnn_optns:
+        for rnn_optn in rnn_optns:
+            for bidir_optn in bidir_optns:
+                for scale_optn in scale_optns:
+                    for bn_optn in bn_optns:  
+                        for rnn_skip_optn in rnn_skip_optns:
+                            for bias_rnn_optn in bias_rnn_optns:
+                                for bias_dense_optn in bias_dense_optns:
+                                    for dropout_optn in dropout_optns:   
                                         # Make a unique copy for each factor combo
                                         curr_config = deepcopy(config)  
                                         curr_config['scale'] = scale_optn
@@ -2497,13 +2499,14 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
     if len(gs_id) > 0:
         gs_id += '_'
 
+    # IMPORTANT: Grab HPs in order of mem-instensiveness, reduces chances OOM on grid search
     # Full grid search loop
     grid_results_val, grid_results, gs_iter = {}, {}, 1
-    for epochs in epochs_optns:
-        for loss_const in loss_const_optns:
-            for opt, clip_val, lr, opt_name in optimizer_optns:
-                for arch_config in arch_config_optns:
-                    for batch_size in batch_size_optns:     # Batch size is tested first -> fast OOM-handling iterations
+    for batch_size in batch_size_optns:     # Batch size is tested first -> fast OOM-handling iterations
+        for arch_config in arch_config_optns:
+            for epochs in epochs_optns:
+                for loss_const in loss_const_optns:
+                    for opt, clip_val, lr, opt_name in optimizer_optns:
 
                         if restart or (gs_iter > last_done):
 
@@ -2791,6 +2794,7 @@ def main():
     print("Num GPUs Available: ", len(gpus))
     print("GPUs Available: ", gpus)
     if not pc_run:
+        print("Setting memory growth on GPUs")
         for i in range(len(gpus)):
             tf.config.experimental.set_memory_growth(gpus[i], True)
     
@@ -3079,7 +3083,7 @@ def main():
 
                 # Early stop for random HPs
                 # TIME TEST
-                patience = 4
+                # patience = 4
                 # training_arch_config = arch_config_optns[0]
                 print('RANDOM TRAIN ARCH FOR USE:')
                 print(training_arch_config)
