@@ -2847,11 +2847,18 @@ def main():
         # print('First arch config optn after return:', arch_config_optns[0])
 
         # Load in train/validation data
-        noise_piano_filepath_prefix = ((data_path + 'dmged_mix_numpy/mixed')
+        # noise_piano_filepath_prefix = ((data_path + 'dmged_mix_numpy/mixed')
+        #     if dmged_piano_artificial_noise_mix else (data_path + 'piano_noise_numpy/mixed'))
+        # piano_label_filepath_prefix = ((data_path + 'piano_source_numpy/piano')
+        #     if dmged_piano_artificial_noise_mix else (data_path + 'piano_source_numpy/piano'))
+        # noise_label_filepath_prefix = ((data_path + 'dmged_noise_numpy/noise')
+        #     if dmged_piano_artificial_noise_mix else (data_path + 'noise_source_numpy/noise'))
+        # FIX DMGED/ART DATA - get wav files
+        noise_piano_filepath_prefix = ((data_path + 'dmged_mix_data/features')
             if dmged_piano_artificial_noise_mix else (data_path + 'piano_noise_numpy/mixed'))
-        piano_label_filepath_prefix = ((data_path + 'piano_source_numpy/piano')
+        piano_label_filepath_prefix = ((data_path + 'final_piano_data/psource')
             if dmged_piano_artificial_noise_mix else (data_path + 'piano_source_numpy/piano'))
-        noise_label_filepath_prefix = ((data_path + 'dmged_noise_numpy/noise')
+        noise_label_filepath_prefix = ((data_path + 'dmged_noise_data/nsource')
             if dmged_piano_artificial_noise_mix else (data_path + 'noise_source_numpy/noise'))
 
         # TRAIN & INFER
@@ -2892,20 +2899,21 @@ def main():
                 # DEBUG
                 random.shuffle(sample_indices)
             
-            # if dmged_piano_artificial_noise_mix:
-            #     x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.wav')
-            #                 for i in sample_indices])
-            #     y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.wav')
-            #                 for i in sample_indices])
-            #     y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.wav')
-            #                 for i in sample_indices])
-            # else:
-            x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.npy')
-                        for i in sample_indices])
-            y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.npy')
-                        for i in sample_indices])
-            y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.npy')
-                        for i in sample_indices])
+            # FIX DMGED/ART DATA
+            if dmged_piano_artificial_noise_mix:
+                x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.wav')
+                            for i in sample_indices])
+                y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.wav')
+                            for i in sample_indices])
+                y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.wav')
+                            for i in sample_indices])
+            else:
+                x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.npy')
+                            for i in sample_indices])
+                y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.npy')
+                            for i in sample_indices])
+                y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.npy')
+                            for i in sample_indices])
             
             # # Temp - do to calc max len for padding - it's 3081621 (for youtube src data)
             # # it's 3784581 (for Spotify/Youtube Final Data)
@@ -3094,13 +3102,18 @@ def main():
             # else:
             #     print('CONFIG:', training_arch_config)
 
-            # TEMP - update for each unique dataset
+            # # TEMP - update for each unique dataset
             # train_mean, train_std = get_stats(y1_train_files, y2_train_files, num_train,
             #                                   train_seq=train_seq, train_feat=train_feat, 
             #                                   wdw_size=wdw_size, epsilon=epsilon, 
             #                                   pad_len=max_sig_len)
             # print('REMEMBER Train Mean:', train_mean, 'Train Std:', train_std, '\n')
-            # Train Mean: 1728.2116672701493 Train Std: 6450.4985228518635 - 10/18/20
+            # Train Mean: 1728.2116672701493 Train Std: 6450.4985228518635 - 10/18/20 - preprocess & mix final data
+            # Train Mean:  Train Std:  - 11/09/20
+            # DMGED/ART DATA
+            # if dmged_piano_artificial_noise_mix:
+                # train_mean, train_std = TRAIN_MEAN_DMGED, TRAIN_STD_DMGED
+            # else:
             train_mean, train_std = TRAIN_MEAN, TRAIN_STD
 
             model, _, _ = evaluate_source_sep(train_generator, validation_generator, 
@@ -3155,11 +3168,11 @@ def main():
             sample_indices = list(range(TOTAL_SMPLS))
             random.shuffle(sample_indices)
 
-            x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.wav')
+            x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.npy')
                         for i in sample_indices])
-            y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.wav')
+            y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.npy')
                         for i in sample_indices])
-            y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.wav')
+            y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.npy')
                         for i in sample_indices])
             # max_sig_len = MAX_SIG_LEN
 
