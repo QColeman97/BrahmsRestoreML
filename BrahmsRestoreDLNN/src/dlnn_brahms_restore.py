@@ -2133,7 +2133,7 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # batch_size_optns = [3] if pc_run else [8] # [16, 24] OOM on f35 w/ old addloss model
     # OOM BOUND TEST
     # batch_size_optns = [3] if pc_run else [12, 18]  
-    batch_size_optns = [3, 6] if pc_run else [8, 16]  
+    batch_size_optns = [10] if pc_run else [8, 16]  
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
@@ -2241,6 +2241,7 @@ def get_hp_configs(bare_config_path, pc_run=False):
     rnn_skip_optns = [False, True]
     bias_rnn_optns = [True]     # False
     bias_dense_optns = [True]   # False
+    # HP range test - only True
     bidir_optns = [False, True]
     bn_optns = [False, True]                    # For Dense only
     rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model  
