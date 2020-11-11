@@ -2767,7 +2767,10 @@ def main():
     infer_output_path = '../output_restore/'
     brahms_path = '../brahms.wav'
     
+    do_curr_best, top_result_path = True, '../top_gs_results/11-10-20/top_result_gamma0.05.txt'
+
     keras_fit, dist_training = False, False
+
     # EMPERICALLY DERIVED HPs
     # Note: FROM PO-SEN PAPER - about loss_const
     #   Empirically, the value γ is in the range of 0.05∼0.2 in order
@@ -3100,6 +3103,37 @@ def main():
                 print('Batch size:', train_batch_size, 'Epochs:', train_epochs,
                       'Loss constant:', train_loss_const, 'Optimizer:', opt_name, 
                       'Clip value:', clip_val, 'Learning rate:', lr)
+            elif do_curr_best:
+                gs_result_file = open(gs_output_path, 'r')
+                for _ in range(4):
+                    _ = gs_result_file.readline()
+                best_config = json.loads(gs_result_file.readline())
+                train_batch_size = best_config['batch_size']
+                # Avoid OOM
+                if pc_run and train_batch_size > 10:
+                    train_batch_size = 10
+                train_loss_const = best_config['gamma']
+                train_epochs = best_config['epochs']
+                if best_config['optimizer'] == 'Adam':
+                    train_optimizer = tf.keras.optimizers.Adam(clipvalue=best_config['clip value'], 
+                                                               learning_rate=best_config['learning rate'])
+                else:
+                    train_optimizer = tf.keras.optimizers.RMSprop(clipvalue=best_config['clip value'], 
+                                                                  learning_rate=best_config['learning rate'])
+                training_arch_config = {}
+                training_arch_config['layers'] = best_config['layers']
+                training_arch_config['scale'] = best_config['scale']
+                training_arch_config['rnn_res_cntn'] = best_config['rnn_res_cntn']
+                training_arch_config['bias_rnn'] = best_config['bias_rnn']
+                training_arch_config['bias_dense'] = best_config['bias_dense']
+                training_arch_config['bidir'] = best_config['bidir']
+                training_arch_config['rnn_dropout'] = best_config['rnn_dropout']
+                training_arch_config['bn'] = best_config['bn']
+                # Avoid OOM
+                for i, layer in enumerate(best_config['layers']):
+                    if layer['type'] == 'LSTM':
+                        training_arch_config['layers'][i]['type'] = 'RNN'
+                
             # else:
             #     print('CONFIG:', training_arch_config)
 
