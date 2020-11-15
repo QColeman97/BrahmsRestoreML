@@ -2144,11 +2144,13 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # OOM BOUND TEST
     # batch_size_optns = [3] if pc_run else [12, 18]  
     # batch_size_optns = [10] if pc_run else [8, 16]    # OOM on f35, and on PC
-    batch_size_optns = [5] if pc_run else [8, 12] 
+    # batch_size_optns = [5] if pc_run else [8, 12] 
+    batch_size_optns = [5] if pc_run else [8, 12]   # Try out
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
-    loss_const_optns = [0.05, 0.2]
+    # loss_const_optns = [0.05, 0.2]
+    loss_const_optns = [0.05] if pc_run else [0.05, 0.2]    # first of two HPs dropping, PC GS time constraint
     # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
     # Balance between gradient clipping and lr for exploding gradient
     # If time permits, later grid searches explore learning rate & momentum to fine tune
@@ -2203,11 +2205,15 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # MIXED PRECISION - doesn't support gradient clipping or specifically clipvalue
     # if pc_run:
     optimizer_optns = [
-                    (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
                     (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-                    (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
                     (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
                     ]
+    # optimizer_optns = [
+    #                 (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
+    #                 (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
+    #                 (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
+    #                 (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
+    #                 ]
     # else:
     #     optimizer_optns = [
     #                     (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
