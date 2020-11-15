@@ -2768,7 +2768,7 @@ def main():
 
     mode = sys.argv[1] 
     pc_run = True if (sys.argv[2].lower() == 'true') else False
-    dmged_piano_artificial_noise_mix = False
+    dmged_piano_artificial_noise_mix = True
     test_on_synthetic = False
     wdw_size = PIANO_WDW_SIZE
     data_path = '../dlnn_data/'
