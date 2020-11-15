@@ -2143,8 +2143,8 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # batch_size_optns = [3] if pc_run else [8] # [16, 24] OOM on f35 w/ old addloss model
     # OOM BOUND TEST
     # batch_size_optns = [3] if pc_run else [12, 18]  
-    # batch_size_optns = [10] if pc_run else [8, 16]    # OOM on f35, and on PC
-    batch_size_optns = [5] if pc_run else [8, 12] 
+    batch_size_optns = [10] if pc_run else [8, 16]    # OOM on f35, and on PC, BUT have restart script now
+    # batch_size_optns = [5] if pc_run else [8, 12] 
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
@@ -2768,7 +2768,7 @@ def main():
 
     mode = sys.argv[1] 
     pc_run = True if (sys.argv[2].lower() == 'true') else False
-    dmged_piano_artificial_noise_mix = True
+    dmged_piano_artificial_noise_mix = False
     test_on_synthetic = False
     wdw_size = PIANO_WDW_SIZE
     data_path = '../dlnn_data/'
