@@ -2522,6 +2522,11 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
 
                         if restart or (gs_iter > last_done):
 
+                            print('BEGINNING GRID-SEARCH ITER', (str(gs_iter) + '/' + str(combos) + ':\n'), 
+                                'batch_size:', batch_size, 'epochs:', epochs, 'loss_const:', loss_const,
+                                'optimizer:', opt_name, 'clipvalue:', clip_val, 'learn_rate:', lr, 
+                                '\narch_config', arch_config, '\n')
+
                             # CUSTOM TRAINING
                             # if not pc_run:
                             #     og_batch_size = batch_size
@@ -2612,11 +2617,6 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                             #                     'epochs': epochs, 'gamma': loss_const,
                             #                     'optimizer': opt, 'clip value': clip_val,
                             #                     'learning rate': lr, 'all_loss': val_losses}
-
-                            print('DONE W/ GRID-SEARCH ITER', (str(gs_iter) + '/' + str(combos) + ':\n'), 
-                                'batch_size:', batch_size, 'epochs:', epochs, 'loss_const:', loss_const,
-                                'optimizer:', opt, 'clipvalue:', clip_val, 'learn_rate:', lr, 
-                                '\narch_config', arch_config, '\n')
 
                         gs_iter += 1
 
