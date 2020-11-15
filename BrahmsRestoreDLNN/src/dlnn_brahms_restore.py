@@ -3108,7 +3108,7 @@ def main():
 
                 # Early stop for random HPs
                 # TIME TEST
-                # patience = 4
+                patience = 4
                 # training_arch_config = arch_config_optns[0]
                 print('RANDOM TRAIN ARCH FOR USE:')
                 print(training_arch_config)
