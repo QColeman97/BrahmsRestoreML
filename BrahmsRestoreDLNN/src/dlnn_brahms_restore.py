@@ -2819,6 +2819,20 @@ def main():
         for i in range(len(gpus)):
             tf.config.experimental.set_memory_growth(gpus[i], True)
     
+        print("Restricting run to only 1 GPU")
+        gpus = tf.config.experimental.list_physical_devices('GPU')
+        if gpus:
+            # Restrict TensorFlow to only use the first GPU
+            try:
+                rand_gpu = random.randint(0,1)
+                tf.config.experimental.set_visible_devices(gpus[rand_gpu], 'GPU')
+                logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+                print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
+            except RuntimeError as e:
+                # Visible devices must be set before GPUs have been initialized
+                print(e)
+
+
     # BLOCK MUST BE MADE AFTER SET MEM GROWTH ABOVE
     # policy = None
     # MIXED PRECISION - only used on f35 (V100s)
