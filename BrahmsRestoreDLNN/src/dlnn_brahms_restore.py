@@ -2203,17 +2203,18 @@ def get_hp_configs(bare_config_path, pc_run=False):
     #                   (tf.keras.optimizers.Adam(clipvalue=10, epsilon=1e-4), 10, 0.001, 'Adam')
     #                   ]
     # MIXED PRECISION - doesn't support gradient clipping or specifically clipvalue
-    # if pc_run:
-    # optimizer_optns = [
-    #                 (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-    #                 (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
-    #                 ]
-    optimizer_optns = [
-                    (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
-                    (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-                    (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
-                    (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
-                    ]
+    if pc_run:
+        optimizer_optns = [
+                        (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
+                        (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
+                        ]
+    else:
+        optimizer_optns = [
+                        (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
+                        (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
+                        (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
+                        (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
+                        ]
     # else:
     #     optimizer_optns = [
     #                     (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
