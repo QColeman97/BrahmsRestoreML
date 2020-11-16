@@ -2143,9 +2143,9 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # batch_size_optns = [3] if pc_run else [8] # [16, 24] OOM on f35 w/ old addloss model
     # OOM BOUND TEST
     # batch_size_optns = [3] if pc_run else [12, 18]  
-    # batch_size_optns = [10] if pc_run else [8, 16]    # OOM on f35, and on PC
+    batch_size_optns = [5] if pc_run else [8, 16]    # OOM on f35, and on PC, BUT have restart script now
+
     # batch_size_optns = [5] if pc_run else [8, 12] 
-    batch_size_optns = [5] if pc_run else [8, 12]   # Try out
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
@@ -2204,16 +2204,16 @@ def get_hp_configs(bare_config_path, pc_run=False):
     #                   ]
     # MIXED PRECISION - doesn't support gradient clipping or specifically clipvalue
     # if pc_run:
-    optimizer_optns = [
-                    (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-                    (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
-                    ]
     # optimizer_optns = [
-    #                 (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
     #                 (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-    #                 (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
     #                 (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
     #                 ]
+    optimizer_optns = [
+                    (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
+                    (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
+                    (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
+                    (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
+                    ]
     # else:
     #     optimizer_optns = [
     #                     (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
@@ -2528,6 +2528,11 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
 
                         if restart or (gs_iter > last_done):
 
+                            print('BEGINNING GRID-SEARCH ITER', (str(gs_iter) + '/' + str(combos) + ':\n'), 
+                                'batch_size:', batch_size, 'epochs:', epochs, 'loss_const:', loss_const,
+                                'optimizer:', opt_name, 'clipvalue:', clip_val, 'learn_rate:', lr, 
+                                '\narch_config', arch_config, '\n')
+
                             # CUSTOM TRAINING
                             # if not pc_run:
                             #     og_batch_size = batch_size
@@ -2618,11 +2623,6 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                             #                     'epochs': epochs, 'gamma': loss_const,
                             #                     'optimizer': opt, 'clip value': clip_val,
                             #                     'learning rate': lr, 'all_loss': val_losses}
-
-                            print('DONE W/ GRID-SEARCH ITER', (str(gs_iter) + '/' + str(combos) + ':\n'), 
-                                'batch_size:', batch_size, 'epochs:', epochs, 'loss_const:', loss_const,
-                                'optimizer:', opt, 'clipvalue:', clip_val, 'learn_rate:', lr, 
-                                '\narch_config', arch_config, '\n')
 
                         gs_iter += 1
 
@@ -2774,7 +2774,7 @@ def main():
 
     mode = sys.argv[1] 
     pc_run = True if (sys.argv[2].lower() == 'true') else False
-    dmged_piano_artificial_noise_mix = True
+    dmged_piano_artificial_noise_mix = False
     test_on_synthetic = False
     wdw_size = PIANO_WDW_SIZE
     data_path = '../dlnn_data/'
