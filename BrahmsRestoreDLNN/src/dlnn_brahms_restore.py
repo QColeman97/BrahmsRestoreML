@@ -2143,14 +2143,17 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # batch_size_optns = [3] if pc_run else [8] # [16, 24] OOM on f35 w/ old addloss model
     # OOM BOUND TEST
     # batch_size_optns = [3] if pc_run else [12, 18]  
-    batch_size_optns = [5] if pc_run else [8, 16]    # OOM on f35, and on PC, BUT have restart script now
+    # batch_size_optns = [5] if pc_run else [8, 16]    # OOM on f35, and on PC, BUT have restart script now
+    batch_size_optns = [5] if pc_run else [4, 8]    # OOM on f35, and on PC, BUT have restart script now
 
     # batch_size_optns = [5] if pc_run else [8, 12] 
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
     # loss_const_optns = [0.05, 0.2]
-    loss_const_optns = [0.05] if pc_run else [0.05, 0.2]    # first of two HPs dropping, PC GS time constraint
+    # loss_const_optns = [0.05] if pc_run else [0.05, 0.2]    # first of two HPs dropping, PC GS time constraint
+    loss_const_optns = [0.05] if pc_run else [0.05]    # f35 OOM: higher batch size
+
     # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
     # Balance between gradient clipping and lr for exploding gradient
     # If time permits, later grid searches explore learning rate & momentum to fine tune
@@ -2812,26 +2815,26 @@ def main():
     TOTAL_SMPLS = 61
 
     # System-dependant changes
-    gpus = tf.config.list_physical_devices('GPU')
-    print("Num GPUs Available: ", len(gpus))
-    print("GPUs Available: ", gpus)
-    if not pc_run:
-        print("Setting memory growth on GPUs")
-        for i in range(len(gpus)):
-            tf.config.experimental.set_memory_growth(gpus[i], True)
-    
-        print("Restricting run to only 1 GPU")
-        gpus = tf.config.experimental.list_physical_devices('GPU')
-        if gpus:
-            # Restrict TensorFlow to only use the first GPU
-            try:
-                rand_gpu = random.randint(0,1)
-                tf.config.experimental.set_visible_devices(gpus[rand_gpu], 'GPU')
-                logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-                print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
-            except RuntimeError as e:
-                # Visible devices must be set before GPUs have been initialized
-                print(e)
+    physical_gpus = tf.config.list_physical_devices('GPU')
+    print("Num GPUs Available: ", len(physical_gpus))
+    print("GPUs Available: ", physical_gpus)
+    if (not pc_run) and physical_gpus:
+        # No courtesy, allocate all GPU mem for me only, guarantees no else can mess up me. If no avail GPUs, admin's fault
+        # # mostly courtesy to others on F35 system
+        # print("Setting memory growth on GPUs")
+        # for i in range(len(physical_gpus)):
+        #     tf.config.experimental.set_memory_growth(physical_gpus[i], True)
+
+        # Restrict TensorFlow to only use one GPU (exclusive access w/ mem growth = False)
+        try:
+            rand_gpu = random.randint(0, len(physical_gpus)-1)
+            print("Restricting TF run to only use 1 GPU:", physical_gpus[rand_gpu], "\n")
+            tf.config.experimental.set_visible_devices(physical_gpus[rand_gpu], 'GPU')
+            logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+            print(len(physical_gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
+        except RuntimeError as e:
+            # Visible devices must be set before GPUs have been initialized
+            print(e)
 
 
     # BLOCK MUST BE MADE AFTER SET MEM GROWTH ABOVE

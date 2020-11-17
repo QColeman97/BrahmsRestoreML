@@ -2,5 +2,5 @@
   
 until python dlnn_brahms_restore.py g FALSE -k; do
         echo "GS Python script crashed with exit code $?. Respawning..." >&2
-        sleep 3600
+        sleep 10
 done
