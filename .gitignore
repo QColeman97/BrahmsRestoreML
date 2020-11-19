@@ -10,7 +10,7 @@ __pycache__/
 /BrahmsRestoreDLNN/src/dlnn_brahms_restore_fit_fail_old.py
 /BrahmsRestoreDLNN/logs/
 /BrahmsRestoreDLNN/src/logs/
-/BrahmsRestoreDLNN/src/output_grid_search\ -\ copy\ with\ bs=5\ gs\ that\ oom/
+/BrahmsRestoreDLNN/output_grid_search_PC_bs5_oom/
 
 .vs
 
