@@ -2152,7 +2152,7 @@ def get_hp_configs(bare_config_path, pc_run=False):
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
     # loss_const_optns = [0.05, 0.2]
-    loss_const_optns = [0.05] if pc_run else [0.05, 0.2]    # first of two HPs dropping, PC GS time constraint
+    loss_const_optns = [0.05, 0.1] if pc_run else [0.05, 0.2]    # first of two HPs dropping, PC GS time constraint
 
     # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
     # Balance between gradient clipping and lr for exploding gradient
