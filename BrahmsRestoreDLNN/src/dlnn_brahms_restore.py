@@ -2144,15 +2144,15 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # OOM BOUND TEST
     # batch_size_optns = [3] if pc_run else [12, 18]  
     # batch_size_optns = [5] if pc_run else [8, 16]    # OOM on f35, and on PC, BUT have restart script now
-    batch_size_optns = [5] if pc_run else [4, 8]    # OOM on f35, and on PC, BUT have restart script now
+    # 11/19/20 for PC - too late, just run this over break - test SGD vs mini-batch SGD (memory conservative)
+    batch_size_optns = [1, 3] if pc_run else [4, 8]    # OOM on f35 and on PC, w/ restart script,
 
     # batch_size_optns = [5] if pc_run else [8, 12] 
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
     # loss_const_optns = [0.05, 0.2]
-    # loss_const_optns = [0.05] if pc_run else [0.05, 0.2]    # first of two HPs dropping, PC GS time constraint
-    loss_const_optns = [0.05] if pc_run else [0.05]    # f35 OOM: higher batch size
+    loss_const_optns = [0.05, 0.1] if pc_run else [0.05, 0.2]    # first of two HPs dropping, PC GS time constraint
 
     # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
     # Balance between gradient clipping and lr for exploding gradient
@@ -2206,29 +2206,19 @@ def get_hp_configs(bare_config_path, pc_run=False):
     #                   (tf.keras.optimizers.Adam(clipvalue=10, epsilon=1e-4), 10, 0.001, 'Adam')
     #                   ]
     # MIXED PRECISION - doesn't support gradient clipping or specifically clipvalue
-    if pc_run:
-        optimizer_optns = [
-                        (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-                        (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
-                        ]
-    else:
-        optimizer_optns = [
-                        (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
-                        (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-                        (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
-                        (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
-                        ]
-    # else:
+    # FOR TIME CONSTRAINT
+    # if pc_run:
     #     optimizer_optns = [
-    #                     (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
-    #                     (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
+    #                     (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
+    #                     (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
     #                     ]
-    # optimizer_optns = [
-    #                   (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
-    #                   (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-    #                   (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
-    #                   (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
-    #                   ]
+    # else:
+    optimizer_optns = [
+                    (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
+                    (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
+                    (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
+                    (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam')
+                    ]
 
     train_configs = {'batch_size': batch_size_optns, 'epochs': epochs_optns,
                      'loss_const': loss_const_optns, 'optimizer': optimizer_optns}
@@ -2778,7 +2768,8 @@ def main():
 
     mode = sys.argv[1] 
     pc_run = True if (sys.argv[2].lower() == 'true') else False
-    dmged_piano_artificial_noise_mix = False
+    # Differentiate PC GS from F35 GS
+    dmged_piano_artificial_noise_mix = True if pc_run else False
     test_on_synthetic = False
     wdw_size = PIANO_WDW_SIZE
     data_path = '../dlnn_data/'
@@ -2899,6 +2890,7 @@ def main():
         #     if dmged_piano_artificial_noise_mix else (data_path + 'piano_source_numpy/piano'))
         # noise_label_filepath_prefix = ((data_path + 'dmged_noise_data/nsource')
         #     if dmged_piano_artificial_noise_mix else (data_path + 'noise_source_numpy/noise'))
+        print('TRAINING WITH DATASET', '2 (ARTIFICIAL DMG)' if pc_run else '1 (ORIG)')
 
         # TRAIN & INFER
         if mode == 't':
