@@ -2152,7 +2152,7 @@ def get_hp_configs(bare_config_path, pc_run=False):
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
     # loss_const_optns = [0.05, 0.2]
-    loss_const_optns = [0.05, 0.1] if pc_run else [0.05, 0.2]    # first of two HPs dropping, PC GS time constraint
+    loss_const_optns = [0.05, 0.1] if pc_run else [0.05]    # first of two HPs dropping, PC GS time constraint
 
     # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
     # Balance between gradient clipping and lr for exploding gradient
@@ -2890,7 +2890,7 @@ def main():
         #     if dmged_piano_artificial_noise_mix else (data_path + 'piano_source_numpy/piano'))
         # noise_label_filepath_prefix = ((data_path + 'dmged_noise_data/nsource')
         #     if dmged_piano_artificial_noise_mix else (data_path + 'noise_source_numpy/noise'))
-        print('TRAINING WITH DATASET', '2 (ARTIFICIAL DMG)' if pc_run else '1 (ORIG)')
+        print('\nTRAINING WITH DATASET', '2 (ARTIFICIAL DMG)' if pc_run else '1 (ORIG)')
 
         # TRAIN & INFER
         if mode == 't':
