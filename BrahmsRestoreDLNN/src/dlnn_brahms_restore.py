@@ -34,6 +34,7 @@ import os
 import sys
 import re
 from copy import deepcopy
+import multiprocessing
 
 
 # TODO: See if both processes allow mem growth, is it faster or does GPU just work less hard?
@@ -2145,14 +2146,16 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # batch_size_optns = [3] if pc_run else [12, 18]  
     # batch_size_optns = [5] if pc_run else [8, 16]    # OOM on f35, and on PC, BUT have restart script now
     # 11/19/20 for PC - too late, just run this over break - test SGD vs mini-batch SGD (memory conservative)
-    batch_size_optns = [1, 3] if pc_run else [4, 8]    # OOM on f35 and on PC, w/ restart script,
+    # batch_size_optns = [1, 3] if pc_run else [4, 8]    # OOM on f35 and on PC, w/ restart script,
+    batch_size_optns = [3] if pc_run else [8, 16]    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
 
     # batch_size_optns = [5] if pc_run else [8, 12] 
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
     epochs_optns = [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
     # loss_const_optns = [0.05, 0.2]
-    loss_const_optns = [0.05, 0.1] if pc_run else [0.05]    # first of two HPs dropping, PC GS time constraint
+    # loss_const_optns = [0.05, 0.1] if pc_run else [0.05]    # first of two HPs dropping, PC GS time constraint
+    loss_const_optns = [0.05, 0.1] if pc_run else [0.05, 0.1]    # Multi-processing fix -> orig numbers
 
     # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
     # Balance between gradient clipping and lr for exploding gradient
@@ -2573,6 +2576,24 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                                                     combos=combos,
                                                                     keras_fit=keras_fit)
                             
+                            # Multi-processing hack - make TF let go of mem after a model creation & training
+                            process_train = multiprocessing.Process(target=evaluate_source_sep, args=(train_generator,
+                                                                    validation_generator,
+                                                                    num_train, num_val,
+                                                                    n_feat, n_seq, 
+                                                                    batch_size, loss_const,
+                                                                    epochs, opt, 
+                                                                    patience=early_stop_pat,
+                                                                    epsilon=epsilon,
+                                                                    config=arch_config, pc_run=pc_run,
+                                                                    t_mean=t_mean, t_std=t_std,
+                                                                    grid_search_iter=gs_iter,
+                                                                    gs_path=gsres_path,
+                                                                    combos=combos,
+                                                                    keras_fit=keras_fit,))
+                            process_train.start()
+                            process_train.join()
+
                             # CUSTOM TRAINING
                             # if not pc_run:
                             #     batch_size = og_batch_size
