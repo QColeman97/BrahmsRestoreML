@@ -1950,6 +1950,24 @@ def evaluate_source_sep(# train_dataset, val_dataset,
     # from tensorflow.keras.activations import relu
     from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 
+    physical_gpus = tf.config.list_physical_devices('GPU')
+    if (not pc_run) and physical_gpus:
+        # # No courtesy, allocate all GPU mem for me only, guarantees no else can mess up me. If no avail GPUs, admin's fault
+        # # mostly courtesy to others on F35 system
+        # print("Setting memory growth on GPUs")
+        # for i in range(len(physical_gpus)):
+        #     tf.config.experimental.set_memory_growth(physical_gpus[i], True)
+
+        # Restrict TensorFlow to only use one GPU (exclusive access w/ mem growth = False), F35 courtesy
+        try:
+            rand_gpu = random.randint(0, len(physical_gpus)-1)
+            print("Restricting TF run to only use 1 GPU:", physical_gpus[rand_gpu], "\n")
+            tf.config.experimental.set_visible_devices(physical_gpus[rand_gpu], 'GPU')
+            logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+            print(len(physical_gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
+        except RuntimeError as e:
+            # Visible devices must be set before GPUs have been initialized
+            print(e)
 
     class Standardize(Layer):
         def __init__(self, mean, std, **kwargs):
@@ -2722,26 +2740,6 @@ def evaluate_source_sep(# train_dataset, val_dataset,
 
 def get_hp_configs(bare_config_path, pc_run=False):
     import tensorflow as tf
-    
-    # # Can't do this tensorflow block, b/c multiprocessing - so hog F35
-    # physical_gpus = tf.config.list_physical_devices('GPU')
-    # if (not pc_run) and physical_gpus:
-    #     # # No courtesy, allocate all GPU mem for me only, guarantees no else can mess up me. If no avail GPUs, admin's fault
-    #     # # mostly courtesy to others on F35 system
-    #     # print("Setting memory growth on GPUs")
-    #     # for i in range(len(physical_gpus)):
-    #     #     tf.config.experimental.set_memory_growth(physical_gpus[i], True)
-
-    #     # # Restrict TensorFlow to only use one GPU (exclusive access w/ mem growth = False), F35 courtesy
-    #     # try:
-    #     #     rand_gpu = random.randint(0, len(physical_gpus)-1)
-    #     #     print("Restricting TF run to only use 1 GPU:", physical_gpus[rand_gpu], "\n")
-    #     #     tf.config.experimental.set_visible_devices(physical_gpus[rand_gpu], 'GPU')
-    #     #     logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-    #     #     print(len(physical_gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
-    #     # except RuntimeError as e:
-    #     #     # Visible devices must be set before GPUs have been initialized
-    #     #     print(e)
 
     # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
     # TEST FLOAT16 - double batch size
@@ -2826,10 +2824,10 @@ def get_hp_configs(bare_config_path, pc_run=False):
         optimizer_optns = [
                         (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
                         (tf.keras.optimizers.RMSprop(clipvalue=10), 10, 0.001, 'RMSprop'),
-                        (tf.keras.optimizers.RMSprop(clipvalue=1), 10, 0.001, 'RMSprop'),
+                        (tf.keras.optimizers.RMSprop(clipvalue=1), 1, 0.001, 'RMSprop'),
                         (tf.keras.optimizers.Adam(learning_rate=0.0001), -1, 0.0001, 'Adam'),
                         (tf.keras.optimizers.Adam(clipvalue=10), 10, 0.001, 'Adam'),
-                        (tf.keras.optimizers.Adam(clipvalue=1), 10, 0.001, 'Adam')
+                        (tf.keras.optimizers.Adam(clipvalue=1), 1, 0.001, 'Adam')
                         ]
 
     train_configs = {'batch_size': batch_size_optns, 'epochs': epochs_optns,
