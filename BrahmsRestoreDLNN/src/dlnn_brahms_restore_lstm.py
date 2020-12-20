@@ -4,6 +4,8 @@
 # dlnn_brahms_restore - neural network to restore brahms recording
 # Custom training loop version
 
+# USES LSTM ONLY - diff HP options b/c large mem consumption
+
 # DATA RULES #
 # - If writing a transformed signal, write it back using its original data type/range (wavfile lib)
 # - Convert signals into float64 for processing (numpy default, no GPUs usit ed) (in make_spgm() do a check)
@@ -1967,11 +1969,10 @@ def evaluate_source_sep(# train_dataset, val_dataset,
 
         # Restrict TensorFlow to only use one GPU (exclusive access w/ mem growth = False), F35 courtesy
         try:
-            # Pick random GPU, 1/10 times, pick GPU 0 other times 
+            # Pick random GPU, 1/10 times, pick GPU 1 other times (LSTM script)
             # (pick same GPU most times, but be prepared for it to be taken between restarts)
-            # choice = random.randint(0, 9)
-            # chosen_gpu = random.randint(0, len(physical_gpus)-1) if (choice == 0) else 0
-            chosen_gpu = 0
+            choice = random.randint(0, 9)
+            chosen_gpu = random.randint(0, len(physical_gpus)-1) if (choice == 0) else 1
             print("Restricting TF run to only use 1 GPU:", physical_gpus[chosen_gpu], "\n")
             tf.config.experimental.set_visible_devices(physical_gpus[chosen_gpu], 'GPU')
             logical_gpus = tf.config.experimental.list_logical_devices('GPU')
@@ -2793,7 +2794,7 @@ def get_hp_configs(bare_config_path, pc_run=False):
 
     # # MEM BOUND TEST
     # batch_size_optns = [8] # - time
-    # # batch_size_optns = [25]
+    # # batch_size_optns = [16]
 
     # batch_size_optns = [5] if pc_run else [8, 12] 
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
@@ -2857,10 +2858,8 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # MIXED PRECISION - doesn't support gradient clipping or specifically clipvalue
     # FOR TIME CONSTRAINT
     # if pc_run:
-    optimizer_optns = [(None, 0.0001, 'RMSprop'), 
-                       (10, 0.001, 'RMSprop'),
-                       (None, 0.0001, 'Adam'), 
-                       (10, 0.001, 'Adam')]
+    optimizer_optns = [(None, 0.001, 'RMSprop'), 
+                       (None, 0.001, 'Adam')]
     # else:
     #     optimizer_optns = [
     #                     (tf.keras.optimizers.RMSprop(learning_rate=0.0001), -1, 0.0001, 'RMSprop'),
@@ -2899,8 +2898,8 @@ def get_hp_configs(bare_config_path, pc_run=False):
     #           to protect against OOM on grid search
     # dropout_optns = [(0.0,0.0), (0.2,0.2), (0.2,0.5), (0.5,0.2), (0.5,0.5)]   # For RNN only
     # # MEM BOUND TEST
-    # dropout_optns = [(0.25,0.25)]
-    dropout_optns = [(0.0,0.0), (0.25,0.25)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
+    # dropout_optns = [(0.0,0.0)]
+    dropout_optns = [(0.0,0.0)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
     # # MEM BOUND TEST
     # scale_optns = [True]
     scale_optns = [False, True]
@@ -2914,11 +2913,10 @@ def get_hp_configs(bare_config_path, pc_run=False):
     # bidir_optns = [True]
     bidir_optns = [False, True]
     # # MEM BOUND TEST
-    # bn_optns = [True]  
-    bn_optns = [False, True]                    # For Dense only
-    # # MEM BOUND TEST
-    # rnn_optns = ['RNN']
-    rnn_optns = ['RNN']
+    # bn_optns = [False]  
+    bn_optns = [False]                    # For Dense only
+    # MEM BOUND TEST
+    rnn_optns = ['LSTM']
     # rnn_optns = ['RNN'] if pc_run else ['RNN', 'LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model  
     # MIXED PRECISION combat NaNs            
     # rnn_optns = ['RNN'] if pc_run else ['LSTM']  # F35 sesh crashed doing dropouts on LSTM - old model
@@ -2931,7 +2929,7 @@ def get_hp_configs(bare_config_path, pc_run=False):
     else:
         # with open(bare_config_path + 'hp_arch_config_largedim.json') as hp_file:
         # with open(bare_config_path + 'hp_arch_config_final_no_pc.json') as hp_file:
-        with open(bare_config_path + 'hp_arch_config_final_no_pc_long.json') as hp_file:
+        with open(bare_config_path + 'hp_arch_config_final_no_pc_lstm.json') as hp_file:
             bare_config_optns = json.load(hp_file)['archs']
     
     # # MEM BOUND TEST
@@ -3900,7 +3898,7 @@ def main():
 
                 # Early stop for random HPs
                 # TIME TEST
-                patience = 4
+                # patience = 4
                 # training_arch_config = arch_config_optns[0]
                 print('RANDOM TRAIN ARCH FOR USE:')
                 print(training_arch_config)
