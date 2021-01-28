@@ -1,0 +1,19 @@
+{ "archs": [
+    {   
+        "layers": [
+            {"type": "RNN", "nrn_div": 2, "act": "relu"},
+            {"type": "RNN", "nrn_div": 2, "act": "relu"},
+            {"type": "Dense", "nrn_div": 1, "act": null}]},
+    {
+        "layers": [
+            {"type": "Dense", "nrn_div": 2, "act": "relu"},
+            {"type": "RNN", "nrn_div": 2, "act": "relu"},
+            {"type": "RNN", "nrn_div": 2, "act": "relu"},
+            {"type": "Dense", "nrn_div": 1, "act": null}]},
+    {
+        "layers": [
+            {"type": "Dense", "nrn_div": 2, "act": "tanh"},
+            {"type": "RNN", "nrn_div": 2, "act": "relu"},
+            {"type": "RNN", "nrn_div": 2, "act": "relu"},
+            {"type": "Dense", "nrn_div": 1, "act": null}]}
+]}
