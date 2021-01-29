@@ -1,12 +1,11 @@
 # Audio Data Pre/Post-Processing (DSP) Functions for ML Models
+# & some supplementary functions using these
 
 from scipy.io import wavfile
-# import scipy.signal as sg
 from matplotlib.ticker import FuncFormatter
 import matplotlib.pyplot as plt
 import numpy as np
 import math
-# from copy import deepcopy
 
 # DSP CONSTANTS:
 STD_SR_HZ = 44100
@@ -85,9 +84,6 @@ def signal_to_pos_fft(sgmt, wdw_size, ova=False, debug_flag=False):
 
     if ova: # Perform lobing on ends of segment
         sgmt *= np.hanning(wdw_size)
-    # pos_phases_fft = np.abs(np.fft.fft(sgmt))[: (wdw_size // 2) + 1].copy()
-    # pos_mag_fft = np.angle(np.fft.fft(sgmt))[: (wdw_size // 2) + 1].copy()
-    
     fft = np.fft.fft(sgmt)
     phases_fft = np.angle(fft)
     mag_fft = np.abs(fft)
@@ -110,7 +106,7 @@ def signal_to_pos_fft(sgmt, wdw_size, ova=False, debug_flag=False):
     return pos_mag_fft, pos_phases_fft
 
 
-# (actually returns only a STFT)
+# Construct stft (not actually spectrogram b/c viewing isn't use case)
 def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False, hop_size_divisor=2):
     # Pre-processing steps
     # If 8-bit PCM, convert to 16-bit PCM (signed to unsigned) - specific for Brahms (not training data)
@@ -150,11 +146,9 @@ def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False, hop_size
         pos_mag_fft, pos_phases_fft = signal_to_pos_fft(sgmt, wdw_size, ova=ova, debug_flag=debug_flag)
         spectrogram[i] = pos_mag_fft
         pos_phases[i] = pos_phases_fft
-
     # Replace NaNs and 0s w/ epsilon
     spectrogram, pos_phases = np.nan_to_num(spectrogram), np.nan_to_num(pos_phases)
     spectrogram[spectrogram == 0], pos_phases[pos_phases == 0] = epsilon, epsilon
-
     if debug:
         plot_matrix(spectrogram, 'Built Spectrogram', 'time segments', 'frequency', ratio=SPGM_BRAHMS_RATIO, show=True)
 
@@ -193,14 +187,15 @@ def pos_fft_to_signal(pos_mag_fft, pos_phases_fft, wdw_size, ova=False,
         print('Synthetic segment (len =', len(synthetic_sgmt), '):\n', synthetic_sgmt[:5])
 
     if ova:
-        # sgmt_halves = np.split(synthetic_sgmt, 2)
-        # ova_sgmt, end_sgmt = sgmt_halves[0], sgmt_halves[1] # First, then second half
-        sgmt_portions = np.split(synthetic_sgmt, hop_size_divisor)
-        if hop_size_divisor == 2:
-            ova_sgmt, end_sgmt = sgmt_portions[0], sgmt_portions[1] # First, then second half
-        elif hop_size_divisor == 4:
-            # print('sgmt portion 1:', sgmt_portions[0])
-            ova_sgmt, end_sgmt = sgmt_portions[0], np.concatenate((sgmt_portions[1], sgmt_portions[2], sgmt_portions[3]))
+        sgmt_halves = np.split(synthetic_sgmt, 2)
+        ova_sgmt, end_sgmt = sgmt_halves[0], sgmt_halves[1]
+        # # for hop size != wdw_size//2 support...
+        # sgmt_portions = np.split(synthetic_sgmt, hop_size_divisor)
+        # if hop_size_divisor == 2:
+        #     ova_sgmt, end_sgmt = sgmt_portions[0], sgmt_portions[1] # First, then second half
+        # elif hop_size_divisor == 4:
+        #     # print('sgmt portion 1:', sgmt_portions[0])
+        #     ova_sgmt, end_sgmt = sgmt_portions[0], np.concatenate((sgmt_portions[1], sgmt_portions[2], sgmt_portions[3]))
 
         if end_sig is None:
             # end_sig = np.zeros((wdw_size // 2))
@@ -217,104 +212,55 @@ def pos_fft_to_signal(pos_mag_fft, pos_phases_fft, wdw_size, ova=False,
     return synthetic_sgmt
 
 
-# Construct synthetic waveform
+# Construct synthetic waveform (actually takes in stft)
 def make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_type, ova=False, debug=False, hop_size_divisor=2):
-    # Post-processing step from NN
-    synthetic_spgm = synthetic_spgm.astype('float64')
+    synthetic_spgm = synthetic_spgm.astype('float64')   # Post-processing step from NN
 
-    num_sgmts = synthetic_spgm.shape[0]#[1]
-    # print('Num sgmts:', num_sgmts)
+    num_sgmts = synthetic_spgm.shape[0]
     # If both noise and piano in spgm, reuse phases in synthesis
     if num_sgmts != len(phases):   
-        # phases += phases
         phases = np.concatenate((phases, phases))
     
     hop_size = wdw_size // hop_size_divisor
-
     # Support for different hop sizes
-    # synthetic_sig_len = int(((num_sgmts / 2) + 0.5) * wdw_size) if ova else num_sgmts * wdw_size
     synthetic_sig_len = int(((num_sgmts / hop_size_divisor) + (1-(1/hop_size_divisor))) * wdw_size) if ova else num_sgmts * wdw_size
-    # print('Synthetic Sig Len FULL (wdw_sizes):', synthetic_sig_len / wdw_size)
     print('Synthetic Sig Len FULL:', synthetic_sig_len)
-    # print('Putting', num_sgmts, 'sgmts into signal')
-    synthetic_sig = np.empty((synthetic_sig_len))     # RAM too much use way
-    # print('Synth sig mem location:', aid(synthetic_sig))
-    # synthetic_sig = None
+    synthetic_sig = np.empty((synthetic_sig_len))
     for i in range(num_sgmts):
         ova_index = i * (wdw_size // hop_size_divisor)
         debug_flag = (i == 0 or i == 1) if debug else False
 
-        # Do overlap-add operations if ova (but only if list already has >= 1 element)
-        # if ova and len(synthetic_sig):
         if ova and (i > 0):
-            # end_half_sgmt = synthetic_sig[-(wdw_size // 2):].copy()
-            # end_half_sgmt = synthetic_sig[(i*wdw_size) - (wdw_size//2): i * wdw_size].copy()
-            # end_half_sgmt = synthetic_sig[ova_index: ova_index + (wdw_size//2)].copy()
             end_half_sgmt = synthetic_sig[ova_index: ova_index + hop_size].copy()
-            
-            # print(synthetic_sig_len, '=?', i * wdw_size)
-            # print('End Half Sgmt Len:', len(end_half_sgmt))
-            # print('End Half Sgmt mem location:', aid(end_half_sgmt))
-            
             synthetic_sgmt = pos_fft_to_signal(pos_mag_fft=synthetic_spgm[i], pos_phases_fft=phases[i], 
                                                        wdw_size=wdw_size, ova=ova, debug_flag=debug_flag,
                                                        end_sig=end_half_sgmt, hop_size_divisor=hop_size_divisor)
-            # synthetic_sig = synthetic_sig[: -(wdw_size // 2)] + synthetic_sgmt
-            
-            
-            # synthetic_sig[(i*wdw_size) - (wdw_size//2): ((i+1)*wdw_size) - (wdw_size//2)] = synthetic_sgmt
-            
-            
-            # np.put(synthetic_sig, 
-                #    range((i*wdw_size) - (wdw_size//2), ((i+1)*wdw_size) - (wdw_size//2)), 
-                #    synthetic_sgmt)
-
-            # synthetic_sgmt = np.concatenate((np.zeros((len(synthetic_sig) - (wdw_size//2))), synthetic_sgmt))
-            # synthetic_sig = np.concatenate((synthetic_sig, np.zeros((wdw_size//2))))
-            # synthetic_sig = synthetic_sig + synthetic_sgmt 
         else:
             synthetic_sgmt = pos_fft_to_signal(pos_mag_fft=synthetic_spgm[i], pos_phases_fft=phases[i], 
                                                    wdw_size=wdw_size, ova=ova, debug_flag=debug_flag,
                                                    hop_size_divisor=hop_size_divisor)
-            # synthetic_sig += synthetic_sgmt
-            # synthetic_sig[i * wdw_size: (i+1) * wdw_size] = synthetic_sgmt
-        # print('Synth sig len:', len(synthetic_sig), 'OVA index:', ova_index)
+ 
         synthetic_sig[ova_index: ova_index + wdw_size] = synthetic_sgmt
             
-            # np.put(synthetic_sig, range(i * wdw_size, (i+1) * wdw_size), synthetic_sgmt)
-
-            # synthetic_sig = synthetic_sgmt if (i == 0) else np.concatenate((synthetic_sig, synthetic_sgmt))
-
-        # print('Added sgmt', i+1)
-        # print('Synth Sig Len (wdw_sizes):', ((i+1) / 2) + 0.5)
-        # print('Synth sig mem location:', aid(synthetic_sig))
-
-
         if debug_flag:
             print('End of synth sig:', synthetic_sig[-20:])
 
-    # synthetic_sig = np.array(synthetic_sig)
-
     if debug:
-    # sig_copy = synthetic_sig.copy()
-    # Adjust by factor if I want to compare clearly w/ orig sig (small wdw sizes)
-        # print_synth_sig = np.around(synthetic_sig).astype('float32')
         (print('SYNTHETIC SIG (FLOAT64) AFTER SPGM:\n', synthetic_sig[(wdw_size // 2): (wdw_size // 2) + 20]) 
             if len(synthetic_sig) > 20 else 
                 print('SYNTHETIC SIG (FLOAT64) AFTER SPGM:\n', synthetic_sig))
 
     if (orig_type == 'uint8'):  # Handle 8-bit PCM (unsigned)
-        # # Safety measure: prevent overflow
-        # synthetic_sig = np.clip(synthetic_sig, np.iinfo('int16').min, np.iinfo('int16').max)
-        # synthetic_sig = np.around(synthetic_sig).astype('int16')
-        # # Accuracy measure: round floats before converting to int    
-        # synthetic_sig = convert_sig_16bit_to_8bit(synthetic_sig)
         synthetic_sig = convert_wav_format_down(synthetic_sig, print_sum=True)
     else:
-        # Safety measure: prevent overflow
+        # Safety measure: prevent overflow by clipping
+        if ((orig_type == 'float32' and np.amax(np.abs(synthetic_sig)) > np.finfo(orig_type).max) or
+            (orig_type != 'float32' and np.amax(np.abs(synthetic_sig)) > np.iinfo(orig_type).max)):    # amax doing max of flattened array
+                print('Warning: signal values greater than original signal\'s capacity. Losing data.')
+
         synthetic_sig = (np.clip(synthetic_sig, np.finfo(orig_type).min, np.finfo(orig_type).max) 
                 if orig_type == 'float32' else 
-            np.clip(synthetic_sig, np.iinfo(orig_type).min, np.iinfo(orig_type).max))  
+                        np.clip(synthetic_sig, np.iinfo(orig_type).min, np.iinfo(orig_type).max))  
         # Accuracy measure: round floats before converting to original type
         synthetic_sig = np.around(synthetic_sig).astype(orig_type)
 
@@ -341,9 +287,10 @@ def convert_wav_format_up(sig, to_bit_depth='int16', print_sum=False):
 def convert_wav_format_down(sig, to_bit_depth='uint8', safe=True, print_sum=False):
     if to_bit_depth == 'uint8':
         if sig.dtype != 'int16' and safe:
-            if np.amax(np.abs(sig)) > 32768:    # amax doing max of flattened array
-                print('WARNING: signal values greater than int16 capacity. Losing data.')
-            sig = np.clip(sig, -32768, 32767)
+            # Safety measure: prevent overflow by clipping
+            if np.amax(np.abs(sig)) > np.iinfo('int16').max:    # amax doing max of flattened array
+                print('Warning: signal values greater than int16 capacity. Losing data.')
+            sig = np.clip(sig, np.iinfo('int16').min, np.iinfo('int16').max)
             sig = np.around(sig).astype('int16')
         sig = sig / 256
         sig = sig.astype('int16')
@@ -361,32 +308,14 @@ def write_partial_sig(sig, wdw_size, start_index, end_index, out_filepath, sig_s
 
 
 def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=False, write_file=False, debug=False):
-    print('--Initiating Reconstruct Mode--')
     orig_sig_type = sig.dtype
 
-    # if segment:
-    #     # TEMP SO WE CAN FIND MAX NOISE SEGMENT - noise from 1.8 ro 2.1 seconds
-    #     noise_sig_len = 2
-    #     # Second 2 hits solid noise - based on Audacity waveform (22nd wdw if sr=44100, wdw_size=4096)
-    #     noise_sgmt_num = math.ceil((STD_SR_HZ * 2.2) / wdw_size)    # 2.1 seconds (23rd window to (not including) 25th window)
-    #     # print('Noise segment num:', noise_sgmt_num)
-    #     noise_sig = sig[(noise_sgmt_num - 1) * wdw_size: (noise_sgmt_num + noise_sig_len - 1) * wdw_size] 
-    #     # noise_sig = sig[23 * wdw_size: 25 * wdw_size] 
-    #     # 23 25
-    #     out_filepath = 'practice_' + out_filepath
-    #     print('\n--Making Signal Spectrogram--\n')
-    #     spectrogram, phases = make_spectrogram(noise_sig, wdw_size, ova=ova, debug=debug)
+    print('\n--Making Signal Spectrogram--\n')
     if segment:
-        # TEMP SO WE CAN FIND NO VOICE SEGMENT
+        # ARG FOR TESTING - SO WE CAN FIND NO VOICE SEGMENT
         # no_voice_sig = sig[(77 * wdw_size):]# + (wdw_size // 2):] 
-        
         # out_filepath = 'novoice_' + out_filepath
-        print('\n--Making Signal Spectrogram--\n')
         spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova, debug=debug)
-
-        # TODO
-        # spectrogram = spectrogram[:, 154:]
-        # phases = [x[154:] for x in phases]
 
     else:
         print('\n--Making Signal Spectrogram--\n')
@@ -395,20 +324,7 @@ def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=Fa
     print('\n--Making Synthetic Signal--\n')
     synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, orig_sig_type, ova=ova, debug=debug)
     
-    # Delt w/ in prev method # Correct way to convert back to 8-bit PCM (unsigned -> signed)
-    # if orig_sig_type == 'uint8':
-    #     # Bring to range [-1, 1]
-    #     signal = signal / 32768
-    #     # Bring to range [0, 255]
-    #     signal = signal * 128
-    #     # Signed to unsigned
-    #     signal = signal + 128
-    #     signal = signal.astype('uint8')
-
     if write_file:
-        # Make synthetic WAV file - defaults to original sampling rate, TODO: Does that change things?
-        # Important: signal elems to types of original signal (uint8 for brahms) or else MUCH LOUDER
-        # wavfile.write(out_filepath, sig_sr, synthetic_sig.astype(orig_sig_type))
         wavfile.write(out_filepath, sig_sr, synthetic_sig)
 
     return synthetic_sig
