@@ -30,8 +30,8 @@ def make_basis_vector(waveform,  wf_type, wf_sr, num, wdw_size, ova=False, avg=F
     # if debug:
     #     print('In make bv')
     # TEMP
-    spectrogram, phases = make_spectrogram(waveform, wdw_size, ova=ova)
-    # spectrogram, _ = make_spectrogram(waveform, wdw_size, EPSILON, ova=ova)
+    # spectrogram, phases = make_spectrogram(waveform, wdw_size, ova=ova)
+    spectrogram, _ = make_spectrogram(waveform, wdw_size, EPSILON, ova=ova)
     # spectrogram, _ = make_spectrogram(sig, wdw_size, EPSILON, ova=ova)
     if debug:
         print('In make piano bv - V of piano note @ 1st timestep:', spectrogram[0][:10])
@@ -129,8 +129,8 @@ def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, pr
 
     print('\n----Making Noise Spectrogram--\n')
     # TEMP
-    spectrogram, _ = make_spectrogram(noise_sig, wdw_size, ova=ova, debug=debug)
-    # spectrogram, _ = make_spectrogram(noise_sig, wdw_size, EPSILON, ova=ova, debug=debug)
+    # spectrogram, _ = make_spectrogram(noise_sig, wdw_size, ova=ova, debug=debug)
+    spectrogram, _ = make_spectrogram(noise_sig, wdw_size, EPSILON, ova=ova, debug=debug)
     print('\n----Learning Noise Basis Vectors--\n')
     # TEMP
     spectrogram = spectrogram.T

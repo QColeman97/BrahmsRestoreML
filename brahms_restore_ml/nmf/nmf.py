@@ -789,8 +789,8 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
     orig_sig_len = len(sig)
     print('\n--Making Brahms Spectrogram--\n')
     # TEMP
-    spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova, debug=debug)
-    # spectrogram, phases = make_spectrogram(sig, wdw_size, EPSILON, ova=ova, debug=debug)
+    # spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova, debug=debug)
+    spectrogram, phases = make_spectrogram(sig, wdw_size, EPSILON, ova=ova, debug=debug)
 
     if debug:
         print('Given Basis Vectors W (first):', basis_vectors.shape, basis_vectors[0])
@@ -837,9 +837,9 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
         synthetic_piano_spgm = piano_basis_vectors @ piano_activations
         synthetic_noise_spgm = noise_basis_vectors @ noise_activations
         # TEMP
-        synthetic_spgm = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
+        # synthetic_spgm = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
         # # Include noise within result to battle any normalizing wavfile.write might do
-        # synthetic_spgm = np.concatenate((synthetic_piano_spgm, synthetic_noise_spgm), axis=-1)
+        synthetic_spgm = np.concatenate((synthetic_piano_spgm, synthetic_noise_spgm), axis=-1)
         if debug:
             print('Gotten De-noised Piano Basis Vectors W (first):', piano_basis_vectors.shape, piano_basis_vectors[:][0])
             print('Gotten De-noised Piano Activations H (first):', piano_activations.shape, piano_activations[0])
