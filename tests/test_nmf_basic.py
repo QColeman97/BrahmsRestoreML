@@ -24,7 +24,7 @@ class BasicRestoreTests(unittest.TestCase):
 
         out_filepath = test_path + 'restored_brahms_bare.wav' if write_flag else None
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = nmf.restore_audio(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
+        synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
                                       ova=False, noisebv=False, avgbv=False,
                                       write_file=write_flag, debug=debug_flag)
 
@@ -39,7 +39,7 @@ class BasicRestoreTests(unittest.TestCase):
 
         out_filepath = test_path + 'restored_brahms_ova.wav' if write_flag else None
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = nmf.restore_audio(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
+        synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
                                         noisebv=False, avgbv=False,
                                         write_file=write_flag, debug=debug_flag)
 
@@ -54,7 +54,7 @@ class BasicRestoreTests(unittest.TestCase):
 
         out_filepath = test_path + 'restored_brahms_avgbv.wav' if write_flag else None
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = nmf.restore_audio(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
+        synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
                                         ova=False, noisebv=False,
                                         write_file=write_flag, debug=debug_flag)
 
@@ -69,7 +69,7 @@ class BasicRestoreTests(unittest.TestCase):
 
         out_filepath = test_path + 'restored_brahms_noisebv.wav' if write_flag else None
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = nmf.restore_audio(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
+        synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
                                         ova=False, avgbv=False,
                                         num_noisebv=num_noise_bv_test, write_file=write_flag, debug=debug_flag)
 
@@ -85,7 +85,7 @@ class BasicRestoreTests(unittest.TestCase):
 
         out_filepath = test_path + 'restored_brahms_ova_avgbv.wav' if write_flag else None
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = nmf.restore_audio(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
+        synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
                                         noisebv=False,
                                         write_file=write_flag, debug=debug_flag)
 
@@ -100,7 +100,7 @@ class BasicRestoreTests(unittest.TestCase):
 
         out_filepath = test_path + 'restored_brahms_ova_noisebv.wav' if write_flag else None
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = nmf.restore_audio(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
+        synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
                                       avgbv=False, num_noisebv=num_noise_bv_test, 
                                       write_file=write_flag, debug=debug_flag)
 
@@ -115,7 +115,7 @@ class BasicRestoreTests(unittest.TestCase):
 
         out_filepath = test_path + 'restored_brahms_avgbv_noisebv.wav' if write_flag else None
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = nmf.restore_audio(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
+        synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
                                       ova=False, num_noisebv=num_noise_bv_test, 
                                       write_file=write_flag, debug=debug_flag)
 
@@ -131,7 +131,7 @@ class BasicRestoreTests(unittest.TestCase):
 
         out_filepath = test_path + 'restored_brahms_ova_noisebv_avgbv.wav' if write_flag else None
         sr, sig = wavfile.read(brahms_filepath)
-        synthetic_sig = nmf.restore_audio(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
+        synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
                                       num_noisebv=num_noise_bv_test,
                                       write_file=write_flag, debug=debug_flag)
 

@@ -736,17 +736,17 @@ def noise_split_matrices(activations, basis_vectors, num_noisebv, debug=False):
     return noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors
 
 
-def make_mary_bv_test_activations():
+def make_mary_bv_test_activations(vol_factor=1):
     activations = []
     for j in range(5):
         # 8 divisions of 6 timesteps
         comp = []
         if j == 0: # lowest note
-            comp = [0.0001 if ((2*6) <= i < (3*6)) else 0.0000 for i in range(48)]
+            comp = [0.0001 * vol_factor if ((2*6) <= i < (3*6)) else 0.0000 for i in range(48)]
         elif j == 2:
-            comp = [0.0001 if (((1*6) <= i < (2*6)) or ((3*6) <= i < (4*6))) else 0.0000 for i in range(48)]
+            comp = [0.0001 * vol_factor if (((1*6) <= i < (2*6)) or ((3*6) <= i < (4*6))) else 0.0000 for i in range(48)]
         elif j == 4:
-            comp = [0.0001 if ((0 <= i < (1*6)) or ((4*6) <= i < (7*6))) else 0.0000 for i in range(48)]
+            comp = [0.0001 * vol_factor if ((0 <= i < (1*6)) or ((4*6) <= i < (7*6))) else 0.0000 for i in range(48)]
         else:
             comp = [0.0000 for i in range(48)]
         activations.append(comp)
@@ -771,25 +771,21 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
     basis_vectors = get_basis_vectors(wdw_size, ova=ova, mary=marybv, noise=noisebv, avg=avgbv, debug=debug, num_noise=num_noisebv, 
                                       precise_noise=prec_noise, eq=eqbv, noise_start=noise_start, noise_stop=noise_stop,
                                       randomize='None' if (semisupmadeinit and semisuplearn != 'None') else semisuplearn)
-    # TEMP
-    # Currently to avoid silly voices
-    if 'brahms' in out_filepath:
-        if debug:
-            print('Sig before cut (bgn,end):', sig[:10], sig[-10:])
-        # # New, keeps ending in
-        # sig = sig[WDW_NUM_AFTER_VOICE * wdw_size:]  
-        # Take out voice from brahms sig for now, should take it from nmf from spectrogram later
-        # sig = sig[WDW_NUM_AFTER_VOICE * wdw_size:]
-        sig = sig[WDW_NUM_AFTER_VOICE * wdw_size: -(20 * wdw_size)]     
-        # 0 values cause nan matrices, ?? TODO: Find optimal point to cut off sig
-        if debug:
-            print('Sig after cut (bgn,end):', sig[:10], sig[-10:])
-
+    # # Currently to avoid silly voices
+    # if 'brahms' in out_filepath:
+    #     if debug:
+    #         print('Sig before cut (bgn,end):', sig[:10], sig[-10:])
+    #     # # New, keeps ending in
+    #     # sig = sig[WDW_NUM_AFTER_VOICE * wdw_size:]  
+    #     # Take out voice from brahms sig for now, should take it from nmf from spectrogram later
+    #     # sig = sig[WDW_NUM_AFTER_VOICE * wdw_size:]
+    #     sig = sig[WDW_NUM_AFTER_VOICE * wdw_size: -(20 * wdw_size)]     
+    #     # 0 values cause nan matrices, ?? TODO: Find optimal point to cut off sig
+    #     if debug:
+    #         print('Sig after cut (bgn,end):', sig[:10], sig[-10:])
 
     orig_sig_len = len(sig)
     print('\n--Making Brahms Spectrogram--\n')
-    # TEMP
-    # spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova, debug=debug)
     spectrogram, phases = make_spectrogram(sig, wdw_size, EPSILON, ova=ova, debug=debug)
 
     if debug:
@@ -804,12 +800,12 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
         k += num_noisebv
     
     # TEMP
-    # basis_vectors, activations = extended_nmf(spectrogram, k, W=basis_vectors, split_index=num_noisebv, 
-    #                                             debug=debug, incorrect=incorrect_semisup, learn_iter=learn_iter,
-    #                                             l1_pen=l1_penalty, sslrn=semisuplearn)
-    spectrogram, basis_vectors = spectrogram.T, basis_vectors.T
-    activations, _ = nmf_learn(spectrogram, k, basis_vectors=basis_vectors, debug=debug, learn_iter=learn_iter, 
-                                l1_penalty=l1_penalty)
+    basis_vectors, activations = extended_nmf(spectrogram, k, W=basis_vectors, split_index=num_noisebv, 
+                                                debug=debug, incorrect=incorrect_semisup, learn_iter=learn_iter,
+                                                l1_pen=l1_penalty, sslrn=semisuplearn)
+    # spectrogram, basis_vectors = spectrogram.T, basis_vectors.T
+    # activations, _ = nmf_learn(spectrogram, k, basis_vectors=basis_vectors, debug=debug, learn_iter=learn_iter, 
+    #                             l1_penalty=l1_penalty)
 
     # if semisuplearn == 'Piano':     # Semi-Supervised Learn (learn Wpiano too)
     #     basis_vectors, activations = extended_nmf(spectrogram, k, basis_vectors=basis_vectors, learn_index=num_noisebv, 
@@ -836,9 +832,7 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
         print('\n--Making Synthetic Brahms Spectrogram (Source-Separating)--\n')
         synthetic_piano_spgm = piano_basis_vectors @ piano_activations
         synthetic_noise_spgm = noise_basis_vectors @ noise_activations
-        # TEMP
-        # synthetic_spgm = np.concatenate((synthetic_noise_spgm, synthetic_piano_spgm), axis=1)
-        # # Include noise within result to battle any normalizing wavfile.write might do
+        # Include noise within result to battle any normalizing wavfile.write might do
         synthetic_spgm = np.concatenate((synthetic_piano_spgm, synthetic_noise_spgm), axis=-1)
         if debug:
             print('Gotten De-noised Piano Basis Vectors W (first):', piano_basis_vectors.shape, piano_basis_vectors[:][0])

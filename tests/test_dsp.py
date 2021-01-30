@@ -1,31 +1,18 @@
-# tests.py - Quinn Coleman - Senior Research Project / Master's Thesis
-# Test suite for dsp functions.
+# test_dsp.py - Quinn Coleman - Senior Research Project / Master's Thesis
+# Tests for dsp functions.
 
 # Run with $ python -m unittest tests.test_dsp
 
 # Test on Mary.wav for general purposes
 # Test on brahms.wav for listening
 
-from numpy import random
 from brahms_restore_ml.audio_data_processing import *
 import unittest
-from scipy import stats
-from scipy.io import wavfile
 import numpy as np
-import os
-# from sklearn.metrics import mean_absolute_error
 
 # Testing global vars
 write_flag = True
 debug_flag = False
-num_noise_bv_test = 10
-
-brahms_filepath = os.getcwd() + '/brahms.wav'
-mary_filepath = os.getcwd() + '/brahms_restore_ml/nmf/Mary.wav'
-test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_test/output_test_dsp/'
-
-brahms_clean_filepath = '/Users/quinnmc/Desktop/BMSThesis/MusicRestoreDLNN/HungarianDanceNo1Rec/(youtube)wav/BrahmsHungDance1_'
-mary32_filepath = '/Users/quinnmc/Desktop/BMSThesis/MusicRestoreNMF/Mary_44100Hz_32bit.wav'
 
 class DSPTests(unittest.TestCase):
     # wavfile tests
@@ -41,16 +28,28 @@ class DSPTests(unittest.TestCase):
         correct = np.array([0, 128, 255], dtype='uint8')
         np.testing.assert_array_equal(conv_sig, correct)
 
-    def test_convert_wav_format_down_safe(self):
-        sig = np.array([-40000, -32768, 0, 32767, 40000], dtype='int32')
+    def test_convert_wav_format_down_safe_uint8(self):
+        sig = np.array([-40000, -32768, 0, 32767, 40000], dtype='float64')
         conv_sig = convert_wav_format_down(sig)
         correct = np.array([0, 0, 128, 255, 255], dtype='uint8')
         np.testing.assert_array_equal(conv_sig, correct)
 
-    def test_convert_wav_format_down_unsafe(self):
-        sig = np.array([-40000, -32768, 0, 32767, 40000], dtype='int32')
+    def test_convert_wav_format_down_unsafe_uint8(self):
+        sig = np.array([-40000, -32768, 0, 32767, 40000], dtype='float64')
         conv_sig = convert_wav_format_down(sig, safe=False)
         correct = np.array([0, 0, 128, 255, 255], dtype='uint8')
+        np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, conv_sig, correct)
+
+    def test_convert_wav_format_down_safe_float32(self):
+        sig = np.array([-40000, -32768, 0, 32767, 40000], dtype='float64')
+        conv_sig = convert_wav_format_down(sig, to_bit_depth='float32')
+        correct = np.array([-1., -1., 0., 1., 1.], dtype='float32')
+        np.testing.assert_array_equal(conv_sig, correct)
+
+    def test_convert_wav_format_down_unsafe_float32(self):
+        sig = np.array([-40000, -32768, 0, 32767, 40000], dtype='float64')
+        conv_sig = convert_wav_format_down(sig, to_bit_depth='float32', safe=False)
+        correct = np.array([-1., -1., 0., 1., 1.], dtype='float32')
         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, conv_sig, correct)
 
     def test_sig_to_pos_mag_fft(self):
@@ -106,12 +105,23 @@ class DSPTests(unittest.TestCase):
         synthetic_sig = make_synthetic_signal(spgm, phases, 4, 'uint8', ova=True)
         self.assertEqual(synthetic_sig.shape, (6,))
 
-    def test_sig_to_stft_to_sig(self):
+    def test_sig_to_stft_to_sig_uint8(self):
         # Test correct time-amp-domain - time-freq-amp-domain conversion
         sig = np.array([0,128,255,128,0,128,255], dtype='uint8')
         wdw_size = 4
         spgm, phases = make_spectrogram(sig, wdw_size, EPSILON, ova=True)
         synth_sig = make_synthetic_signal(spgm, phases, wdw_size, 'int16', ova=True)
+        self.assertTrue(synth_sig[1] < synth_sig[2] and
+                        synth_sig[2] > synth_sig[3] and synth_sig[3] > synth_sig[4] and
+                        synth_sig[4] < synth_sig[5])
+
+    def test_sig_to_stft_to_sig_float32(self):
+        # Test correct time-amp-domain - time-freq-amp-domain conversion
+        sig = np.array([-1.,0.,1.,0.,-1.,0.,1.], dtype='float32')
+        wdw_size = 4
+        spgm, phases = make_spectrogram(sig, wdw_size, EPSILON, ova=True)
+        synth_sig = make_synthetic_signal(spgm, phases, wdw_size, 'float32', ova=True)
+        print('synth sig:', synth_sig)
         self.assertTrue(synth_sig[1] < synth_sig[2] and
                         synth_sig[2] > synth_sig[3] and synth_sig[3] > synth_sig[4] and
                         synth_sig[4] < synth_sig[5])

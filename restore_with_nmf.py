@@ -49,9 +49,6 @@ def main():
             sig, sig_sr = librosa.load(sys.argv[1], sr=STD_SR_HZ)  # Upsample to 44.1kHz if necessary
         start_index = (sys.argv[1].rindex('/') + 1) if (sys.argv[1].find('/') != -1) else 0
         out_filepath += sys.argv[1][start_index: -4]
-    
-    # # TEMP - reproduce all noise gone betwwen notes
-    # out_filepath += '_reproduce_no_noise_try'
 
     # Debug-print/plot option, wdw size
     debug_flag, wdw_size = False, PIANO_WDW_SIZE

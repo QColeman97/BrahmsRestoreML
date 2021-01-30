@@ -1,6 +1,7 @@
 # Audio Data Pre/Post-Processing (DSP) Functions for ML Models
 # & some supplementary functions using these
 
+from unittest import signals
 from scipy.io import wavfile
 from matplotlib.ticker import FuncFormatter
 import matplotlib.pyplot as plt
@@ -112,7 +113,7 @@ def signal_to_pos_fft(sgmt, wdw_size, ova=False, debug_flag=False):
 def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False, hop_size_divisor=2):
     # Pre-processing steps
     # If 8-bit PCM, convert to 16-bit PCM (signed to unsigned) - specific for Brahms (not training data)
-    if signal.dtype == 'uint8':
+    if signal.dtype == 'uint8' or signal.dtype == 'float32':
         signal = convert_wav_format_up(signal, print_sum=True)
     # Data Granularity Check
     if signal.dtype != 'float64':
@@ -254,15 +255,13 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_type, ova=False
 
     if (orig_type == 'uint8'):  # Handle 8-bit PCM (unsigned)
         synthetic_sig = convert_wav_format_down(synthetic_sig, print_sum=True)
+    elif (orig_type == 'float32'):
+        synthetic_sig = convert_wav_format_down(synthetic_sig, to_bit_depth='float32', print_sum=True)
     else:
-        # Safety measure: prevent overflow by clipping
-        if ((orig_type == 'float32' and np.amax(np.abs(synthetic_sig)) > np.finfo(orig_type).max) or
-            (orig_type != 'float32' and np.amax(np.abs(synthetic_sig)) > np.iinfo(orig_type).max)):    # amax doing max of flattened array
-                print('Warning: signal values greater than original signal\'s capacity. Losing data.')
-
-        synthetic_sig = (np.clip(synthetic_sig, np.finfo(orig_type).min, np.finfo(orig_type).max) 
-                if orig_type == 'float32' else 
-                        np.clip(synthetic_sig, np.iinfo(orig_type).min, np.iinfo(orig_type).max))  
+        # Safety measure: prevent overflow by clipping, assume other WAV format types are int (int16)
+        if np.amax(np.abs(synthetic_sig)) > np.iinfo(orig_type).max:    # amax doing max of flattened array
+            print('Warning: signal values greater than original signal\'s capacity. Losing data.')
+        synthetic_sig = np.clip(synthetic_sig, np.iinfo(orig_type).min, np.iinfo(orig_type).max) 
         # Accuracy measure: round floats before converting to original type
         synthetic_sig = np.around(synthetic_sig).astype(orig_type)
 
@@ -270,8 +269,9 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_type, ova=False
 
 
 # WAV FORMAT CONVERSION FUNCTIONS
-# Convert bit-depth & range to that of highest quality WAV format fed into system (16-bit int PCM)
-# Can only handle max of 16-bit int PCM
+# Convert bit-depth & range to that of highest numeric range WAV format fed into system (16-bit int PCM)
+# Only supports conversion from 'uint8' and 'float32'
+# Only supports conversion to highest range yet - 16-bit int PCM ('int16')
 def convert_wav_format_up(sig, to_bit_depth='int16', print_sum=False):
     if to_bit_depth == 'int16':
         if sig.dtype == 'uint8':
@@ -281,11 +281,14 @@ def convert_wav_format_up(sig, to_bit_depth='int16', print_sum=False):
             sig *= 256
             if print_sum:
                 print('SUM OF BRAHMS CONVERTED TO 16-BIT INT PCM:', np.sum(sig), 'BEFORE CONV:', np.sum(save_sig))
-        elif print_sum:
-            print('SUM OF SIG (16-BIT INT PCM):', np.sum(sig))
+        elif sig.dtype == 'float32':
+            sig = sig * 32767    # 32768 is full negative range but not positive, stay safe
+            sig = np.around(sig).astype('int16')
+        else:
+            if print_sum:
+                print('SUM OF SIG (16-BIT INT PCM):', np.sum(sig))
     return sig
 
-# Can only handle max of 16-bit int PCM
 def convert_wav_format_down(sig, to_bit_depth='uint8', safe=True, print_sum=False):
     if to_bit_depth == 'uint8':
         if sig.dtype != 'int16' and safe:
@@ -297,8 +300,16 @@ def convert_wav_format_down(sig, to_bit_depth='uint8', safe=True, print_sum=Fals
         sig = sig / 256
         sig = sig.astype('int16')
         sig += 128
-        sig = sig.astype('uint8')
-    if print_sum:
+    elif to_bit_depth == 'float32':
+        sig = sig / 32767    # clip after scaling to preserve accuracy
+        if safe:
+            # Safety measure: prevent overflow by clipping
+            if np.amax(np.abs(sig)) > np.finfo('float32').max:    # amax doing max of flattened array
+                print('Warning: signal values greater than float32 capacity. Losing data.')
+            sig = np.clip(sig, np.finfo('float32').min, np.finfo('float32').max)
+            sig = np.around(sig)
+    sig = sig.astype(to_bit_depth) 
+    if print_sum and to_bit_depth == 'uint8':
         print('SUM OF BRAHMS CONVERTED BACK TO 8-BIT INT PCM:', np.sum(sig))
     return sig
 
