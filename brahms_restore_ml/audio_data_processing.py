@@ -14,9 +14,8 @@ PIANO_WDW_SIZE = 4096
 SPGM_BRAHMS_RATIO = 0.08
 EPSILON = 10 ** (-10)
 
-def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=False):
-    n_rows, n_cols = matrix.shape
-    
+# Supports matrices & arrays
+def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=False):    
     def frequency_in_hz(x, pos):
         # return '%.1f Hz' % x
         return '%.2f Hz' % ((x * STD_SR_HZ)/PIANO_WDW_SIZE)
@@ -32,7 +31,10 @@ def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=F
     ax.set_ylabel(ylabel)
     ax.set_xlabel(xlabel)
 
-    n_rows, n_cols = matrix.shape
+    if len(matrix.shape) == 1:
+        n_rows, n_cols = matrix.shape[0], 1
+    else:
+        n_rows, n_cols = matrix.shape
     if true_dim:
         _ = ax.imshow(np.log(matrix), aspect=0.5, origin='lower')
     else:
