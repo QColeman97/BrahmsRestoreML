@@ -383,10 +383,6 @@ def partition_matrices(split_index, W, H, madeinit=False):
     
     return Wfixed, Wlearn, Hfixed, Hlearn
 
-# # Learning optimization
-# def make_row_sum_matrix(mtx, out_shape):
-#     row_sums = mtx.sum(axis=1)
-#     return np.repeat(row_sums, out_shape[1], axis=0)
 
 # General case NMF algorithm
 def nmf(input_matrix, k, basis_vectors=None, learn_index=0, madeinit=False, debug=False, incorrect=False, 
@@ -659,31 +655,36 @@ def nmf(input_matrix, k, basis_vectors=None, learn_index=0, madeinit=False, debu
 
 # Useful functions
 
+# # Learning optimization - for ones matrix?
+# def make_row_sum_matrix(mtx, out_shape):
+#     row_sums = mtx.sum(axis=1)
+#     return np.repeat(row_sums, out_shape[1], axis=0)
+
 # NMF Learning step formulas:
     # H +1 = H * ((Wt dot (V / (W dot H))) / (Wt dot 1) )
     # W +1 = W * (((V / (W dot H)) dot Ht) / (1 dot Ht) )
 
-# L1-Penalize fix - only do when basis vectors fixed, and (probably) only when Wfixed is piano cause piano H good
+# L1-Penalize fix - only do on H corresponding to basis vectors fixed, and (probably) only when Wfixed is piano cause piano H good
 
-# TODO: Have a param to specify when to NOT learn voice in our basis vectors (we shouldn't) 
+# POSSIBLE FIX (due to below) - if learning noise - restrict it from learning noise from voice part
+# TODO: How to restrict? - (only let W & H access later part of V, let supervised technique cover remainder of V)
+# Old note below, bad idea
+# Have a param to specify when to NOT learn voice in our basis vectors (we shouldn't) 
 # For now, no param and we just shorten the brahms sig before this call
 
-def extended_nmf(V, k, W=None, split_index=0, debug=False, incorrect=False, 
-        learn_iter=MAX_LEARN_ITER, l1_pen=0, mutual_update=True, sslrn='None'):
-    # Re-orient the input matrices for understandability in NMF
-    V = V.T
+def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=False, incorrect=False, 
+        learn_iter=MAX_LEARN_ITER, mutual_update=True):
     m, n = V.shape
-    W = np.random.rand(m, k) if W is None else W.T
     H = np.random.rand(k, n)
     ones = np.ones(V.shape)
     if debug:
-        print('IN NMF, V shape:', V.shape, 'W shape:', W.shape, 'H shape:', H.shape, 'ones shape:', ones.shape)
+        print('IN NMF, V shape:', V.shape, 'W shape:', W if (W is None) else W.shape, 'H shape:', H.shape, 'ones shape:', ones.shape)
         print('Sum of input V:', np.sum(V))
-        plot_matrix(W, 'W Before Learn', 'k', 'frequency', ratio=BASIS_VECTOR_FULL_RATIO, show=True)
         plot_matrix(H, 'H Before Learn', 'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
 
     if W is not None:
         if debug:
+            plot_matrix(W, 'W Before Learn', 'k', 'frequency', ratio=BASIS_VECTOR_FULL_RATIO, show=True)
             print('Applying L1-Penalty of', l1_pen, 'to H')
             print('Supervised Learning') if (sslrn == 'None') else print('Semi-Supervised Learning', sslrn)
 
@@ -691,26 +692,35 @@ def extended_nmf(V, k, W=None, split_index=0, debug=False, incorrect=False,
             # Supervised Learning
             for _ in range(learn_iter):
                 H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
+        # SemiSup - Looks like only use the sections of W & H, & same V & ones, in multiplications for updates to sections of W & H
         elif sslrn == 'Piano':
             # Semi-supervised Learning Piano
             for _ in range(learn_iter):
-                H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
-                W[:, split_index:] *= (((V / (W[:, split_index:] @ H[split_index:, :])) @ H[split_index:, :].T) / 
-                                        (ones @ H[split_index:, :].T))
+                # H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
+                H[:split_index] *= ((W[:, :split_index].T @ (V / (W[:, :split_index] @ H[:split_index]))) / 
+                                        ((W[:, :split_index].T @ ones) + l1_pen))      # only penalize corr. to fixed
+                H[split_index:] *= ((W[:, split_index:].T @ (V / (W[:, split_index:] @ H[split_index:]))) / 
+                                        (W[:, split_index:].T @ ones))
+                W[:, split_index:] *= (((V / (W[:, split_index:] @ H[split_index:])) @ H[split_index:].T) / 
+                                        (ones @ H[split_index:].T))
         else:
             # Semi-supervised Learning Noise
             for _ in range(learn_iter):
-                H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
-                W[:, :split_index] *= (((V / (W[:, :split_index] @ H[:split_index, :])) @ H[:split_index, :].T) / 
-                                        (ones @ H[:split_index, :].T))
+                # H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
+                H[split_index:] *= ((W[:, split_index:].T @ (V / (W[:, split_index:] @ H[split_index:]))) / 
+                                        ((W[:, split_index:].T @ ones) + l1_pen))      # only penalize corr. to fixed
+                H[:split_index] *= ((W[:, :split_index].T @ (V / (W[:, :split_index] @ H[:split_index]))) / 
+                                        (W[:, :split_index].T @ ones))
+                W[:, :split_index] *= (((V / (W[:, :split_index] @ H[:split_index])) @ H[:split_index].T) / 
+                                        (ones @ H[:split_index].T))
     else:
+        W = np.random.rand(m, k)
         if debug:
             print('Unsupervised Learning')
         # Unsupervised Learning
         for _ in range(learn_iter):
             H *= ((W.T @ (V / (W @ H))) / (W.T @ ones))
             W *= (((V / (W @ H)) @ H.T) / (ones @ H.T))
-    
     if debug:
         plot_matrix(W, 'W After Learn', 'k', 'frequency', ratio=BASIS_VECTOR_FULL_RATIO, show=True)
         plot_matrix(H, 'H After Learn', 'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
@@ -798,8 +808,8 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
     k = NUM_MARY_PIANO_NOTES if marybv else NUM_PIANO_NOTES
     if noisebv:
         k += num_noisebv
-    
-    # TEMP
+    # Transpose W and V from natural orientation to NMF-liking orientation
+    basis_vectors, spectrogram = basis_vectors.T, spectrogram.T
     basis_vectors, activations = extended_nmf(spectrogram, k, W=basis_vectors, split_index=num_noisebv, 
                                                 debug=debug, incorrect=incorrect_semisup, learn_iter=learn_iter,
                                                 l1_pen=l1_penalty, sslrn=semisuplearn)

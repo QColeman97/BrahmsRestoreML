@@ -26,7 +26,7 @@ def main():
     # Experimental
     # Ternary flag - 'Piano', 'Noise', or 'None' (If not 'None', noisebv_flag MUST BE TRUE)
     semi_sup_learn = 'None'
-    semi_sup_made_init = True   # Only considered when semi_sup_learn != 'None'
+    semi_sup_made_init = False   # Only considered when semi_sup_learn != 'None'
     l1_penalty = 0 # 10 ** 19 # 10^9 = 1Bill, 12 = trill, 15 = quad, 18 = quin, 19 = max for me
     l1pen_flag = True if (l1_penalty != 0) else False
     # Do not make as big as 1078 (smaller dim) - 88 (piano bv's) = 990

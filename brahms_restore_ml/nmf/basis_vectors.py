@@ -53,10 +53,11 @@ def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, pr
     print('\n----Making Noise Spectrogram--\n')
     spectrogram, _ = make_spectrogram(noise_sig, wdw_size, EPSILON, ova=ova, debug=debug)
     print('\n----Learning Noise Basis Vectors--\n')
-    # TEMP
+    # Transpose V from natural orientation to NMF-liking orientation
     spectrogram = spectrogram.T
-    _, noise_basis_vectors = nmf.nmf_learn(spectrogram, num, debug=debug)
-    # noise_basis_vectors, _ = nmf.extended_nmf(spectrogram, num, debug=debug)
+    # TEMP
+    # _, noise_basis_vectors = nmf.nmf_learn(spectrogram, num, debug=debug)
+    noise_basis_vectors, _ = nmf.extended_nmf(spectrogram, num, debug=debug)
     noise_basis_vectors = noise_basis_vectors.T     # Get out of NMF-context orientation
 
     # # NEW - normalize noise basis vectors
