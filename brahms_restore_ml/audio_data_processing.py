@@ -90,8 +90,8 @@ def signal_to_pos_fft(sgmt, wdw_size, ova=False, debug_flag=False):
     fft = np.fft.fft(sgmt)
     phases_fft = np.angle(fft)
     mag_fft = np.abs(fft)
-    pos_phases_fft = phases_fft[: (wdw_size // 2) + 1].copy()
-    pos_mag_fft = mag_fft[: (wdw_size // 2) + 1].copy()
+    pos_phases_fft = phases_fft[: (wdw_size // 2) + 1]
+    pos_mag_fft = mag_fft[: (wdw_size // 2) + 1]
 
     if debug_flag:
         if ova:
@@ -142,7 +142,7 @@ def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False, hop_size
     
     spectrogram, pos_phases = np.empty((num_sgmts, sgmt_len)), np.empty((num_sgmts, sgmt_len))
     for i in range(num_sgmts):
-        # Slicing a numpy array makes a view, so explicit copy
+        # Make a copy of slice, so we don't go into un-allocated mem when padding
         sgmt = signal[i * hop_size: (i * hop_size) + wdw_size].copy()
         
         debug_flag = ((i == 0) or (i == 1)) if debug else False
@@ -234,7 +234,7 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_type, ova=False
         debug_flag = (i == 0 or i == 1) if debug else False
 
         if ova and (i > 0):
-            end_half_sgmt = synthetic_sig[ova_index: ova_index + hop_size].copy()
+            end_half_sgmt = synthetic_sig[ova_index: ova_index + hop_size]
             synthetic_sgmt = pos_fft_to_signal(pos_mag_fft=synthetic_spgm[i], pos_phases_fft=phases[i], 
                                                        wdw_size=wdw_size, ova=ova, debug_flag=debug_flag,
                                                        end_sig=end_half_sgmt, hop_size_divisor=hop_size_divisor)

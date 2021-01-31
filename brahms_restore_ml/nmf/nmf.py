@@ -661,10 +661,15 @@ def nmf(input_matrix, k, basis_vectors=None, learn_index=0, madeinit=False, debu
 #     return np.repeat(row_sums, out_shape[1], axis=0)
 
 # NMF Learning step formulas:
-    # H +1 = H * ((Wt dot (V / (W dot H))) / (Wt dot 1) )
-    # W +1 = W * (((V / (W dot H)) dot Ht) / (1 dot Ht) )
+    # H +1 = H * ((Wt matmul (V / (W matmul H))) / (Wt matmul 1) )
+    # W +1 = W * (((V / (W matmul H)) matmul Ht) / (1 matmul Ht) )
 
-# L1-Penalize fix - only do on H corresponding to basis vectors fixed, and (probably) only when Wfixed is piano cause piano H good
+# Unused (experimental) params:
+# L1-Penalize fix - only penalize H corresponding to basis vectors fixed (supervised), 
+# and (probably) only when Wfixed is piano cause piano H good
+# SSLRN fix - incorrect sslrn w/ "incorrect" (defined by all W & H updated), 
+# is more like unsupervised NMF, which doesn't make a drastic improvement if any
+# Non-mutual update fix - no difference is seen when W & H aren't updated using each other
 
 # POSSIBLE FIX (due to below) - if learning noise - restrict it from learning noise from voice part
 # TODO: How to restrict? - (only let W & H access later part of V, let supervised technique cover remainder of V)
@@ -672,8 +677,9 @@ def nmf(input_matrix, k, basis_vectors=None, learn_index=0, madeinit=False, debu
 # Have a param to specify when to NOT learn voice in our basis vectors (we shouldn't) 
 # For now, no param and we just shorten the brahms sig before this call
 
+# With any supervision W is returned unchanged. No supervision, W is made & returned
 def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=False, incorrect=False, 
-        learn_iter=MAX_LEARN_ITER, mutual_update=True):
+        learn_iter=MAX_LEARN_ITER, mutual_update=True, pen_all=False):
     m, n = V.shape
     H = np.random.rand(k, n)
     ones = np.ones(V.shape)
@@ -685,7 +691,7 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
     if W is not None:
         if debug:
             plot_matrix(W, 'W Before Learn', 'k', 'frequency', ratio=BASIS_VECTOR_FULL_RATIO, show=True)
-            print('Applying L1-Penalty of', l1_pen, 'to H')
+            print('Applying L1-Penalty of', l1_pen, 'to H corres. to fixed W')
             print('Supervised Learning') if (sslrn == 'None') else print('Semi-Supervised Learning', sslrn)
 
         if sslrn == 'None':
@@ -696,7 +702,9 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
         elif sslrn == 'Piano':
             # Semi-supervised Learning Piano
             for _ in range(learn_iter):
-                # H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
+                # if pen_all:
+                #     H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
+                # else:
                 H[:split_index] *= ((W[:, :split_index].T @ (V / (W[:, :split_index] @ H[:split_index]))) / 
                                         ((W[:, :split_index].T @ ones) + l1_pen))      # only penalize corr. to fixed
                 H[split_index:] *= ((W[:, split_index:].T @ (V / (W[:, split_index:] @ H[split_index:]))) / 
@@ -706,7 +714,9 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
         else:
             # Semi-supervised Learning Noise
             for _ in range(learn_iter):
-                # H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
+                # if pen_all:
+                #     H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
+                # else:
                 H[split_index:] *= ((W[:, split_index:].T @ (V / (W[:, split_index:] @ H[split_index:]))) / 
                                         ((W[:, split_index:].T @ ones) + l1_pen))      # only penalize corr. to fixed
                 H[:split_index] *= ((W[:, :split_index].T @ (V / (W[:, :split_index] @ H[:split_index]))) / 
@@ -719,6 +729,9 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
             print('Unsupervised Learning')
         # Unsupervised Learning
         for _ in range(learn_iter):
+            # if pen_all:
+            #     H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
+            # else:
             H *= ((W.T @ (V / (W @ H))) / (W.T @ ones))
             W *= (((V / (W @ H)) @ H.T) / (ones @ H.T))
     if debug:
@@ -728,17 +741,17 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
     return W, H
 
 
-def noise_split_matrices(activations, basis_vectors, num_noisebv, debug=False):
-    piano_basis_vectors = basis_vectors[:, num_noisebv:].copy()
-    piano_activations = activations[num_noisebv:].copy()
-    noise_basis_vectors = basis_vectors[:, :num_noisebv].copy()
-    noise_activations = activations[:num_noisebv].copy()
+def source_split_matrices(activations, basis_vectors, num_noisebv, debug=False):
+    piano_basis_vectors = basis_vectors[:, num_noisebv:]
+    piano_activations = activations[num_noisebv:]
+    noise_basis_vectors = basis_vectors[:, :num_noisebv]
+    noise_activations = activations[:num_noisebv]
     if debug:
         print('In split')
-        print('De-noised Piano Basis Vectors (first):', piano_basis_vectors[:][0])
-        print('De-noised Piano Activations (first):', piano_activations[0])
-        print('Sep. Noise Basis Vectors (first):', noise_basis_vectors[:][0])
-        print('Sep. Noise Activations (first):', noise_activations[0])
+        print('De-noised Piano Basis Vectors (first):', piano_basis_vectors.shape, piano_basis_vectors[:][0])
+        print('De-noised Piano Activations (first):', piano_activations.shape, piano_activations[0])
+        print('Sep. Noise Basis Vectors (first):', noise_basis_vectors.shape, noise_basis_vectors[:][0])
+        print('Sep. Noise Activations (first):', noise_activations.shape, noise_activations[0])
         plot_matrix(piano_basis_vectors, 'De-noised Piano Basis Vectors', 'k', 'frequency', ratio=BASIS_VECTOR_FULL_RATIO, show=True)
         plot_matrix(piano_activations, 'De-noised Piano Activations', 'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
         plot_matrix(noise_basis_vectors, 'Sep. Noise Basis Vectors', 'k', 'frequency', ratio=BASIS_VECTOR_FULL_RATIO, show=True)
@@ -838,23 +851,19 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
 
     # Update: Keep, but separate the noise matrices. Use all matrices to create a single spectrogram.
     if noisebv:
-        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = noise_split_matrices(activations, basis_vectors, num_noisebv, debug=debug)
+        noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = source_split_matrices(activations, basis_vectors, num_noisebv, debug=debug)
         print('\n--Making Synthetic Brahms Spectrogram (Source-Separating)--\n')
         synthetic_piano_spgm = piano_basis_vectors @ piano_activations
         synthetic_noise_spgm = noise_basis_vectors @ noise_activations
         # Include noise within result to battle any normalizing wavfile.write might do
         synthetic_spgm = np.concatenate((synthetic_piano_spgm, synthetic_noise_spgm), axis=-1)
         if debug:
-            print('Gotten De-noised Piano Basis Vectors W (first):', piano_basis_vectors.shape, piano_basis_vectors[:][0])
-            print('Gotten De-noised Piano Activations H (first):', piano_activations.shape, piano_activations[0])
-            print('Gotten De-pianoed Noise Basis Vectors W (first):', noise_basis_vectors.shape, noise_basis_vectors[:][0])
-            print('Gotten De-pianoed Noise Activations H (first):', noise_activations.shape, noise_activations[0])
             print('Synthetic Signal Spectrogram V\' (first):', synthetic_spgm.shape, synthetic_spgm[:][0])
             plot_matrix(synthetic_piano_spgm, 'Synthetic Piano Spectrogram', 'time segments', 'frequency', ratio=SPGM_BRAHMS_RATIO, show=True)
             plot_matrix(synthetic_noise_spgm, 'Synthetic Noise Spectrogram', 'time segments', 'frequency', ratio=SPGM_BRAHMS_RATIO, show=True)
             plot_matrix(synthetic_spgm, 'Synthetic Spectrogram', 'time segments', 'frequency', ratio=SPGM_BRAHMS_RATIO, show=True)
     else:
-        # Unused
+        # Unused branch
         print('\n--Making Synthetic Spectrogram--\n')
         synthetic_spgm = basis_vectors @ activations
         if debug:
@@ -871,7 +880,7 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
 
     # Important - writing functionality isn't change for noise or not
     if noisebv:
-        noise_synthetic_sig = synthetic_sig[orig_sig_len:].copy()
+        noise_synthetic_sig = synthetic_sig[orig_sig_len:]
         # # Update: Remove first half of signal (noise half)
         # # Sun update for L1-Pen: write whole file in case wavfile.write does normalizing
         # # synthetic_sig = synthetic_sig[orig_sig_len:]

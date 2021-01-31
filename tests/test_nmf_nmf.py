@@ -15,6 +15,8 @@ brahms_filepath = os.getcwd() + '/brahms.wav'
 mary_441kHz_filepath = os.getcwd() + '/brahms_restore_ml/nmf/Mary_44100Hz_32bitfp_librosa.wav'
 test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_test/output_test_nmf/'
 
+Wmade_scale_factor = 5
+
 class NMFTests(unittest.TestCase):
 
    # What to test?
@@ -24,154 +26,254 @@ class NMFTests(unittest.TestCase):
 
    # TODO After tests, the key to doing NMF correctly, is knowing how memory is being used in Numpy
 
-   def test_nmf_supervised(self):
-      m, n, k = 8, 6, 4
-      W = np.ones((m, k))
+   def test_nmf_unsupervised(self):
+      m, n, k = 8, 6, 5
       V = np.arange(m * n).reshape(m, n)
-      W_after_nmf, H = extended_nmf(V, k, W)
-      np.testing.assert_array_equal(W, W_after_nmf)
+      W, H = extended_nmf(V, k)
+      W2, H2 = extended_nmf(V, k)
+      # print('H SUMS Unsup:',np.sum(H2),np.sum(H)) # irrelevant
+      with self.subTest():
+         self.assertNotEqual(np.sum(W2), np.sum(W))
+      with self.subTest():
+         self.assertNotEqual(np.sum(H2), np.sum(H))
 
-   # Assert equal tests
+   def test_nmf_supervised(self):
+      m, n, k = 8, 6, 5
+      W = np.ones((m, k)) * Wmade_scale_factor
+      V = np.arange(m * n).reshape(m, n)
+      W_after_nmf, H = extended_nmf(V, k, W.copy())
+      with self.subTest():
+         np.testing.assert_array_equal(W, W_after_nmf)
+      _, H2 = extended_nmf(V, k, W.copy())
+      # Assert H sum is near same each time
+      with self.subTest():
+         self.assertAlmostEqual(np.sum(H2), np.sum(H), places=0)
 
    def test_nmf_semi_supervised_learn_noise_made(self):
-      m, n, k = 8, 6, 4
+      m, n, k = 8, 6, 5
       split_index = k // 2
-      W = np.ones((m, k))
+      W = np.ones((m, k)) * Wmade_scale_factor
       V = np.arange(m * n).reshape(m, n)
-      W_after_nmf, H = extended_nmf(V, k, W, split_index=split_index, sslrn='Noise')
+      W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise')
       # Assert fixed didn't change
-      np.testing.assert_array_equal(W[:, split_index:], W_after_nmf[:, split_index:])
-
-   # Assert unequal tests
-
-   def test_nmf_semi_supervised_learn_noise_made2(self):
-      m, n, k = 8, 6, 4
-      split_index = k // 2
-      W = np.ones((m, k))
-      V = np.arange(m * n).reshape(m, n)
-      W_after_nmf, H = extended_nmf(V, k, W, split_index=split_index, sslrn='Noise')
+      with self.subTest():
+         np.testing.assert_array_equal(W[:, split_index:], W_after_nmf[:, split_index:])
       # Assert learned (whole) changed
-      np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
+      with self.subTest():                         
+         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
+      # Assert H corres. w/ fixed W sum is near same each time
+      with self.subTest():
+         _, H2 = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise')
+         print('H SUMS lnm - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[split_index:]),np.sum(H[split_index:]),'Corres Learned',np.sum(H2[:split_index]),np.sum(H[:split_index]))
+         self.assertAlmostEqual(np.sum(H2[split_index:]), np.sum(H[split_index:]), places=0)
 
    def test_nmf_semi_supervised_learn_noise(self):
-      m, n, k = 8, 6, 4
+      m, n, k = 8, 6, 5
       split_index = k // 2
-      Wfixed = np.ones((m, split_index))
+      Wfixed = np.ones((m, k - split_index)) * Wmade_scale_factor
       Wlearn = np.random.rand(m, split_index)
       W = np.concatenate((Wlearn, Wfixed), axis=-1)
       V = np.arange(m * n).reshape(m, n)
-      W_after_nmf, H = extended_nmf(V, k, W, split_index=split_index, sslrn='Noise')
+      W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise')
       # Assert fixed didn't change
-      np.testing.assert_array_equal(W[:, split_index:], W_after_nmf[:, split_index:])
+      with self.subTest():
+         np.testing.assert_array_equal(W[:, split_index:], W_after_nmf[:, split_index:])
       # Assert learned (whole) changed
-      np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
+      with self.subTest():
+         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
+      # Assert H corres. w/ fixed W sum is near same each time
+      with self.subTest():
+         _, H2 = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise')
+         print('H SUMS ln - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[split_index:]),np.sum(H[split_index:]),'Corres Learned',np.sum(H2[:split_index]),np.sum(H[:split_index]))
+         self.assertAlmostEqual(np.sum(H2[split_index:]), np.sum(H[split_index:]), places=0)
 
    def test_nmf_semi_supervised_learn_piano_made(self):
-      m, n, k = 8, 6, 4
+      m, n, k = 8, 6, 5
       split_index = k // 2
-      W = np.ones((m, k))
+      W = np.ones((m, k)) * Wmade_scale_factor
       V = np.arange(m * n).reshape(m, n)
-      W_after_nmf, H = extended_nmf(V, k, W, split_index=split_index, sslrn='Piano')
+      W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano')
       # Assert fixed didn't change
-      np.testing.assert_array_equal(W[:, :split_index], W_after_nmf[:, :split_index])
+      with self.subTest():
+         np.testing.assert_array_equal(W[:, :split_index], W_after_nmf[:, :split_index])
       # Assert learned (whole) changed
-      np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
+      with self.subTest():
+         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
+      # Assert H corres. w/ fixed W sum is near same each time
+      with self.subTest():
+         _, H2 = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano')
+         print('H SUMS lpm - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[:split_index]),np.sum(H[:split_index]),'Corres Learned',np.sum(H2[split_index:]),np.sum(H[split_index:]))
+         self.assertAlmostEqual(np.sum(H2[:split_index]), np.sum(H[:split_index]), places=0)
 
    def test_nmf_semi_supervised_learn_piano(self):
-      m, n, k = 8, 6, 4
+      m, n, k = 8, 6, 5
       split_index = k // 2
-      Wfixed = np.ones((m, split_index))
-      Wlearn = np.random.rand(m, split_index)
+      Wfixed = np.ones((m, split_index)) * Wmade_scale_factor
+      Wlearn = np.random.rand(m, k - split_index)
       W = np.concatenate((Wfixed, Wlearn), axis=-1)
       V = np.arange(m * n).reshape(m, n)
-      W_after_nmf, H = extended_nmf(V, k, W, split_index=split_index, sslrn='Piano')
+      W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano')
       # Assert fixed didn't change
-      np.testing.assert_array_equal(W[:, :split_index], W_after_nmf[:, :split_index])
+      with self.subTest():
+         np.testing.assert_array_equal(W[:, :split_index], W_after_nmf[:, :split_index])
       # Assert learned (whole) changed
-      np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
+      with self.subTest():
+         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
+      # Assert H corres. w/ fixed W sum is near same each time
+      with self.subTest():
+         _, H2 = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano')
+         print('H SUMS lp - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[:split_index]),np.sum(H[:split_index]),'Corres Learned',np.sum(H2[split_index:]),np.sum(H[split_index:]))
+         self.assertAlmostEqual(np.sum(H2[:split_index]), np.sum(H[:split_index]), places=0)
+
+   # Moral, don't apply L1-Pen on H that isn't corres. to fixed W (isn't supervised)
+   # # Make sure H sum < unpenalized H sum
+   # def test_nmf_unsupervised_l1penalty(self):
+   #    m, n, k = 8, 6, 5
+   #    V = np.arange(m * n).reshape(m, n)
+   #    W, H = extended_nmf(V, k)
+   #    W2, H2 = extended_nmf(V, k)
+   #    Wpen, Hpen = extended_nmf(V, k, l1_pen=1000)
+   #    W2pen, H2pen = extended_nmf(V, k, l1_pen=1000)
+   #    print('(PEN) H SUMS Unsup:',np.sum(Hpen),np.sum(H))
+   #    with self.subTest():
+   #       self.assertNotEqual(np.sum(W2), np.sum(W))
+   #    with self.subTest():
+   #       self.assertNotEqual(np.sum(H2), np.sum(H))
+   #    with self.subTest():
+   #       self.assertLess(np.sum(Hpen), np.sum(H))
+   #    with self.subTest():
+   #       self.assertLess(np.sum(H2pen), np.sum(H2))
 
    # Make sure H sum < unpenalized H sum
    def test_nmf_supervised_l1penalty(self):
-      m, n, k = 8, 6, 4
-      W = np.random.rand(m, k)
+      m, n, k = 8, 6, 5
+      W = np.ones((m, k)) * Wmade_scale_factor
       V = np.arange(m * n).reshape(m, n)
-      W_after_nmf, H = extended_nmf(V, k, W)
-      W_after_nmf_pen, H_penalized = extended_nmf(V, k, W, l1_pen=1000)
-      np.testing.assert_array_equal(W, W_after_nmf)
-      np.testing.assert_array_equal(W, W_after_nmf_pen)
-      self.assertLess(np.sum(H_penalized), np.sum(H))
+      W_after_nmf, H = extended_nmf(V, k, W.copy())
+      W_after_nmf_pen, H_penalized = extended_nmf(V, k, W.copy(), l1_pen=1000)
+      with self.subTest():
+         np.testing.assert_array_equal(W, W_after_nmf)
+      with self.subTest():
+         np.testing.assert_array_equal(W, W_after_nmf_pen)
+      with self.subTest():
+         self.assertLess(np.sum(H_penalized), np.sum(H))
 
    def test_nmf_semi_supervised_learn_noise_made_l1penalty(self):
-      m, n, k = 8, 6, 4
+      m, n, k = 8, 6, 5
       split_index = k // 2
-      W = np.ones((m, k))
+      W = np.ones((m, k)) * Wmade_scale_factor
       V = np.arange(m * n).reshape(m, n)
-      W_after_nmf, H = extended_nmf(V, k, W, split_index=split_index, sslrn='Noise')
-      W_after_nmf_pen, H_penalized = extended_nmf(V, k, W, split_index=split_index, sslrn='Noise', l1_pen=1000)
+      W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise')
+      W_after_nmf_pen, H_penalized = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise', l1_pen=1000)
       # Assert fixed didn't change
-      np.testing.assert_array_equal(W[:, split_index:], W_after_nmf[:, split_index:])
-      np.testing.assert_array_equal(W[:, split_index:], W_after_nmf_pen[:, split_index:])
+      with self.subTest():
+         np.testing.assert_array_equal(W[:, split_index:], W_after_nmf[:, split_index:])
+      with self.subTest():
+         np.testing.assert_array_equal(W[:, split_index:], W_after_nmf_pen[:, split_index:])
       # Assert learned (whole) changed
-      np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
-      np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf_pen)
-      # Assert that H of learned W practically same, b/c only penalize when corr W is fixed
-      self.assertAlmostEqual(np.sum(H_penalized[:split_index]), np.sum(H[:split_index]))
-      self.assertLess(np.sum(H_penalized), np.sum(H))
+      with self.subTest():
+         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
+      with self.subTest():
+         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf_pen)
+      print('(PEN) H SUMS lnm - Whole:',np.sum(H_penalized),np.sum(H),'Corres Fixed:',np.sum(H_penalized[split_index:]),np.sum(H[split_index:]),'Corres Learned',np.sum(H_penalized[:split_index]),np.sum(H[:split_index]))
+      # # No b/c H only near same when corres. W is fixed
+      # # Assert that H of learned W practically same, b/c only penalize when corres. W is fixed
+      # with self.subTest():
+      #    self.assertAlmostEqual(np.sum(H_penalized[:split_index]), np.sum(H[:split_index]), places=0)
+      with self.subTest():
+         self.assertLess(np.sum(H_penalized), np.sum(H))
 
    def test_nmf_semi_supervised_learn_noise_l1penalty(self):
-      m, n, k = 8, 6, 4
+      m, n, k = 8, 6, 5
       split_index = k // 2
-      Wfixed = np.ones((m, split_index))
+      Wfixed = np.ones((m, k - split_index)) * Wmade_scale_factor
       Wlearn = np.random.rand(m, split_index)
       W = np.concatenate((Wlearn, Wfixed), axis=-1)
       V = np.arange(m * n).reshape(m, n)
-      W_after_nmf, H = extended_nmf(V, k, W, split_index=split_index, sslrn='Noise')
-      W_after_nmf_pen, H_penalized = extended_nmf(V, k, W, split_index=split_index, sslrn='Noise', l1_pen=1000)
+      W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise')
+      W_after_nmf_pen, H_penalized = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise', l1_pen=1000)
       # Assert fixed didn't change
-      np.testing.assert_array_equal(W[:, split_index:], W_after_nmf[:, split_index:])
-      np.testing.assert_array_equal(W[:, split_index:], W_after_nmf_pen[:, split_index:])
+      with self.subTest():
+         np.testing.assert_array_equal(W[:, split_index:], W_after_nmf[:, split_index:])
+      with self.subTest():
+         np.testing.assert_array_equal(W[:, split_index:], W_after_nmf_pen[:, split_index:])
       # Assert learned (whole) changed
-      np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
-      np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf_pen)
-      # Assert that H of learned W practically same, b/c only penalize when corr W is fixed
-      self.assertAlmostEqual(np.sum(H_penalized[:split_index]), np.sum(H[:split_index]))
-      self.assertLess(np.sum(H_penalized), np.sum(H))
+      with self.subTest():
+         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
+      with self.subTest():
+         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf_pen)
+      print('(PEN) H SUMS ln - Whole:',np.sum(H_penalized),np.sum(H),'Corres Fixed:',np.sum(H_penalized[split_index:]),np.sum(H[split_index:]),'Corres Learned',np.sum(H_penalized[:split_index]),np.sum(H[:split_index]))
+      # # No b/c H only near same when corres. W is fixed
+      # # Assert that H of learned W practically same, b/c only penalize when corres. W is fixed
+      # with self.subTest():
+      #    self.assertAlmostEqual(np.sum(H_penalized[:split_index]), np.sum(H[:split_index]), places=0)
+      with self.subTest():
+         self.assertLess(np.sum(H_penalized), np.sum(H))
 
    def test_nmf_semi_supervised_learn_piano_made_l1penalty(self):
-      m, n, k = 8, 6, 4
+      m, n, k = 8, 6, 5
       split_index = k // 2
-      W = np.ones((m, k))
+      W = np.ones((m, k)) * Wmade_scale_factor
       V = np.arange(m * n).reshape(m, n)
-      W_after_nmf, H = extended_nmf(V, k, W, split_index=split_index, sslrn='Piano')
-      W_after_nmf_pen, H_penalized = extended_nmf(V, k, W, split_index=split_index, sslrn='Piano', l1_pen=1000)
-     # Assert fixed didn't change
-      np.testing.assert_array_equal(W[:, :split_index], W_after_nmf[:, :split_index])
-      np.testing.assert_array_equal(W[:, :split_index], W_after_nmf_pen[:, :split_index])
+      W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano')
+      W_after_nmf_pen, H_penalized = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano', l1_pen=1000)
+      # Assert fixed didn't change
+      with self.subTest():
+         np.testing.assert_array_equal(W[:, :split_index], W_after_nmf[:, :split_index])
+      with self.subTest():
+         np.testing.assert_array_equal(W[:, :split_index], W_after_nmf_pen[:, :split_index])
       # Assert learned (whole) changed
-      np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
-      np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf_pen)
-      # Assert that H of learned W practically same, b/c only penalize when corr W is fixed
-      self.assertAlmostEqual(np.sum(H_penalized[split_index:]), np.sum(H[split_index:]))
-      self.assertLess(np.sum(H_penalized), np.sum(H))
+      with self.subTest():
+         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
+      with self.subTest():
+         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf_pen)
+      print('(PEN) H SUMS lpm - Whole:',np.sum(H_penalized),np.sum(H),'Corres Fixed:',np.sum(H_penalized[:split_index]),np.sum(H[:split_index]),'Corres Learned',np.sum(H_penalized[split_index:]),np.sum(H[split_index:]))
+      # # No b/c H only near same when corres. W is fixed
+      # # Assert that H of learned W practically same, b/c only penalize when corres. W is fixed
+      # with self.subTest():
+      #    self.assertAlmostEqual(np.sum(H_penalized[split_index:]), np.sum(H[split_index:]), places=0)
+      with self.subTest():
+         self.assertLess(np.sum(H_penalized), np.sum(H))
 
    def test_nmf_semi_supervised_learn_piano_l1penalty(self):
-      m, n, k = 8, 6, 4
+      m, n, k = 8, 6, 5
       split_index = k // 2
-      Wfixed = np.ones((m, split_index))
-      Wlearn = np.random.rand(m, split_index)
+      Wfixed = np.ones((m, split_index)) * Wmade_scale_factor
+      Wlearn = np.random.rand(m, k - split_index)
       W = np.concatenate((Wfixed, Wlearn), axis=-1)
       V = np.arange(m * n).reshape(m, n)
-      W_after_nmf, H = extended_nmf(V, k, W, split_index=split_index, sslrn='Piano')
-      W_after_nmf_pen, H_penalized = extended_nmf(V, k, W, split_index=split_index, sslrn='Piano', l1_pen=1000)
+      W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano')
+      W_after_nmf_pen, H_penalized = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano', l1_pen=1000)
       # Assert fixed didn't change
-      np.testing.assert_array_equal(W[:, :split_index], W_after_nmf[:, :split_index])
-      np.testing.assert_array_equal(W[:, :split_index], W_after_nmf_pen[:, :split_index])
+      with self.subTest():
+         np.testing.assert_array_equal(W[:, :split_index], W_after_nmf[:, :split_index])
+      with self.subTest():
+         np.testing.assert_array_equal(W[:, :split_index], W_after_nmf_pen[:, :split_index])
       # Assert learned (whole) changed
-      np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
-      np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf_pen)
-      # Assert that H of learned W practically same, b/c only penalize when corr W is fixed
-      self.assertAlmostEqual(np.sum(H_penalized[split_index:]), np.sum(H[split_index:]))
-      self.assertLess(np.sum(H_penalized), np.sum(H))
+      with self.subTest():
+         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf)
+      with self.subTest():
+         np.testing.assert_raises(AssertionError, np.testing.assert_array_equal, W, W_after_nmf_pen)
+      print('(PEN) H SUMS lp - Whole:',np.sum(H_penalized),np.sum(H),'Corres Fixed:',np.sum(H_penalized[:split_index]),np.sum(H[:split_index]),'Corres Learned',np.sum(H_penalized[split_index:]),np.sum(H[split_index:]))
+      # # No b/c H only near same when corres. W is fixed
+      # # Assert that H of learned W practically same, b/c only penalize when corres. W is fixed
+      # with self.subTest():
+      #    self.assertAlmostEqual(np.sum(H_penalized[split_index:]), np.sum(H[split_index:]), places=0)
+      with self.subTest():
+         self.assertLess(np.sum(H_penalized), np.sum(H))
+
+   def test_source_split_matrices(self):
+      m, n, k, split_index = 8, 6, 5, 2
+      W, H = np.random.rand(m,k), np.random.rand(k,n)
+      H1, W1, H2, W2 = source_split_matrices(H, W, split_index)
+      with self.subTest():
+         self.assertEqual(H1.shape, (split_index, n)) 
+      with self.subTest():
+         self.assertEqual(W1.shape, (m, split_index)) 
+      with self.subTest():
+         self.assertEqual(H2.shape, (k - split_index, n)) 
+      with self.subTest():
+         self.assertEqual(W2.shape, (m, k - split_index)) 
 
    # Failed case for mary_activations - not crucial
    # def test_perfect_product(self):

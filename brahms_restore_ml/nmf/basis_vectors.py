@@ -15,6 +15,10 @@ def make_basis_vector(waveform, wf_type, wf_sr, num, wdw_size, ova=False, avg=Fa
         sig = sig[1:]
     while np.abs(sig[-1]) < amp_thresh:
         sig = sig[:-1]
+    if write_path is not None:  # before sig ruined by make_spectrogram
+        # optional - write trimmed piano note signals to WAV - check if trim is good
+        wavfile.write(write_path + 'trimmed_note_' + str(num) + '.wav', wf_sr, sig.astype(wf_type))
+
     spectrogram, phases = make_spectrogram(sig, wdw_size, EPSILON, ova=ova)
     if debug:
         print('Making piano bv', num, '- V of piano note @ 1st timestep:', spectrogram[0][:10])
@@ -26,16 +30,12 @@ def make_basis_vector(waveform, wf_type, wf_sr, num, wdw_size, ova=False, avg=Fa
         # # norm_bv = normalize(basis_vector[:,np.newaxis], axis=0).ravel()
         # basis_vector = norm_bv * 1000000
     else: # unused branch
-        basis_vector = spectrogram[nmf.BEST_PIANO_BV_SGMT, :].copy()
-
+        basis_vector = spectrogram[nmf.BEST_PIANO_BV_SGMT]
     if debug:
         print('Making piano bv', num, '- BV of piano note:', basis_vector[:10])
         if num == 30:   # random choice
             plot_matrix(basis_vector, '30th basis vector', 'null', 'frequencies', show=True)
-    
     if write_path is not None:   
-        # optional - write trimmed piano note signals to WAV - check if trim is good
-        wavfile.write(write_path + 'trimmed_note_' + str(num) + '.wav', wf_sr, sig.astype(wf_type))
         # write basis vector magnitude-repeated out to wav file
         bv_spgm = np.array([basis_vector for _ in range(spectrogram.shape[0])])
         bv_sig = make_synthetic_signal(bv_spgm, phases, wdw_size, wf_type, ova=ova, debug=False)
@@ -49,6 +49,8 @@ def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, pr
                              start=0, stop=25):
     real_currdir = os.path.dirname(os.path.realpath(__file__))
     _, noise_sig = wavfile.read(real_currdir + '/../../brahms_noise_izotope_rx.wav')
+    if debug:   # before make_spectrogram ruins sig
+        print('Making noise basis vectors. Noise signal:', noise_sig[:10])
 
     print('\n----Making Noise Spectrogram--\n')
     spectrogram, _ = make_spectrogram(noise_sig, wdw_size, EPSILON, ova=ova, debug=debug)
@@ -62,14 +64,9 @@ def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, pr
 
     # # NEW - normalize noise basis vectors
     # for i in range(noise_basis_vectors.shape[0]):
-    #     # basis_vector = noise_basis_vectors[i].copy()
-    #     # norm_bv = basis_vector / np.linalg.norm(basis_vector)
-    #     # # norm_bv = normalize(basis_vector[:,np.newaxis], axis=0).ravel()
-    #     # basis_vector = norm_bv * 1000000
     #     noise_basis_vectors[i] /= np.linalg.norm(noise_basis_vectors[i])
     #     noise_basis_vectors[i] *= 1000000
     if debug:
-        print('Making noise basis vectors. Noise signal:', noise_sig[:10])
         print('Noise Spectogram V (& Sum):', spectrogram.shape, np.sum(spectrogram), spectrogram.T[0][:10])
         print('First learned Noise Basis Vector of W:', noise_basis_vectors.shape, noise_basis_vectors[0][:10])
         plot_matrix(noise_basis_vectors, 'Learned Noise Basis Vectors', 'frequency', 'k', ratio=nmf.BASIS_VECTOR_FULL_RATIO, show=True)
