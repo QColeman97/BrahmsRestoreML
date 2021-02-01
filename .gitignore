@@ -1,6 +1,7 @@
 __pycache__/
 
-
+/brahms_restore_ml/blind_test_samples/
+/brahms_restore_ml/full_test_samples/
 
 /brahms_restore_ml/drnn/drnn_data/
 /brahms_restore_ml/drnn/tensorflow/
