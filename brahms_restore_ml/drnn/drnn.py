@@ -1026,9 +1026,9 @@ def infer(x, phases, wdw_size, model, loss_const, optimizer,
     clear_spgm, noise_spgm = clear_spgm[:orig_sgmts], noise_spgm[:orig_sgmts]
 
     if pc_run:
-        plot_matrix(clear_spgm, name='clear_output_spgm', ylabel='Frequency (Hz)', 
+        plot_matrix(clear_spgm, name='clear_output_spgm', xlabel='frequency', ylabel='time segments', 
                 ratio=SPGM_BRAHMS_RATIO)
-        plot_matrix(noise_spgm, name='noise_output_spgm', ylabel='Frequency (Hz)', 
+        plot_matrix(noise_spgm, name='noise_output_spgm', xlabel='frequency', ylabel='time segments', 
                 ratio=SPGM_BRAHMS_RATIO)
 
     synthetic_sig = make_synthetic_signal(clear_spgm, phases, wdw_size, 

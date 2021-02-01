@@ -2,21 +2,20 @@ from ..audio_data_processing import *
 import random
 import re
 
-
+# May try replacing with lambda in the call in train
 def make_gen_callable(_gen):
     def gen():
         for x,y in _gen:
             yield x,y
     return gen
 
-def preprocess_signals(piano_sig, noise_sig, pad_len, mix_sig=None, src_amp_low=0.75, src_amp_high=1.15,
-                        wdw_size=PIANO_WDW_SIZE, epsilon=EPSILON):
+def preprocess_signals(piano_sig, noise_sig, pad_len, mix_sig=None, src_amp_low=0.75, src_amp_high=1.15):
     if mix_sig is not None:
-            assert len(mix_sig) == len(piano_sig) == len(noise_sig)
-            mix_sig = mix_sig.astype('float64')
-            # Stereo audio safety check
-            if isinstance(mix_sig[0], np.ndarray):   # Stereo signal = 2 channels
-                mix_sig = np.average(mix_sig, axis=-1)
+        assert len(mix_sig) == len(piano_sig) == len(noise_sig)
+        mix_sig = mix_sig.astype('float64')
+        # Stereo audio safety check
+        if isinstance(mix_sig[0], np.ndarray):   # Stereo signal = 2 channels
+            mix_sig = np.average(mix_sig, axis=-1)
 
     assert len(piano_sig) == len(noise_sig)
     piano_sig, noise_sig = piano_sig.astype('float64'), noise_sig.astype('float64')
@@ -29,9 +28,12 @@ def preprocess_signals(piano_sig, noise_sig, pad_len, mix_sig=None, src_amp_low=
 
     if mix_sig is None:
         # Mix & vary SNR
-        avg_src_sum = (np.sum(piano_sig) + np.sum(noise_sig)) / 2
-        src_percent_1 = random.randrange((src_amp_low*100) // 2, (src_amp_high*100) // 2) / 100
-        src_percent_2 = 1 - src_percent_1
+        # avg_src_sum = (np.sum(piano_sig) + np.sum(noise_sig)) / 2 # old position
+        # src_percent_1 = random.randrange((src_amp_low*100) // 2, (src_amp_high*100) // 2) / 100
+        src_percent_1 = random.randrange(int(src_amp_low*100), int(src_amp_high*100)) / 100
+        # src_percent_2 = 1 - src_percent_1 # old
+        src_percent_2 = 1 / src_percent_1
+        # print('src 1 percent:', src_percent_1, 'src 2 percent:', src_percent_2)
         piano_src_is_1 = bool(random.getrandbits(1))
         if piano_src_is_1:
             piano_sig *= src_percent_1
@@ -39,29 +41,42 @@ def preprocess_signals(piano_sig, noise_sig, pad_len, mix_sig=None, src_amp_low=
         else:
             piano_sig *= src_percent_2
             noise_sig *= src_percent_1
-
+        avg_src_sum = (np.sum(np.abs(piano_sig)) + np.sum(np.abs(noise_sig))) / 2
         mix_sig = piano_sig + noise_sig
-        mix_sig *= (avg_src_sum / np.sum(mix_sig)) 
+        # Key - mixed signal should be on amplitude level of its sources
+        # print('Mix sig abs sum:', np.sum(np.abs(mix_sig)), 'avg src sum:', avg_src_sum)
+        mix_srcs_ratio = (avg_src_sum / np.sum(np.abs(mix_sig)))
+        mix_sig *= mix_srcs_ratio
     # Pad
     deficit = pad_len - len(mix_sig)
     mix_sig = np.pad(mix_sig, (0,deficit))
     piano_sig = np.pad(piano_sig, (0,deficit))
     noise_sig = np.pad(noise_sig, (0,deficit))
+    return mix_sig, piano_sig, noise_sig
 
-    mix_spgm, _ = make_spectrogram(mix_sig, wdw_size, epsilon, ova=True, debug=False)
-    piano_spgm, _ = make_spectrogram(piano_sig, wdw_size, epsilon,ova=True, debug=False)
-    noise_spgm, _ = make_spectrogram(noise_sig, wdw_size, epsilon, ova=True, debug=False)
+    # mix_spgm, _ = make_spectrogram(mix_sig, wdw_size, epsilon, ova=True, debug=False)
+    # piano_spgm, _ = make_spectrogram(piano_sig, wdw_size, epsilon,ova=True, debug=False)
+    # noise_spgm, _ = make_spectrogram(noise_sig, wdw_size, epsilon, ova=True, debug=False)
+    # # Float 32 for neural nets
+    # mix_spgm = np.clip(mix_spgm, np.finfo('float32').min, np.finfo('float32').max)
+    # mix_spgm = mix_spgm.astype('float32')
+    # piano_spgm = np.clip(piano_spgm, np.finfo('float32').min, np.finfo('float32').max)
+    # piano_spgm = piano_spgm.astype('float32')
+    # noise_spgm = np.clip(noise_spgm, np.finfo('float32').min, np.finfo('float32').max)
+    # noise_spgm = noise_spgm.astype('float32')
+
+    # return mix_spgm, piano_spgm, noise_spgm
+
+def signal_to_nn_features(signal, wdw_size=PIANO_WDW_SIZE, epsilon=EPSILON):
+    spgm, _ = make_spectrogram(signal, wdw_size, epsilon, ova=True, debug=False)
     # Float 32 for neural nets
-    mix_spgm = np.clip(mix_spgm, np.finfo('float32').min, np.finfo('float32').max)
-    mix_spgm = mix_spgm.astype('float32')
-    piano_spgm = np.clip(piano_spgm, np.finfo('float32').min, np.finfo('float32').max)
-    piano_spgm = piano_spgm.astype('float32')
-    noise_spgm = np.clip(noise_spgm, np.finfo('float32').min, np.finfo('float32').max)
-    noise_spgm = noise_spgm.astype('float32')
+    spgm = np.clip(spgm, np.finfo('float32').min, np.finfo('float32').max)
+    spgm = spgm.astype('float32')
+    return spgm
 
-    return mix_spgm, piano_spgm, noise_spgm
-
-# Preprocesses data, and writes it for fixed_data_generator
+# Generator for NN - all audio data is too large from RAM
+# Rule - If from_numpy True, x_files cant be None
+# Rule - If from_numpy False, dmged_piano_art_noise must be considered for npy writes
 def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_feat,
                         # pc_run, 
                         pad_len, dmged_piano_artificial_noise=False, #wdw_size=4096, 
@@ -101,19 +116,32 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
                     if x_files is not None:
                         mix_filepath = x_batch_labels[i]
                         _, mix_sig = wavfile.read(mix_filepath)
-                        mix_spgm, piano_spgm, noise_spgm = preprocess_signals(
+                        # mix_spgm, piano_spgm, noise_spgm = preprocess_signals(
+                        #     piano_label_sig, noise_label_sig, mix_sig=mix_sig, pad_len=pad_len, 
+                        #     src_amp_low=src_amp_low, src_amp_high=src_amp_high)
+                        mix_sig, piano_sig, noise_sig = preprocess_signals(
                             piano_label_sig, noise_label_sig, mix_sig=mix_sig, pad_len=pad_len, 
                             src_amp_low=src_amp_low, src_amp_high=src_amp_high)
                     else:
-                        mix_spgm, piano_spgm, noise_spgm = preprocess_signals(
+                        mix_sig, piano_sig, noise_sig = preprocess_signals(
                             piano_label_sig, noise_label_sig, pad_len=pad_len, 
                             src_amp_low=src_amp_low, src_amp_high=src_amp_high)
+                    mix_spgm = signal_to_nn_features(mix_sig)
+                    piano_spgm = signal_to_nn_features(piano_sig)
+                    noise_spgm = signal_to_nn_features(noise_sig)
                     # Get number from filename
                     file_num_str = list(re.findall(r'\d+', pl_filepath))[-1]
                     # Write to file for from numpy fixed data gen
-                    np.save(data_path + 'piano_noise_numpy/mixed' + file_num_str, mix_spgm)
-                    np.save(data_path + 'piano_label_numpy/piano' + file_num_str, piano_spgm)
-                    np.save(data_path + 'noise_label_numpy/noise' + file_num_str, noise_spgm)
+                    piano_suffix = 'piano_source_numpy/piano'
+                    if dmged_piano_artificial_noise:
+                        mix_suffix = 'dmged_mix_numpy/mixed'
+                        noise_suffix = 'dmged_noise_numpy/noise'
+                    else:
+                        mix_suffix = 'piano_noise_numpy/mixed'
+                        noise_suffix = 'noise_source_numpy/noise'
+                    np.save(data_path + mix_suffix + file_num_str, mix_spgm)
+                    np.save(data_path + piano_suffix + file_num_str, piano_spgm)
+                    np.save(data_path + noise_suffix + file_num_str, noise_spgm)
 
                 # piano_label_sig, noise_label_sig = piano_label_sig.astype('float64'), noise_label_sig.astype('float64')
                 # assert len(noise_label_sig) == len(piano_label_sig)   
@@ -210,7 +238,9 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
 
 
 # NN DATA STATS FUNC - Only used when dataset changes
-def get_stats(y1_filenames, y2_filenames, num_samples, train_seq, train_feat, 
+# Rule - If from_numpy True, x_files cant be None
+# Rule - If from_numpy False, dataset2 must be considered for npy writes
+def get_data_stats(y1_filenames, y2_filenames, num_samples, train_seq, train_feat, 
             #   wdw_size, epsilon, 
               pad_len, src_amp_low=0.75, src_amp_high=1.15, dataset2=False,
               data_path=None, x_filenames=None, from_numpy=False):

@@ -364,7 +364,8 @@ def main():
                 #     print('CONFIG:', training_arch_config)
 
                 # # TEMP - update for each unique dataset
-                # train_mean, train_std = get_stats(y1_train_files, y2_train_files, num_train,
+                # Note - If not numpy, consider if dataset2. If numpy, supply x files.
+                # train_mean, train_std = get_data_stats(y1_train_files, y2_train_files, num_train,
                 #                                   train_seq=train_seq, train_feat=train_feat, 
                 #                                   wdw_size=wdw_size, epsilon=epsilon, 
                 #                                 #   pad_len=max_sig_len)
@@ -449,7 +450,8 @@ def main():
 
             # TEMP - update for each unique dataset
             # num_train, num_val = len(y1_train_files), len(y1_val_files)
-            # train_mean, train_std = get_stats(y1_train_files, y2_train_files, num_train,
+            # Note - If not numpy, consider if dataset2. If numpy, supply x files.
+            # train_mean, train_std = get_data_stats(y1_train_files, y2_train_files, num_train,
             #                                   train_seq=train_seq, train_feat=train_feat, 
             #                                   wdw_size=wdw_size, epsilon=epsilon, 
             #                                   pad_len=max_sig_len)
