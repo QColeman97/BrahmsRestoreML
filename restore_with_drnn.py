@@ -108,19 +108,20 @@ def main():
     wdw_size = PIANO_WDW_SIZE
     data_path = 'brahms_restore_ml/drnn/drnn_data/'
     arch_config_path = 'brahms_restore_ml/drnn/config/'
-    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'
+    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # PC
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'    # F35
     recent_model_path = 'brahms_restore_ml/drnn/recent_model'
     infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     brahms_path = 'brahms.wav'
 
     # add-on
-    do_curr_best, curr_best_combos, curr_best_pc = True, '192', False
-    # F35 LSTM
-    top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
+    do_curr_best, curr_best_combos, curr_best_pc = True, '2048', True
+    # # F35 LSTM
+    # top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
     # # F35 WB
     # top_result_nums = [1488, 1568, 149, 1496, 1680, 86, 151, 152]
-    # # PC WB
-    # top_result_nums = [997, 1184, 1312, 1310, 1311, 1736]
+    # PC WB
+    top_result_nums = [997, 1184, 1312, 1310, 1311, 1736]
     top_result_paths = [gs_output_path + 'result_' + str(x) + '_of_' + curr_best_combos +
                         ('.txt' if curr_best_pc else '_noPC.txt') for x in top_result_nums]
 

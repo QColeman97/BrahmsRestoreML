@@ -1,7 +1,8 @@
 __pycache__/
 
-/blind_test_samples/
-/full_test_samples/
+/tensorflow/
+/tf-nightly/
+/logs/
 
 /brahms_restore_ml/drnn/drnn_data/
 /brahms_restore_ml/drnn/tensorflow/
@@ -23,6 +24,9 @@ __pycache__/
 /brahms_restore_ml/drnn/output_restore/
 
 .vs
+
+/blind_test_samples/
+/full_test_samples/
 
 /brahms_restore_ml/nmf/all_notes_ff_wav/
 /brahms_restore_ml/nmf/avged_ova_notes/

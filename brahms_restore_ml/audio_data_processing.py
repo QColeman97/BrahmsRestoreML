@@ -328,11 +328,11 @@ def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=Fa
         # ARG FOR TESTING - SO WE CAN FIND NO VOICE SEGMENT
         # no_voice_sig = sig[(77 * wdw_size):]# + (wdw_size // 2):] 
         # out_filepath = 'novoice_' + out_filepath
-        spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova, debug=debug)
+        spectrogram, phases = make_spectrogram(sig, wdw_size, EPSILON, ova=ova, debug=debug)
 
     else:
         print('\n--Making Signal Spectrogram--\n')
-        spectrogram, phases = make_spectrogram(sig, wdw_size, ova=ova, debug=debug)
+        spectrogram, phases = make_spectrogram(sig, wdw_size, EPSILON, ova=ova, debug=debug)
     
     print('\n--Making Synthetic Signal--\n')
     synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, orig_sig_type, ova=ova, debug=debug)

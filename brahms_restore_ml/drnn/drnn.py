@@ -20,8 +20,7 @@ import os
 from copy import deepcopy
 import multiprocessing
 import time
-from . import data
-# from .data import *
+from .data import *
 from ..audio_data_processing import make_spectrogram, make_synthetic_signal, plot_matrix, SPGM_BRAHMS_RATIO
 
 # NEURAL NETWORK FUNCTIONS
@@ -576,24 +575,34 @@ def evaluate_source_sep(# train_dataset, val_dataset,
 
     #     return model    #, disc_loss
 
-    # If use preprocess_data_generator, need to pass in data_path and pad_len
+    # TEMP
+    # # If use preprocess_data_generator, need to pass in data_path and pad_len
 
-    train_generator = data.fixed_data_generator(
-            x_train_files, y1_train_files, y2_train_files, num_train,
-            batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, pc_run=pc_run, 
-            dmged_piano_artificial_noise=dataset2)
-    validation_generator = data.fixed_data_generator(
-            x_val_files, y1_val_files, y2_val_files, num_val,
-            batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, pc_run=pc_run, 
-            dmged_piano_artificial_noise=dataset2)
+    # train_generator = fixed_data_generator(
+    #         x_train_files, y1_train_files, y2_train_files, num_train,
+    #         batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, pc_run=pc_run, 
+    #         dmged_piano_artificial_noise=dataset2)
+    # validation_generator = fixed_data_generator(
+    #         x_val_files, y1_val_files, y2_val_files, num_val,
+    #         batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, pc_run=pc_run, 
+    #         dmged_piano_artificial_noise=dataset2)
+
+    train_generator = nn_data_generator(y1_train_files, y2_train_files, num_train,
+            batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, pad_len=pad_len,
+            dmged_piano_artificial_noise=dataset2, data_path=data_path,
+            x_files=x_train_files, from_numpy=True)
+    validation_generator = nn_data_generator(y1_val_files, y2_val_files, num_val,
+            batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, pad_len=pad_len,
+            dmged_piano_artificial_noise=dataset2, data_path=data_path,
+            x_files=x_val_files, from_numpy=True)
 
     train_dataset = tf.data.Dataset.from_generator(
-        data.make_gen_callable(train_generator), 
+        make_gen_callable(train_generator), 
         output_types=(tf.float32, tf.float32),
         output_shapes=((None, n_seq, n_feat), (None, n_seq, n_feat*2)),
     )
     val_dataset = tf.data.Dataset.from_generator(
-        data.make_gen_callable(validation_generator), 
+        make_gen_callable(validation_generator), 
         output_types=(tf.float32, tf.float32),
         output_shapes=((None, n_seq, n_feat), (None, n_seq, n_feat*2)),
     )
