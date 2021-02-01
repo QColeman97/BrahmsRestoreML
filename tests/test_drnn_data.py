@@ -5,6 +5,7 @@
 
 
 from brahms_restore_ml.drnn.data import *
+from brahms_restore_ml.drnn.drnn import TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MAX_SIG_LEN
 import unittest
 import numpy as np
 
@@ -66,7 +67,7 @@ class DRNNDataTests(unittest.TestCase):
             self.assertEqual(len(sig2), pad_len)
 
     def test_generator_from_numpy(self):
-        n_samples, bs, n_seq, n_feat, pad_len = 2, 1, 1847, 2049, 3784581
+        n_samples, bs, n_seq, n_feat, pad_len = 2, 1, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MAX_SIG_LEN
         x_files = [data_path+'piano_noise_numpy/mixed'+str(i)+'.npy' 
                     for i in range(n_samples)]
         y1_files = [data_path+'piano_source_numpy/piano'+str(i)+'.npy' 
@@ -98,7 +99,7 @@ class DRNNDataTests(unittest.TestCase):
             self.assertEqual(yielded[1].shape, (bs, n_seq, n_feat*2))
 
     def test_generator(self):
-        n_samples, bs, n_seq, n_feat, pad_len = 1, 1, 1847, 2049, 3784581
+        n_samples, bs, n_seq, n_feat, pad_len = 1, 1, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MAX_SIG_LEN
         y1_files = [data_path+'final_piano_wav/psource'+str(i)+'.wav' 
                     for i in range(n_samples)]
         y2_files = [data_path+'final_noise_wav/nsource'+str(i)+'.wav' 
@@ -115,7 +116,7 @@ class DRNNDataTests(unittest.TestCase):
             self.assertEqual(yielded[1].shape, (bs, n_seq, n_feat*2))
     
     def test_generator_mix_given(self):
-        n_samples, bs, n_seq, n_feat, pad_len = 1, 1, 1847, 2049, 3784581
+        n_samples, bs, n_seq, n_feat, pad_len = 1, 1, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MAX_SIG_LEN
         x_files = [data_path+'dmged_mix_wav/features'+str(i)+'.wav' 
                     for i in range(n_samples)]
         y1_files = [data_path+'final_piano_wav/psource'+str(i)+'.wav' 
@@ -134,7 +135,7 @@ class DRNNDataTests(unittest.TestCase):
             self.assertEqual(yielded[1].shape, (bs, n_seq, n_feat*2))
     
     def test_get_data_stats(self):
-        n_samples, n_seq, n_feat, pad_len = 6, 1847, 2049, 3784581
+        n_samples, n_seq, n_feat, pad_len = 6, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MAX_SIG_LEN
         x_files = [data_path+'piano_noise_numpy/mixed'+str(i)+'.npy' 
                     for i in range(n_samples)]
         y1_files = [data_path+'piano_source_numpy/piano'+str(i)+'.npy' 

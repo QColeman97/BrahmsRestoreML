@@ -1,6 +1,6 @@
 # Main DRNN Restoration Script
 
-from brahms_restore_ml.drnn.drnn import restore_audio_file, get_hp_configs, evaluate_source_sep, grid_search
+from brahms_restore_ml.drnn.drnn import *
 from brahms_restore_ml.audio_data_processing import PIANO_WDW_SIZE
 import sys
 import random
@@ -137,12 +137,6 @@ def main():
 
     epsilon, patience, val_split = 10 ** (-10), train_epochs, 0.25
 
-    # TRAINING DATA SPECIFIC CONSTANTS (Add to when data changes)
-    MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
-    TRAIN_MEAN_DMGED, TRAIN_STD_DMGED = 3788.6515897900226, 17932.36734269604
-    TRAIN_MEAN, TRAIN_STD = 1728.2116672701493, 6450.4985228518635
-    TOTAL_SMPLS = 61
-
     # INFER ONLY
     # Branch temporarily broken - tf dependency
     if mode == 'r':
@@ -183,9 +177,11 @@ def main():
             sample = test_on_synthetic
             # sample = False   # If taking less than total samples
             if sample:  # Used now for testing on synthetic data
-                TOTAL_SMPLS += 1
-                actual_samples = TOTAL_SMPLS - 1  # How many to leave out (1)
-                sample_indices = list(range(TOTAL_SMPLS))
+                # TOTAL_SMPLS += 1
+                # actual_samples = TOTAL_SMPLS - 1  # How many to leave out (1)
+                # sample_indices = list(range(TOTAL_SMPLS))
+                actual_samples = TOTAL_SMPLS    # How many to leave out (1)
+                sample_indices = list(range(TOTAL_SMPLS + 1))
                 # FIX DMGED/ART DATA
                 random.shuffle(sample_indices)
                 
