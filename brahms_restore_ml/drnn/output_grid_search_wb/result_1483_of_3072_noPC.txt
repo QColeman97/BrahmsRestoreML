@@ -1,0 +1,8 @@
+4608045.0
+VAL LOSS ^
+5373136.0
+LOSS ^
+{"layers": [{"type": "Dense", "nrn_div": 2, "act": "tanh"}, {"type": "RNN", "nrn_div": 2, "act": "relu"}, {"type": "RNN", "nrn_div": 2, "act": "relu"}, {"type": "RNN", "nrn_div": 2, "act": "relu"}, {"type": "Dense", "nrn_div": 1, "act": null}], "scale": true, "rnn_res_cntn": false, "bias_rnn": true, "bias_dense": true, "bidir": true, "rnn_dropout": [0.25, 0.25], "bn": false, "batch_size": 8, "epochs": 10, "gamma": 0.05, "optimizer": "Adam", "clip value": null, "learning rate": 0.0001, "all_loss": [5897181.0, 5227929.0, 5075495.5, 4982188.0, 4925755.0, 4872352.5, 4827702.0, 4783032.5, 4720970.0, 4608045.0]}
+VAL LOSS FACTORS ^
+{"layers": [{"type": "Dense", "nrn_div": 2, "act": "tanh"}, {"type": "RNN", "nrn_div": 2, "act": "relu"}, {"type": "RNN", "nrn_div": 2, "act": "relu"}, {"type": "RNN", "nrn_div": 2, "act": "relu"}, {"type": "Dense", "nrn_div": 1, "act": null}], "scale": true, "rnn_res_cntn": false, "bias_rnn": true, "bias_dense": true, "bidir": true, "rnn_dropout": [0.25, 0.25], "bn": false, "batch_size": 8, "epochs": 10, "gamma": 0.05, "optimizer": "Adam", "clip value": null, "learning rate": 0.0001, "all_loss": [10756612.0, 6651545.5, 5957744.5, 5728065.5, 5614787.0, 5549247.5, 5497619.0, 5462784.5, 5421789.0, 5373136.0]}
+LOSS FACTORS^

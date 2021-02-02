@@ -1,0 +1,8 @@
+935645.625
+VAL LOSS ^
+846503.375
+LOSS ^
+{"layers": [{"type": "LSTM", "nrn_div": 2, "act": "relu"}, {"type": "LSTM", "nrn_div": 2, "act": "relu"}, {"type": "Dense", "nrn_div": 1, "act": null}], "scale": false, "rnn_res_cntn": true, "bias_rnn": true, "bias_dense": true, "bidir": false, "rnn_dropout": [0.0, 0.0], "bn": false, "batch_size": 8, "epochs": 10, "gamma": 0.1, "optimizer": "Adam", "clip value": 10, "learning rate": 0.001, "all_loss": [3962466.5, 2937848.0, 2306289.0, 1872718.875, 1598100.25, 1423799.25, 1254430.5, 1132629.25, 1031710.9375, 935645.625]}
+VAL LOSS FACTORS ^
+{"layers": [{"type": "LSTM", "nrn_div": 2, "act": "relu"}, {"type": "LSTM", "nrn_div": 2, "act": "relu"}, {"type": "Dense", "nrn_div": 1, "act": null}], "scale": false, "rnn_res_cntn": true, "bias_rnn": true, "bias_dense": true, "bidir": false, "rnn_dropout": [0.0, 0.0], "bn": false, "batch_size": 8, "epochs": 10, "gamma": 0.1, "optimizer": "Adam", "clip value": 10, "learning rate": 0.001, "all_loss": [9118526.0, 3501256.5, 2620046.0, 2055903.5, 1682844.625, 1426168.75, 1239752.5, 1087997.125, 959934.25, 846503.375]}
+LOSS FACTORS^
