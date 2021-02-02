@@ -1,11 +1,12 @@
-# test_drnn_data.py - Quinn Coleman - Senior Research Project / Master's Thesis
-# Tests for drnn data preprocessing functions.
+# test_drnn_model.py - Quinn Coleman - Senior Research Project / Master's Thesis
+# Tests for drnn model building function.
 
-# Run with $ python -m unittest tests.test_drnn_data
+# Run with $ python -m unittest tests.test_drnn_model
 
 
-from brahms_restore_ml.drnn.data import *
-from brahms_restore_ml.drnn.drnn import TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MAX_SIG_LEN
+from brahms_restore_ml.drnn.model import *
+from brahms_restore_ml.drnn.drnn import TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MIN_SIG_LEN, EPSILON
+import tensorflow as tf
 import unittest
 import numpy as np
 
@@ -13,143 +14,75 @@ import numpy as np
 write_flag = True
 debug_flag = False
 
-data_path = 'brahms_restore_ml/drnn/drnn_data/'
+class DRNNModelTests(unittest.TestCase):
 
-class DRNNDataTests(unittest.TestCase):
+    def test_discrim_loss(self):
+        bs, n_sgmts, n_feat = 2, 4, 3
+        y1 = tf.cast(tf.reshape(tf.range(bs * n_sgmts * n_feat), [bs, n_sgmts, n_feat]),
+            dtype='float32')
+        y2 = tf.cast(tf.reshape(tf.range(bs * n_sgmts * n_feat), [bs, n_sgmts, n_feat]),
+            dtype='float32')
+        y_true = tf.concat([y1, y2], -1)
 
-    def test_sig_to_spgm(self):
-        sig, wdw_size = np.ones(10), 4
-        spgm = signal_to_nn_features(sig, wdw_size=wdw_size)
-        with self.subTest():
-            self.assertEqual(spgm.shape, (4, (wdw_size//2)+1))
-        with self.subTest():
-            self.assertEqual(spgm.dtype, 'float32')
+        loss_const_tensor = tf.ones([1, n_sgmts, n_feat])
+        y_pred = tf.concat([y1, y2, loss_const_tensor], axis=0)
 
-    def test_preprocess_sig_mix(self):
-        sig1 = np.arange(10)
-        sig2 = np.ones((10,))
-        src_amp_low, src_amp_high = 0.75, 1.15
-        sig_mix, sig1, sig2 = preprocess_signals(sig1, sig2, len(sig1),
-                                                src_amp_low=src_amp_low, 
-                                                src_amp_high=src_amp_high)
-        print('Src1 Amp %:', src_amp_low, 'Src2 Amp %:', src_amp_high)
-        print('Mix Sum:', np.sum(np.abs(sig_mix)), 'Sig1:', np.sum(np.abs(sig1)), 'Sig2:', np.sum(np.abs(sig2)), 'Sum 1 & 2:', np.sum(np.abs(sig1+sig2)))
+        loss = discrim_loss(y_true, y_pred)
+        # Check for proper result (shape, values)
         with self.subTest():
-            self.assertNotEqual(np.sum(sig_mix), np.sum(sig1 + sig2))
+            self.assertEqual(loss.shape, ())
         with self.subTest():
-            self.assertAlmostEqual(np.sum(np.abs(sig_mix)), (np.sum(np.abs(sig1)) + np.sum(np.abs(sig2)))/2)
-
-    def test_preprocess_sig_mix2(self):
-        sig1 = np.arange(10)
-        sig2 = np.ones((10,))
-        src_amp_low, src_amp_high = 0.05, 5.0
-        sig_mix, sig1, sig2 = preprocess_signals(sig1, sig2, len(sig1),
-                                                src_amp_low=src_amp_low, 
-                                                src_amp_high=src_amp_high)
-        print('Src1 Amp %:', src_amp_low, 'Src2 Amp %:', src_amp_high)
-        print('Mix Sum:', np.sum(np.abs(sig_mix)), 'Sig1:', np.sum(np.abs(sig1)), 'Sig2:', np.sum(np.abs(sig2)), 'Sum 1 & 2:', np.sum(np.abs(sig1+sig2)))
-        with self.subTest():
-            self.assertNotEqual(np.sum(sig_mix), np.sum(sig1 + sig2))
-        with self.subTest():
-            self.assertAlmostEqual(np.sum(np.abs(sig_mix)), (np.sum(np.abs(sig1)) + np.sum(np.abs(sig2)))/2)
-
-    def test_preprocess_sig(self):
-        sig1 = np.arange(10)
-        sig2 = np.ones((10,))
-        sig_mix = np.arange(10)
-        pad_len = 12
-        sig_mix, sig1, sig2 = preprocess_signals(sig1, sig2, pad_len)
-        with self.subTest():
-            self.assertEqual(len(sig_mix), pad_len)
-        with self.subTest():
-            self.assertEqual(len(sig1), pad_len)
-        with self.subTest():
-            self.assertEqual(len(sig2), pad_len)
-
-    def test_generator_from_numpy(self):
-        n_samples, bs, n_seq, n_feat, pad_len = 2, 1, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MAX_SIG_LEN
-        x_files = [data_path+'piano_noise_numpy/mixed'+str(i)+'.npy' 
-                    for i in range(n_samples)]
-        y1_files = [data_path+'piano_source_numpy/piano'+str(i)+'.npy' 
-                    for i in range(n_samples)]
-        y2_files = [data_path+'noise_source_numpy/noise'+str(i)+'.npy' 
-                    for i in range(n_samples)]
-        gen = nn_data_generator(y1_files, y2_files, n_samples, bs, n_seq, n_feat,
-                                pad_len=pad_len, x_files=x_files, from_numpy=True)
-        yielded = next(gen)
-        with self.subTest():
-            self.assertEqual(len(yielded), 2)
-        with self.subTest():
-            self.assertEqual(yielded[0].shape, (bs, n_seq, n_feat))
-        with self.subTest():
-            self.assertEqual(yielded[1].shape, (bs, n_seq, n_feat*2))
-        yielded = next(gen)
-        with self.subTest():
-            self.assertEqual(len(yielded), 2)
-        with self.subTest():
-            self.assertEqual(yielded[0].shape, (bs, n_seq, n_feat))
-        with self.subTest():
-            self.assertEqual(yielded[1].shape, (bs, n_seq, n_feat*2))
-        yielded = next(gen) # infinite generator - restarted
-        with self.subTest():
-            self.assertEqual(len(yielded), 2)
-        with self.subTest():
-            self.assertEqual(yielded[0].shape, (bs, n_seq, n_feat))
-        with self.subTest():
-            self.assertEqual(yielded[1].shape, (bs, n_seq, n_feat*2))
-
-    def test_generator(self):
-        n_samples, bs, n_seq, n_feat, pad_len = 1, 1, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MAX_SIG_LEN
-        y1_files = [data_path+'final_piano_wav/psource'+str(i)+'.wav' 
-                    for i in range(n_samples)]
-        y2_files = [data_path+'final_noise_wav/nsource'+str(i)+'.wav' 
-                    for i in range(n_samples)]
-        gen = nn_data_generator(y1_files, y2_files, n_samples, bs, n_seq, n_feat, 
-                                pad_len=pad_len, dmged_piano_artificial_noise=False,
-                                data_path=data_path)
-        yielded = next(gen)
-        with self.subTest():
-            self.assertEqual(len(yielded), 2)
-        with self.subTest():
-            self.assertEqual(yielded[0].shape, (bs, n_seq, n_feat))
-        with self.subTest():
-            self.assertEqual(yielded[1].shape, (bs, n_seq, n_feat*2))
-    
-    def test_generator_mix_given(self):
-        n_samples, bs, n_seq, n_feat, pad_len = 1, 1, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MAX_SIG_LEN
-        x_files = [data_path+'dmged_mix_wav/features'+str(i)+'.wav' 
-                    for i in range(n_samples)]
-        y1_files = [data_path+'final_piano_wav/psource'+str(i)+'.wav' 
-                    for i in range(n_samples)]
-        y2_files = [data_path+'dmged_noise_wav/nsource'+str(i)+'.wav' 
-                    for i in range(n_samples)]
-        gen = nn_data_generator(y1_files, y2_files, n_samples, bs, n_seq, n_feat,
-                                pad_len=pad_len, dmged_piano_artificial_noise=False,
-                                data_path=data_path, x_files=x_files)
-        yielded = next(gen)
-        with self.subTest():
-            self.assertEqual(len(yielded), 2)
-        with self.subTest():
-            self.assertEqual(yielded[0].shape, (bs, n_seq, n_feat))
-        with self.subTest():
-            self.assertEqual(yielded[1].shape, (bs, n_seq, n_feat*2))
-    
-    def test_get_data_stats(self):
-        n_samples, n_seq, n_feat, pad_len = 6, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MAX_SIG_LEN
-        x_files = [data_path+'piano_noise_numpy/mixed'+str(i)+'.npy' 
-                    for i in range(n_samples)]
-        y1_files = [data_path+'piano_source_numpy/piano'+str(i)+'.npy' 
-                    for i in range(n_samples)]
-        y2_files = [data_path+'noise_source_numpy/noise'+str(i)+'.npy' 
-                    for i in range(n_samples)]
-        mean, std = get_data_stats(y1_files, y2_files, n_samples, n_seq, n_feat, 
-                pad_len, data_path=data_path, x_filenames=x_files, from_numpy=True)
-        with self.subTest():
-            self.assertLess(0, mean)
-        with self.subTest():
-            self.assertLess(0, std)
-
+            self.assertEqual(loss, tf.constant([0.0]))
         
-  
+    def test_standardize_layer(self):
+        # Check for proper range of values
+        bs, n_sgmts, n_feat = 2, 4, 3
+        tensor = tf.cast(tf.reshape(tf.range(bs * n_sgmts * n_feat), [bs, n_sgmts, n_feat]), 
+            dtype='float32')
+        mean, std = tf.math.reduce_mean(tensor), tf.math.reduce_std(tensor)
+        out = Standardize(mean.numpy(), std.numpy()) (tensor)
+
+        out_mean, out_std = tf.math.reduce_mean(out), tf.math.reduce_std(out)
+        with self.subTest():
+            self.assertAlmostEqual(out_mean.numpy(), 0, places=0)
+        with self.subTest():
+            self.assertAlmostEqual(out_std.numpy(), 1, places=0)
+
+    def test_stdize_unstdize_layers(self):
+        # Check for same values after conversions
+        bs, n_sgmts, n_feat = 2, 4, 3
+        tensor = tf.cast(tf.reshape(tf.range(bs * n_sgmts * n_feat), [bs, n_sgmts, n_feat]), 
+            dtype='float32')
+        mean, std = tf.math.reduce_mean(tensor), tf.math.reduce_std(tensor)
+        out = Standardize(mean.numpy(), std.numpy()) (tensor)
+        out2 = UnStandardize(mean.numpy(), std.numpy()) (out)
+        tf.debugging.assert_equal(tensor, out2)
+
+    def test_time_freq_masking_layer(self):
+        # Check that the src outputs of masking sum to input mixture
+        bs, n_sgmts, n_feat = 2, 4, 3
+        mix = tf.cast(tf.reshape(tf.range(bs * n_sgmts * n_feat), [bs, n_sgmts, n_feat]),
+            dtype='float32')
+        s1 = tf.cast(tf.reshape(tf.range(bs * n_sgmts * n_feat), [bs, n_sgmts, n_feat]),
+            dtype='float32')
+        s2 = tf.cast(tf.reshape(tf.range(bs * n_sgmts * n_feat), [bs, n_sgmts, n_feat]),
+            dtype='float32')
+        
+        s1_masked = TimeFreqMasking(EPSILON) ((s1, s2, mix))
+        s2_masked = TimeFreqMasking(EPSILON) ((s1, s2, mix))
+        masked_mix = s1_masked + s2_masked
+
+        self.assertEqual(tf.reduce_sum(masked_mix).numpy(), tf.reduce_sum(mix).numpy())
+
+    def test_make_model(self):
+        # Check for legit model result
+        n_sgmts, n_feat = 4, 3
+        model = make_model(n_feat, n_sgmts, epsilon=EPSILON, loss_const=0.15)
+        # ['piano_noise_mixed', 'simple_rnn', 'simple_rnn_1', 'piano_hat', 'noise_hat', 'piano_pred', 'noise_pred']    
+        for i, layer in enumerate(model.layers):
+            print('Layer', i, layer.name,  'weights:', layer.count_params())
+            print('Layer\'s weights:', layer.get_weights())
+
+
 if __name__ == '__main__':
     unittest.main()

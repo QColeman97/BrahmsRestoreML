@@ -52,27 +52,29 @@ class TimeFreqMasking(Layer):
 
 
 def discrim_loss(y_true, y_pred):
+    # print('YTRUE TENSOR:', y_true.shape, 'YPRED TENSOR:', y_pred.shape)
     piano_true, noise_true = tf.split(y_true, num_or_size_splits=2, axis=-1)
     loss_const = y_pred[-1, :, :][0][0]
     piano_pred, noise_pred = tf.split(y_pred[:-1, :, :], num_or_size_splits=2, axis=0)
 
-    # True sum of L2 Norm doesn't divide by N (want that)
+    # L2 Norm & MSE practically same - use MSE
     last_dim = piano_pred.shape[1] * piano_pred.shape[2]
     return (
-        tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1) - 
-        (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1)) +
-        tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2, axis=-1) -
-        (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2, axis=-1))
+        tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2) - 
+        (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2)) +
+        tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2) -
+        (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2))
     )
     
+
 def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     loss_const=0.05, config=None, t_mean=None, t_std=None, 
                     optimizer=tf.keras.optimizers.RMSprop(),
                     pre_trained_wgts=None,
                     # GPU mem as func of HP TEST
                     # test=16, 
-                    test=0, 
-                    pc_run=False):
+                    test=0):#, 
+                    # pc_run=False):
     # TEST FLOAT16
     # MIXED PRECISION
     input_layer = Input(shape=(sequences, features), name='piano_noise_mixed')
@@ -426,23 +428,29 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
     # # ['piano_noise_mixed', 'simple_rnn', 'simple_rnn_1', 'piano_hat', 'noise_hat', 'piano_pred', 'noise_pred']    
     
     # Combine piano_pred, noise_pred & loss_const into models output!
+    loss_const_tensor = tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
+    preds_and_gamma = Concatenate(axis=0) ([piano_pred, noise_pred, loss_const_tensor])
+                                            # tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
+                                            # ])
+    model = Model(inputs=input_layer, outputs=preds_and_gamma)
+
     if pre_trained_wgts is not None:
-        preds_and_gamma = Concatenate(axis=0) ([piano_pred, 
-                                            noise_pred, 
-                                            #  loss_const_tensor
-                                            tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
-                                            ])
-        model = Model(inputs=input_layer, outputs=preds_and_gamma)
+        # preds_and_gamma = Concatenate(axis=0) ([piano_pred, 
+        #                                     noise_pred, 
+        #                                     #  loss_const_tensor
+        #                                     tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
+        #                                     ])
+        # model = Model(inputs=input_layer, outputs=preds_and_gamma)
 
         print('Only loading pre-trained weights for prediction')
         model.set_weights(pre_trained_wgts)
     else:
-        preds_and_gamma = Concatenate(axis=0) ([piano_pred, 
-                                            noise_pred, 
-                                            #  loss_const_tensor
-                                            tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
-                                            ])
-        model = Model(inputs=input_layer, outputs=preds_and_gamma)
+        # preds_and_gamma = Concatenate(axis=0) ([piano_pred, 
+        #                                     noise_pred, 
+        #                                     #  loss_const_tensor
+        #                                     tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
+        #                                     ])
+        # model = Model(inputs=input_layer, outputs=preds_and_gamma)
         model.compile(optimizer=optimizer, loss=discrim_loss)
 
     return model

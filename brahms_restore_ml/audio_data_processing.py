@@ -76,6 +76,16 @@ def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=F
 
 
 # SIGNAL -> SPECTROGRAM
+def sig_length_to_spgm_shape(n_smpls, wdw_size=PIANO_WDW_SIZE, hop_size_divisor=2, ova=True):
+    hop_size = ((wdw_size // hop_size_divisor) 
+                if (ova and n_smpls >= (wdw_size + (wdw_size // hop_size_divisor))) 
+                else wdw_size)
+    # Number of segments depends on if OVA implemented    
+    # Only works for hop_size = wdw_size // 2
+    num_sgmts = (math.ceil(n_smpls / hop_size) - 1) if ova else math.ceil(n_smpls / wdw_size)
+    num_feats = (wdw_size // 2) + 1 # Nothing to do w/ hop size - result of DSP
+    return (num_sgmts, num_feats)
+
 # Returns pos. magnitude & phases of a DFT, given a signal segment
 def signal_to_pos_fft(sgmt, wdw_size, ova=False, debug_flag=False):
     if len(sgmt) != wdw_size:
@@ -130,11 +140,13 @@ def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False, hop_size
     hop_size = ((wdw_size // hop_size_divisor) 
                 if (ova and num_spls >= (wdw_size + (wdw_size // hop_size_divisor))) 
                 else wdw_size)
-    # Number of segments depends on if OVA implemented    
-    # Works for hop_size = wdw_size // 2
-    num_sgmts = (math.ceil(num_spls / hop_size) - 1) if ova else math.ceil(num_spls / wdw_size)
-    sgmt_len = (wdw_size // 2) + 1 # Nothing to do w/ hop size - result of DSP
-
+    num_sgmts, sgmt_len = sig_length_to_spgm_shape(num_spls, wdw_size=wdw_size, 
+                                        hop_size_divisor=hop_size_divisor, ova=ova)
+    # TEMP - old
+    # # Number of segments depends on if OVA implemented    
+    # # Works for hop_size = wdw_size // 2
+    # num_sgmts = (math.ceil(num_spls / hop_size) - 1) if ova else math.ceil(num_spls / wdw_size)
+    # sgmt_len = (wdw_size // 2) + 1 # Nothing to do w/ hop size - result of DSP
     if debug:
         print('Num of Samples:', num_spls)
         print('Hop size:', hop_size)

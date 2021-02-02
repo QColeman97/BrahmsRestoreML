@@ -24,7 +24,8 @@ from .data import *
 from ..audio_data_processing import make_spectrogram, make_synthetic_signal, plot_matrix, SPGM_BRAHMS_RATIO
 
 # TRAINING DATA SPECIFIC CONSTANTS (Add to when data changes)
-MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
+# MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
+MIN_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
 TRAIN_MEAN_DMGED, TRAIN_STD_DMGED = 3788.6515897900226, 17932.36734269604
 TRAIN_MEAN, TRAIN_STD = 1728.2116672701493, 6450.4985228518635
 TOTAL_SMPLS = 61
@@ -38,9 +39,10 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
                         loss_const, epochs=20, 
                         opt_name='RMSProp', opt_clip_val=-1, opt_lr=0.001,
                         patience=100, epsilon=10 ** (-10), config=None, 
-                        recent_model_path=None, pc_run=False, t_mean=None, t_std=None, 
+                        recent_model_path=None, pc_run=False, # t_mean=None, t_std=None, 
                         grid_search_iter=None, gs_path=None, combos=None, gs_id='',
-                        ret_queue=None, dataset2=False, data_path=None, pad_len=-1):
+                        ret_queue=None, dataset2=False, data_path=None, min_sig_len=None):
+                        # pad_len=-1):
 
     from .model import make_model
     import tensorflow as tf
@@ -76,6 +78,16 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     # tf.config.experimental_run_functions_eagerly(True)  # For TF 2.2 (non-nightly)
     print('Eager execution enabled? (default)', tf.executing_eagerly())
 
+    # # Get feature stats if needed
+    # t_mean, t_std = get_features_stats(y1_train_files + y2_train_files, y2_train_files + y2_val_files,
+    #                                    num_train + num_val, n_feat, n_feat, min_sig_len, dataset2=dataset2, 
+    #                                    data_path=data_path, x_filenames=x_train_files + x_val_files, 
+    #                                    from_numpy=True)
+    if dataset2:
+        t_mean, t_std = TRAIN_MEAN_DMGED, TRAIN_STD_DMGED
+    else:
+        t_mean, t_std = TRAIN_MEAN, TRAIN_STD
+
     # Instantiate optimizer
     optimizer = (tf.keras.optimizers.RMSprop(clipvalue=opt_clip_val, learning_rate=opt_lr) if 
                     opt_name == 'RMSprop' else
@@ -83,11 +95,11 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
 
     # Note - If not numpy, consider if dataset2. If numpy, supply x files.
     train_generator = nn_data_generator(y1_train_files, y2_train_files, num_train,
-            batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, pad_len=pad_len,
+            batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, min_sig_len=min_sig_len,
             dmged_piano_artificial_noise=dataset2, data_path=data_path,
             x_files=x_train_files, from_numpy=True)
     validation_generator = nn_data_generator(y1_val_files, y2_val_files, num_val,
-            batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, pad_len=pad_len,
+            batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, min_sig_len=min_sig_len,
             dmged_piano_artificial_noise=dataset2, data_path=data_path,
             x_files=x_val_files, from_numpy=True)
 
@@ -107,8 +119,7 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
    
     print('Making model...')
     model = make_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, loss_const=loss_const,
-                            config=config, t_mean=t_mean, t_std=t_std, optimizer=optimizer,
-                            pc_run=pc_run)
+                            config=config, t_mean=t_mean, t_std=t_std, optimizer=optimizer)
     print(model.summary())
 
     print('Going into training now...')
@@ -344,11 +355,12 @@ def get_hp_configs(bare_config_path, pc_run=False):
     return train_configs, arch_config_optns
 
 # GRID SEARCH FUNCTION
+# Rule - feautre specific constants (t_mean, t_std) MUST be updated to run this correctly
 def grid_search(x_train_files, y1_train_files, y2_train_files, 
                 x_val_files, y1_val_files, y2_val_files,
                 n_feat, n_seq, 
                 epsilon, 
-                t_mean, t_std,
+                # t_mean, t_std,
                 train_configs, arch_config_optns,
                 gsres_path, early_stop_pat=3, pc_run=False, 
                 gs_id='', restart=False, dataset2=False):
@@ -435,11 +447,11 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                                                     early_stop_pat,
                                                                     epsilon,
                                                                     arch_config, None, pc_run,
-                                                                    t_mean, t_std,
+                                                                    # t_mean, t_std,
                                                                     gs_iter,
                                                                     gsres_path,
                                                                     combos, gs_id,
-                                                                    send_end, dataset2))
+                                                                    send_end, dataset2, None, None))
 
                             process_train.start()
                     
@@ -488,37 +500,121 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
 #   - Predict all batches at once (impossible - only one orig Brahms)
 #   - CHOSE Copy weights from fit network to a newly created network
 
-# MODEL INFERENCE FUNCTION
-def infer(x, phases, wdw_size, model, loss_const, optimizer, 
-          seq_len, n_feat, batch_size, epsilon, output_path, sr, orig_sig_type,
-          config=None, t_mean=None, t_std=None, pc_run=False, name_addon=''):
+# TEMP - old
+# # MODEL INFERENCE FUNCTION
+# def infer(x, phases, wdw_size, model, loss_const, optimizer, 
+#           seq_len, n_feat, batch_size, epsilon, output_path, sr, orig_sig_type,
+#           config=None, t_mean=None, t_std=None, pc_run=False, name_addon=''):
     
-    # from .model import make_model
+#     # from .model import make_model
+#     import tensorflow as tf
+
+#     # Must make new model, b/c Brahms spgm has different num timesteps, or pad Brahms spgm
+#     orig_sgmts = x.shape[0]
+#     # print('x shape:', x.shape)
+#     # print('model 1st layer input shape:', model.layers[0].input_shape[1])
+#     # print('model 1st layer output shape:', model.layers[0].output_shape[1])
+#     deficit = model.layers[0].input_shape[0][1] - x.shape[0]
+#     x = np.concatenate((x, np.zeros((deficit, x.shape[1]))))
+#     x = np.expand_dims(x, axis=0)   # Give a samples dimension (1 sample)
+#     print('x shape to be predicted on (padded) (w/ a batch dimension):', x.shape)
+
+#     # print('Inference Model:')
+#     # model = make_model(n_feat, seq_len, loss_const=loss_const, optimizer=optimizer,
+#     #                    pre_trained_wgts=model.get_weights(), name='Inference Model',
+#     #                    epsilon=epsilon, config=config, t_mean=t_mean, t_std=t_std,
+#     #                    pc_run=pc_run)
+#     # print(model.summary())
+#     # For small amts of input that fit in one batch: __call__ > predict - didn't work :/
+#     # clear_spgm, noise_spgm = model([x, x, x], batch_size=batch_size, training=False)
+#     result_spgms = model.predict(x, batch_size=batch_size)
+#     clear_spgm, noise_spgm = tf.split(result_spgms[:-1, :, :], num_or_size_splits=2, axis=0)
+#     clear_spgm = clear_spgm.numpy().reshape(-1, n_feat)
+#     noise_spgm = noise_spgm.numpy().reshape(-1, n_feat)
+#     clear_spgm, noise_spgm = clear_spgm[:orig_sgmts], noise_spgm[:orig_sgmts]
+
+#     if pc_run:
+#         plot_matrix(clear_spgm, name='clear_output_spgm', xlabel='frequency', ylabel='time segments', 
+#                 ratio=SPGM_BRAHMS_RATIO)
+#         plot_matrix(noise_spgm, name='noise_output_spgm', xlabel='frequency', ylabel='time segments', 
+#                 ratio=SPGM_BRAHMS_RATIO)
+
+#     synthetic_sig = make_synthetic_signal(clear_spgm, phases, wdw_size, 
+#                                           orig_sig_type, ova=True, debug=False)
+#     wavfile.write(output_path + 'restore' + name_addon + '.wav', sr, synthetic_sig)
+
+#     synthetic_sig = make_synthetic_signal(noise_spgm, phases, wdw_size, 
+#                                           orig_sig_type, ova=True, debug=False)
+#     wavfile.write(output_path + 'noise' + name_addon + '.wav', sr, synthetic_sig)
+
+# MODEL INFERENCE FUNCTION
+# # TEMP - OLD
+# def infer(x, phases, wdw_size, model, loss_const, # optimizer, 
+#           seq_len, n_feat, batch_size, epsilon, output_path, sr, orig_sig_type,
+#           config=None, t_mean=None, t_std=None, pc_run=False, name_addon=''):
+    
+#     # from .model import make_model
+#     import tensorflow as tf
+
+#     # Must make new model, b/c Brahms spgm has different num timesteps, or pad Brahms spgm
+#     orig_sgmts = x.shape[0]
+#     # print('x shape:', x.shape)
+#     # print('model 1st layer input shape:', model.layers[0].input_shape[1])
+#     # print('model 1st layer output shape:', model.layers[0].output_shape[1])
+#     deficit = model.layers[0].input_shape[0][1] - x.shape[0]
+#     x = np.concatenate((x, np.zeros((deficit, x.shape[1]))))
+#     x = np.expand_dims(x, axis=0)   # Give a samples dimension (1 sample)
+#     print('x shape to be predicted on (padded) (w/ a batch dimension):', x.shape)
+
+#     # print('Inference Model:')
+#     # model = make_model(n_feat, seq_len, loss_const=loss_const, optimizer=optimizer,
+#     #                    pre_trained_wgts=model.get_weights(), name='Inference Model',
+#     #                    epsilon=epsilon, config=config, t_mean=t_mean, t_std=t_std,
+#     #                    pc_run=pc_run)
+#     # print(model.summary())
+#     # For small amts of input that fit in one batch: __call__ > predict - didn't work :/
+#     # clear_spgm, noise_spgm = model([x, x, x], batch_size=batch_size, training=False)
+#     result_spgms = model.predict(x, batch_size=batch_size)
+#     clear_spgm, noise_spgm = tf.split(result_spgms[:-1, :, :], num_or_size_splits=2, axis=0)
+#     clear_spgm = clear_spgm.numpy().reshape(-1, n_feat)
+#     noise_spgm = noise_spgm.numpy().reshape(-1, n_feat)
+#     clear_spgm, noise_spgm = clear_spgm[:orig_sgmts], noise_spgm[:orig_sgmts]
+
+#     if pc_run:
+#         plot_matrix(clear_spgm, name='clear_output_spgm', xlabel='frequency', ylabel='time segments', 
+#                 ratio=SPGM_BRAHMS_RATIO)
+#         plot_matrix(noise_spgm, name='noise_output_spgm', xlabel='frequency', ylabel='time segments', 
+#                 ratio=SPGM_BRAHMS_RATIO)
+
+#     synthetic_sig = make_synthetic_signal(clear_spgm, phases, wdw_size, 
+#                                           orig_sig_type, ova=True, debug=False)
+#     wavfile.write(output_path + 'restore' + name_addon + '.wav', sr, synthetic_sig)
+
+#     synthetic_sig = make_synthetic_signal(noise_spgm, phases, wdw_size, 
+#                                           orig_sig_type, ova=True, debug=False)
+#     wavfile.write(output_path + 'noise' + name_addon + '.wav', sr, synthetic_sig)
+
+def infer(x, phases, wdw_size, model, # loss_const, # optimizer, 
+        #   seq_len, n_feat, 
+        #   batch_size, 
+        #   epsilon,
+          output_path, sr, orig_sig_type,
+        #   config=None, t_mean=None, t_std=None, 
+          pc_run=False, name_addon=''):
+    
     import tensorflow as tf
 
-    # Must make new model, b/c Brahms spgm has different num timesteps, or pad Brahms spgm
-    orig_sgmts = x.shape[0]
-    # print('x shape:', x.shape)
-    # print('model 1st layer input shape:', model.layers[0].input_shape[1])
-    # print('model 1st layer output shape:', model.layers[0].output_shape[1])
+    # TEMP - until I can make model w/ min sig len sgmts
     deficit = model.layers[0].input_shape[0][1] - x.shape[0]
     x = np.concatenate((x, np.zeros((deficit, x.shape[1]))))
     x = np.expand_dims(x, axis=0)   # Give a samples dimension (1 sample)
     print('x shape to be predicted on (padded) (w/ a batch dimension):', x.shape)
-
-    # print('Inference Model:')
-    # model = make_model(n_feat, seq_len, loss_const=loss_const, optimizer=optimizer,
-    #                    pre_trained_wgts=model.get_weights(), name='Inference Model',
-    #                    epsilon=epsilon, config=config, t_mean=t_mean, t_std=t_std,
-    #                    pc_run=pc_run)
-    # print(model.summary())
     # For small amts of input that fit in one batch: __call__ > predict - didn't work :/
     # clear_spgm, noise_spgm = model([x, x, x], batch_size=batch_size, training=False)
-    result_spgms = model.predict(x, batch_size=batch_size)
+    result_spgms = model.predict(x, batch_size=1)
     clear_spgm, noise_spgm = tf.split(result_spgms[:-1, :, :], num_or_size_splits=2, axis=0)
-    clear_spgm = clear_spgm.numpy().reshape(-1, n_feat)
-    noise_spgm = noise_spgm.numpy().reshape(-1, n_feat)
-    clear_spgm, noise_spgm = clear_spgm[:orig_sgmts], noise_spgm[:orig_sgmts]
+    clear_spgm = np.squeeze(clear_spgm.numpy())
+    noise_spgm = np.squeeze(noise_spgm.numpy())
 
     if pc_run:
         plot_matrix(clear_spgm, name='clear_output_spgm', xlabel='frequency', ylabel='time segments', 
@@ -534,12 +630,14 @@ def infer(x, phases, wdw_size, model, loss_const, optimizer,
                                           orig_sig_type, ova=True, debug=False)
     wavfile.write(output_path + 'noise' + name_addon + '.wav', sr, synthetic_sig)
 
-
 # BRAHMS RESTORATION FUNCTION (USES INFERENCE)
-def restore_audio_file(output_path, recent_model_path, wdw_size, epsilon, loss_const, 
-                       opt_name, opt_clip_val, opt_lr,
+# Rule - if test_filepath None, test_sig & test_st must be provided
+# Rule - if test_filepath not None, test_sig & test_sr ignored
+def restore_with_drnn(output_path, recent_model_path,
+                       opt_name, opt_clip_val, opt_lr, min_sig_len,
                        test_filepath=None, test_sig=None, test_sr=None, 
-                       config=None, t_mean=None, t_std=None, pc_run=False, name_addon=''):
+                       wdw_size=PIANO_WDW_SIZE, epsilon=EPSILON,
+                       pc_run=False, name_addon=''):
     import tensorflow as tf
 
     infer_model = tf.keras.models.load_model(recent_model_path, compile=False)
@@ -555,14 +653,48 @@ def restore_audio_file(output_path, recent_model_path, wdw_size, epsilon, loss_c
         print('Restoring audio of file:', test_filepath)
         test_sr, test_sig = wavfile.read(test_filepath)
     test_sig_type = test_sig.dtype
-
+    test_sig = random_slice(min_sig_len, test_sig)
     # Spectrogram creation - test. Only use phases of test
     test_spgm, test_phases = make_spectrogram(test_sig, wdw_size, epsilon, ova=True, debug=False)
-    test_feat = test_spgm.shape[1]
-    test_seq = test_spgm.shape[0]
-    test_batch_size = 1
 
-    infer(test_spgm, test_phases, wdw_size, infer_model, loss_const=loss_const, optimizer=optimizer,
-        seq_len=test_seq, n_feat=test_feat, batch_size=test_batch_size, epsilon=epsilon,
+    infer(test_spgm, test_phases, wdw_size, infer_model, #loss_const=loss_const, optimizer=optimizer,
+        # seq_len=test_seq, n_feat=test_feat, 
+        # batch_size=test_batch_size, 
+        # epsilon=epsilon,
         output_path=output_path, sr=test_sr, orig_sig_type=test_sig_type,
-        config=config, t_mean=t_mean, t_std=t_std, pc_run=pc_run, name_addon=name_addon)
+        # config=config, t_mean=t_mean, t_std=t_std, 
+        pc_run=pc_run, name_addon=name_addon)
+
+
+# TEMP - old
+# # BRAHMS RESTORATION FUNCTION (USES INFERENCE)
+# def restore_with_drnn(output_path, recent_model_path, wdw_size, epsilon, loss_const, 
+#                        opt_name, opt_clip_val, opt_lr,
+#                        test_filepath=None, test_sig=None, test_sr=None, 
+#                        config=None, t_mean=None, t_std=None, pc_run=False, name_addon=''):
+#     import tensorflow as tf
+
+#     infer_model = tf.keras.models.load_model(recent_model_path, compile=False)
+#     print('Inference Model:')
+#     print(infer_model.summary())
+#     # Instantiate optimizer
+#     optimizer = (tf.keras.optimizers.RMSprop(clipvalue=opt_clip_val, learning_rate=opt_lr) if 
+#                     opt_name == 'RMSprop' else
+#                 tf.keras.optimizers.Adam(clipvalue=opt_clip_val, learning_rate=opt_lr))
+    
+#     if test_filepath:
+#         # Load in testing data - only use sr of test
+#         print('Restoring audio of file:', test_filepath)
+#         test_sr, test_sig = wavfile.read(test_filepath)
+#     test_sig_type = test_sig.dtype
+
+#     # Spectrogram creation - test. Only use phases of test
+#     test_spgm, test_phases = make_spectrogram(test_sig, wdw_size, epsilon, ova=True, debug=False)
+#     test_feat = test_spgm.shape[1]
+#     test_seq = test_spgm.shape[0]
+#     test_batch_size = 1
+
+#     infer(test_spgm, test_phases, wdw_size, infer_model, loss_const=loss_const, optimizer=optimizer,
+#         seq_len=test_seq, n_feat=test_feat, batch_size=test_batch_size, epsilon=epsilon,
+#         output_path=output_path, sr=test_sr, orig_sig_type=test_sig_type,
+#         config=config, t_mean=t_mean, t_std=t_std, pc_run=pc_run, name_addon=name_addon)

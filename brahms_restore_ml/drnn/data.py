@@ -9,7 +9,30 @@ def make_gen_callable(_gen):
             yield x,y
     return gen
 
-def preprocess_signals(piano_sig, noise_sig, pad_len, mix_sig=None, src_amp_low=0.75, src_amp_high=1.15):
+def random_slice(min_sig_len, src1_sig, src2_sig=None, mix_sig=None):
+    # deficit = len(signal) - min_sig_len
+    # TEMP
+    if (mix_sig is None) and (src2_sig is None):
+        # TEMP
+        if len(src1_sig) < min_sig_len:
+            deficit = min_sig_len - len(src1_sig)
+            src1_sig = np.pad(src1_sig, (0,deficit))
+            return src1_sig
+        else:
+            return src1_sig[:min_sig_len]
+    else:
+        # TEMP
+        if len(src1_sig) < min_sig_len:
+            deficit = min_sig_len - len(mix_sig)
+            mix_sig = np.pad(mix_sig, (0,deficit))
+            src1_sig = np.pad(src1_sig, (0,deficit))
+            src2_sig = np.pad(src2_sig, (0,deficit))
+            return mix_sig, src1_sig, src2_sig
+        else:
+            return mix_sig[:min_sig_len], src1_sig[:min_sig_len], src2_sig[:min_sig_len]
+
+def preprocess_signals(piano_sig, noise_sig, min_sig_len, mix_sig=None, 
+                                    src_amp_low=0.75, src_amp_high=1.15):
     if mix_sig is not None:
         assert len(mix_sig) == len(piano_sig) == len(noise_sig)
         mix_sig = mix_sig.astype('float64')
@@ -44,15 +67,27 @@ def preprocess_signals(piano_sig, noise_sig, pad_len, mix_sig=None, src_amp_low=
         # print('Mix sig abs sum:', np.sum(np.abs(mix_sig)), 'avg src sum:', avg_src_sum)
         mix_srcs_ratio = (avg_src_sum / np.sum(np.abs(mix_sig)))
         mix_sig *= mix_srcs_ratio
-    # Pad
-    deficit = pad_len - len(mix_sig)
-    mix_sig = np.pad(mix_sig, (0,deficit))
-    piano_sig = np.pad(piano_sig, (0,deficit))
-    noise_sig = np.pad(noise_sig, (0,deficit))
+
+    # Decided on:
+    # - sigs sliced to length of smallest sig in samples -
+    #   sigs padded or sliced to length of Brahms sig
+    # TODO: Slice sigs to min_sig_len
+    # because, no sigs in here will be smaller than 'pad_len' which is now min_sig_len
+    mix_sig, piano_sig, noise_sig = random_slice(min_sig_len, piano_sig, 
+                                                 src2_sig=noise_sig, mix_sig=mix_sig)
+
+    # TEMP
+    # # Pad - old
+    # deficit = pad_len - len(mix_sig)
+    # mix_sig = np.pad(mix_sig, (0,deficit))
+    # piano_sig = np.pad(piano_sig, (0,deficit))
+    # noise_sig = np.pad(noise_sig, (0,deficit))
     return mix_sig, piano_sig, noise_sig
 
 def signal_to_nn_features(signal, wdw_size=PIANO_WDW_SIZE, epsilon=EPSILON):
     spgm, _ = make_spectrogram(signal, wdw_size, epsilon, ova=True, debug=False)
+    # print('MADE SPGM, SHAPE:', spgm.shape)
+
     # Float 32 for neural nets
     spgm = np.clip(spgm, np.finfo('float32').min, np.finfo('float32').max)
     spgm = spgm.astype('float32')
@@ -61,10 +96,12 @@ def signal_to_nn_features(signal, wdw_size=PIANO_WDW_SIZE, epsilon=EPSILON):
 # Generator for NN - all audio data is too large from RAM
 # Rule - If from_numpy True, x_files cant be None
 # Rule - If from_numpy False, dmged_piano_art_noise must be considered for npy writes
+#                             min_sig_len used
 def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_feat,
-                        pad_len, dmged_piano_artificial_noise=False,
+                        min_sig_len, dmged_piano_artificial_noise=False,
                         src_amp_low=0.75, src_amp_high=1.15, 
                         data_path=None, x_files=None, from_numpy=False):
+
     while True:
         for offset in range(0, num_samples, batch_size):
             if (x_files is not None) or from_numpy:
@@ -99,11 +136,12 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
                         mix_filepath = x_batch_labels[i]
                         _, mix_sig = wavfile.read(mix_filepath)
                         mix_sig, piano_sig, noise_sig = preprocess_signals(
-                            piano_label_sig, noise_label_sig, mix_sig=mix_sig, pad_len=pad_len, 
+                            piano_label_sig, noise_label_sig, mix_sig=mix_sig, 
+                            min_sig_len=min_sig_len, 
                             src_amp_low=src_amp_low, src_amp_high=src_amp_high)
                     else:
                         mix_sig, piano_sig, noise_sig = preprocess_signals(
-                            piano_label_sig, noise_label_sig, pad_len=pad_len, 
+                            piano_label_sig, noise_label_sig, min_sig_len=min_sig_len, 
                             src_amp_low=src_amp_low, src_amp_high=src_amp_high)
                     mix_spgm = signal_to_nn_features(mix_sig)
                     piano_spgm = signal_to_nn_features(piano_sig)
@@ -128,17 +166,43 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
 
             yield ([x, np.concatenate((y1, y2), axis=-1)])
 
-# NN DATA STATS FUNC - Only used when dataset changes
+# NN DATA STATS FUNCS
+# Provide values for constants, only needed when dataset changes
+
+# Call in restore_with_drnn
+def get_raw_data_stats(y1_filenames, y2_filenames, x_filenames=None, 
+                       brahms_filename=None):
+    all_data = y1_filenames + y2_filenames
+    if x_filenames is not None:
+        all_data.append(x_filenames) 
+    if brahms_filename is not None:
+        all_data.append(brahms_filename)       
+
+    # For posterity, max calc from ago
+    # Temp - do to calc max len for padding - it's 3081621 (for youtube src data)
+    # it's 3784581 (for Spotify/Youtube Final Data)
+    # it's 3784581 (for damaged Spotify/YouTube Final Data)
+    min_sig_len = None
+    for sample in all_data:
+        _, sig = wavfile.read(sample)
+        if min_sig_len is None or len(sig) < min_sig_len:
+            min_sig_len = len(sig)
+    # CALC train_seq & train_feat from min_sig_len, return them too
+    train_seq, train_feat = sig_length_to_spgm_shape(min_sig_len)
+    # print('NOTICE: TRAIN SEQ LEN', train_seq, 'TRAIN FEAT LEN', train_feat)
+    
+    return train_seq, train_feat, min_sig_len
+
+# Call in evaluate_source_sep
 # Rule - If from_numpy True, x_files cant be None
-# Rule - If from_numpy False, dataset2 must be considered for npy writes
-def get_data_stats(y1_filenames, y2_filenames, num_samples, train_seq, train_feat, 
-            #   wdw_size, epsilon, 
-              pad_len, src_amp_low=0.75, src_amp_high=1.15, dataset2=False,
+#      - If from_numpy False, dataset2 must be considered for npy writes
+def get_features_stats(y1_filenames, y2_filenames, num_samples, train_seq, train_feat, 
+              min_sig_len, src_amp_low=0.75, src_amp_high=1.15, dataset2=False,
               data_path=None, x_filenames=None, from_numpy=False):
 
     generator = nn_data_generator(y1_filenames, y2_filenames, num_samples,
             batch_size=1, num_seq=train_seq, num_feat=train_feat,
-            pad_len=pad_len, dmged_piano_artificial_noise=dataset2, 
+            min_sig_len=min_sig_len, dmged_piano_artificial_noise=dataset2, 
             src_amp_low=src_amp_low, src_amp_high=src_amp_high,
             data_path=data_path, x_files=x_filenames, from_numpy=from_numpy)
 
@@ -183,5 +247,5 @@ def get_data_stats(y1_filenames, y2_filenames, num_samples, train_seq, train_fea
     # # print('Avg of noise sources:', np.mean(noise_samples))
     # print('Avg of aug piano sources:', np.mean(aug_piano_samples))
     # # print('Avg of aug noise sources:', np.mean(aug_noise_samples))
-    
+
     return np.mean(samples), np.std(samples)
