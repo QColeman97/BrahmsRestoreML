@@ -17,10 +17,6 @@ __pycache__/
 /brahms_restore_ml/drnn/output_grid_search_save_11_19/
 /brahms_restore_ml/drnn/output_grid_search_PC_bs5_oom/
 /brahms_restore_ml/drnn/output_grid_search/
-/brahms_restore_ml/drnn/output_grid_search_lstm/
-/brahms_restore_ml/drnn/output_grid_search_lstm_wb/
-/brahms_restore_ml/drnn/output_grid_search_pc_wb/
-/brahms_restore_ml/drnn/output_grid_search_wb/
 /brahms_restore_ml/drnn/output_restore/
 
 .vs
