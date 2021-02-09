@@ -31,8 +31,10 @@ def main():
     # drnn_sr3, drnn_sig3 = wavfile.read('brahms_restore_ml/drnn/output_restore/restore_149of3072.wav')
 
     orig_sr, orig_sig = wavfile.read('brahms.wav')
-    nmf_sr, nmf_sig = wavfile.read('brahms_restore_ml/nmf/old/old_outputs/output_restored_wav_v3/brahms_sslrnpiano_madeinit_10nbv_l1pen1000.wav')
-    # drnn_sr, drnn_sig = wavfile.read('brahms_restore_ml/drnn/output_restore/restore_151of3072.wav')
+    # old below
+    # nmf_sr, nmf_sig = wavfile.read('brahms_restore_ml/nmf/old/old_outputs/output_restored_wav_v3/brahms_sslrnpiano_madeinit_10nbv_l1pen1000.wav')
+    nmf_sr, nmf_sig = wavfile.read('brahms_restore_ml/nmf/output/output_restored_wav_v4/brahms_10nbv.wav')
+    # drnn_sig & drnn_sr made above
     ccrma_sr, ccrma_sig = wavfile.read('../Benchmark Systems/ccrma/benchmark2(thebest?).wav')
     po_sen_sr, po_sen_sig = wavfile.read('../Benchmark Systems/po-sen/BrahmsResults/piano_brahms_denoising_model.wav')
     izotope_sr, izotope_sig = wavfile.read('../Benchmark Systems/izotope_rx/brahms_restore_izotope_rx.wav')
@@ -46,7 +48,9 @@ def main():
     drnn_sig3 = drnn_sig3[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE: -(20 * PIANO_WDW_SIZE)]
 
     orig_sig = orig_sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE: -(20 * PIANO_WDW_SIZE)]
-    nmf_sig = np.split(nmf_sig, 2)[1]
+    nmf_sig = np.split(nmf_sig, 2)[0]
+    nmf_sig = nmf_sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE: -(20 * PIANO_WDW_SIZE)]
+    # nmf_sig = np.split(nmf_sig, 2)[1] # old
     # drnn_sig = drnn_sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE: -(20 * PIANO_WDW_SIZE)]
     ccrma_sig = ccrma_sig[WDW_NUM_AFTER_VOICE * PIANO_WDW_SIZE: -(20 * PIANO_WDW_SIZE)]
     po_sen_sig = po_sen_sig[int(WDW_NUM_AFTER_VOICE//2.7) * PIANO_WDW_SIZE: -(5 * PIANO_WDW_SIZE)]
