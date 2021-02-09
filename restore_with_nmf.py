@@ -20,10 +20,12 @@ def main():
     # avgbv_flag = True
     # ova_flag = True
     # learn_iter = 100
+    score_piano_bv = True
+    a430hz_bv = True
     # marybv_flag = False     # Special case for Mary.wav - basis vectors size optimization test
-    # out_filepath = 'brahms_restore_ml/nmf/output/output_restored_wav_v4/'
-    # TEMP
-    out_filepath = 'brahms_restore_ml/nmf/output/output_restored_experimental/'
+    out_filepath = 'brahms_restore_ml/nmf/output/output_restored_wav_v5/'
+    # # TEMP
+    # out_filepath = 'brahms_restore_ml/nmf/output/output_restored_experimental/'
 
     # Experimental
     # Ternary flag - 'Piano', 'Noise', or 'None' (If not 'None', noisebv_flag MUST BE TRUE)
@@ -33,10 +35,8 @@ def main():
     l1pen_flag = True if (l1_penalty != 0) else False
     # Do not make as big as 1078 (smaller dim) - 88 (piano bv's) = 990
     num_noise_bv = 1 # 50 # 20 # 3 # 10 # 5 # 10000 is when last good # 100000 is when it gets bad, but 1000 sounds bad in tests.py
-    # Put into if good results. Only use piano notes in recording
+    # Don't include notes in range unreached in score
     audible_range_bv = False
-    score_piano_bv = True
-    a430hz_bv = True
 
     # Configure params    
     # Signal - comes as a list, filepath or a length
@@ -66,13 +66,13 @@ def main():
             debug_flag = True
             wdw_size = int(sys.argv[3]) if (sys.argv[2] == '-d') else int(sys.argv[2])
 
-    # # Overlap-Add is Necessary & Default - no longer in name
+    # # Below Necessary & Default - no longer in name
     # if ova_flag:
     #     out_filepath += '_ova'
-    if a430hz_bv:
-        out_filepath += '_a430hz'
-    if score_piano_bv:
-        out_filepath += '_scorebv'
+    # if a430hz_bv:
+    #     out_filepath += '_a430hz'
+    # if score_piano_bv:
+    #     out_filepath += '_scorebv'
     if audible_range_bv:
         out_filepath += '_arbv'
 

@@ -33,7 +33,8 @@ def main():
     orig_sr, orig_sig = wavfile.read('brahms.wav')
     # old below
     # nmf_sr, nmf_sig = wavfile.read('brahms_restore_ml/nmf/old/old_outputs/output_restored_wav_v3/brahms_sslrnpiano_madeinit_10nbv_l1pen1000.wav')
-    nmf_sr, nmf_sig = wavfile.read('brahms_restore_ml/nmf/output/output_restored_wav_v4/brahms_10nbv.wav')
+    # nmf_sr, nmf_sig = wavfile.read('brahms_restore_ml/nmf/output/output_restored_wav_v4/brahms_10nbv.wav')
+    nmf_sr, nmf_sig = wavfile.read('brahms_restore_ml/nmf/output/output_restored_wav_v5/brahms_10nbv.wav')
     # drnn_sig & drnn_sr made above
     ccrma_sr, ccrma_sig = wavfile.read('../Benchmark Systems/ccrma/benchmark2(thebest?).wav')
     po_sen_sr, po_sen_sig = wavfile.read('../Benchmark Systems/po-sen/BrahmsResults/piano_brahms_denoising_model.wav')
