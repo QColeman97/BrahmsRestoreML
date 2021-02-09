@@ -5,7 +5,8 @@ from . import nmf
 from ..audio_data_processing import *
 
 # Idea - rank-1 approx = take avg of the pos. mag. spectrogram NOT the signal
-def make_basis_vector(waveform, wf_type, wf_sr, num, wdw_size, ova=False, avg=False, debug=False, write_path=None):
+def make_basis_vector(waveform, wf_type, wf_sr, num_str, wdw_size, ova=False, avg=False, 
+                                                            debug=False, write_path=None):
     waveform = waveform.astype('float64')
     # Convert to mono signal (avg left & right channels) if needed
     sig = np.average(waveform, axis=-1) if (len(waveform.shape) > 1) else waveform
@@ -17,11 +18,11 @@ def make_basis_vector(waveform, wf_type, wf_sr, num, wdw_size, ova=False, avg=Fa
         sig = sig[:-1]
     if write_path is not None:  # before sig ruined by make_spectrogram
         # optional - write trimmed piano note signals to WAV - check if trim is good
-        wavfile.write(write_path + 'trimmed_note_' + str(num) + '.wav', wf_sr, sig.astype(wf_type))
+        wavfile.write(write_path + 'trimmed_note_' + num_str + '.wav', wf_sr, sig.astype(wf_type))
 
     spectrogram, phases = make_spectrogram(sig, wdw_size, EPSILON, ova=ova)
     if debug:
-        print('Making piano bv', num, '- V of piano note @ 1st timestep:', spectrogram[0][:10])
+        print('Making piano bv', num_str, '- V of piano note @ 1st timestep:', spectrogram[0][:10])
     if avg:
         # Actually the bv that makes best rank-1 approx. of V (piano note spectrogram) - the avg
         basis_vector = np.mean(spectrogram, axis=0)
@@ -32,14 +33,14 @@ def make_basis_vector(waveform, wf_type, wf_sr, num, wdw_size, ova=False, avg=Fa
     else: # unused branch
         basis_vector = spectrogram[nmf.BEST_PIANO_BV_SGMT]
     if debug:
-        print('Making piano bv', num, '- BV of piano note:', basis_vector[:10])
-        if num == 30:   # random choice
+        print('Making piano bv', num_str, '- BV of piano note:', basis_vector[:10])
+        if num_str.isdigit() and int(num_str) == 30:   # random choice
             plot_matrix(basis_vector, '30th basis vector', 'null', 'frequencies', show=True)
     if write_path is not None:   
         # write basis vector magnitude-repeated out to wav file
         bv_spgm = np.array([basis_vector for _ in range(spectrogram.shape[0])])
         bv_sig = make_synthetic_signal(bv_spgm, phases, wdw_size, wf_type, ova=ova, debug=False)
-        wavfile.write(write_path + 'bv_' + str(num) + '.wav', wf_sr, bv_sig.astype(wf_type))
+        wavfile.write(write_path + 'bv_' + num_str + '.wav', wf_sr, bv_sig.astype(wf_type))
 
     return basis_vector
 
@@ -73,8 +74,11 @@ def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, pr
     
     return noise_basis_vectors
 
-def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False, eq=False, eq_thresh=800000, debug=False):
-    basis_vectors = np.empty((nmf.NUM_MARY_PIANO_NOTES if mary_flag else nmf.NUM_PIANO_NOTES, (wdw_size//2)+1))
+def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False, eq=False, eq_thresh=800000, debug=False,
+                       a430hz=False, score=False):
+    basis_vectors = np.empty((
+        nmf.NUM_SCORE_NOTES if score else (nmf.NUM_MARY_PIANO_NOTES if mary_flag else nmf.NUM_PIANO_NOTES),
+        (wdw_size//2)+1))
     sorted_notes = []
     # Read in ordered piano notes, don't use fund. freqs
     real_currdir = os.path.dirname(os.path.realpath(__file__))
@@ -84,8 +88,11 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
 
     # all_notes_ff_wav yielding a list of filename strings, need to sort it by note
     base_dir = os.getcwd()
-    os.chdir(real_currdir + '/all_notes_ff_wav')
-    unsorted_audio_files = [x for x in os.listdir(os.getcwd()) if x.endswith('wav')]
+    if a430hz:
+        os.chdir(real_currdir + '/all_notes_ff_wav_A=430Hz')
+    else:
+        os.chdir(real_currdir + '/all_notes_ff_wav') 
+    unsorted_audio_files = [x for x in os.listdir(os.getcwd())]# if x.endswith('wav')]
     sorted_file_names = ['Piano.ff.' + x + '.wav' for x in sorted_notes]
     audio_files = sorted(unsorted_audio_files, key=lambda x: sorted_file_names.index(x))
     if debug:
@@ -96,12 +103,21 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
         start, stop = nmf.MARY_START_INDEX, nmf.MARY_STOP_INDEX
     else:
         start, stop = 0, len(audio_files)
-    for i, note_index in enumerate(range(start, stop)):
+    basis_vector_index = 0
+    for note_index in range(start, stop):
         audio_file = audio_files[note_index]
-        note_sr, note_sig = wavfile.read(audio_file) 
-        note_sig_type = note_sig.dtype  
-        basis_vector = make_basis_vector(note_sig, note_sig_type, note_sr, note_index, wdw_size, ova=ova, avg=avg, debug=debug)
-        basis_vectors[i] = basis_vector
+        if (not score) or (score and (audio_file.split('.')[2][:-1] != 'Ab') and 
+                                     (audio_file.split('.')[2][:-1] != 'B')):
+            print('Audio file', '(score)' if score else '', ':', audio_file)
+            note_sr, note_sig = wavfile.read(audio_file) 
+            # note_sig_type = note_sig.dtype  
+            # basis_vector = make_basis_vector(note_sig, note_sig.dtype, note_sr, str(note_index), wdw_size, ova=ova, avg=avg, debug=debug)
+            # TEMP - write out basis vectors to wav files
+            basis_vector = make_basis_vector(note_sig, note_sig.dtype, note_sr, str(note_index), 
+                                            wdw_size, ova=ova, avg=avg, debug=debug,
+                                            write_path='../output/output_test/output_test_bv/')
+            basis_vectors[basis_vector_index] = basis_vector
+            basis_vector_index +=1
 
     os.chdir(base_dir)
     np.save(filepath, basis_vectors)
@@ -116,7 +132,7 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
 # W LOGIC
 # Basis vectors in essence are the "best" dft of a sound w/ constant pitch (distinct freq signature)
 def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, debug=False, precise_noise=False, eq=False, 
-                      num_noise=0, noise_start=6, noise_stop=25, randomize='None'):
+                      num_noise=0, noise_start=6, noise_stop=25, randomize='None', a430hz=False, score=False, audible_range=False):
     if randomize == 'Piano':
         # Piano basis vectors are random for semisupervised learn piano
         basis_vectors = np.random.rand(nmf.NUM_PIANO_NOTES, (wdw_size//2) + 1)
@@ -132,6 +148,10 @@ def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, d
             filepath += '_avg'
         if eq:
             filepath += '_eqsig' # '_eqmeansig' '_eqmediansig'
+        if a430hz:
+            filepath += '_a430hz'
+        if score:
+            filepath += '_score'
         filepath += '.npy'
 
         try:
@@ -139,8 +159,12 @@ def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, d
             print('FILE FOUND - READ IN BASIS VECTORS:', filepath)
         except:
             print('FILE NOT FOUND - MAKING BASIS VECTORS:', filepath)
-            basis_vectors = make_basis_vectors(wdw_size, filepath, ova=ova, avg=avg, mary_flag=mary, eq=eq, eq_thresh=800000, debug=debug)
-
+            basis_vectors = make_basis_vectors(wdw_size, filepath, ova=ova, avg=avg, mary_flag=mary, eq=eq, 
+                                               eq_thresh=800000, debug=debug, a430hz=a430hz, score=score)
+        if audible_range:
+            basis_vectors = (basis_vectors[nmf.SCORE_IGNORE_BOTTOM_NOTES: -1 * nmf.SCORE_IGNORE_TOP_NOTES]
+                if score else
+                basis_vectors[nmf.IGNORE_BOTTOM_NOTES: -1 * nmf.IGNORE_TOP_NOTES])
         if debug:
             print('Basis Vectors Shape:', basis_vectors.shape)  
             print('GOTTEN 1st Basis Vector:', basis_vectors[0][:10])

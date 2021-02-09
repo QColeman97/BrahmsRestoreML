@@ -58,11 +58,13 @@ def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=F
         elif ylabel == 'frequency':
             extent = [-0.5, n_cols-0.5, -0.5, (n_rows//5)-0.5]
             ratio *= 5
-
-        _ = ax.imshow(np.log(matrix), 
-            aspect=ratio,
-            origin='lower',
-            extent=extent)
+        try:
+            _ = ax.imshow(np.log(matrix), 
+                aspect=ratio,
+                origin='lower',
+                extent=extent)
+        except TypeError as e:
+            print('CAUGHT ERROR IN PLOT_MATRIX', e)
     # else:
     #     ax.title.set_text(name)
     #     ax.set_ylabel(ylabel)
@@ -136,7 +138,7 @@ def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False, hop_size
     if debug:
        print('ORIGINAL SIG (FLOAT64) BEFORE SPGM:\n', signal[(wdw_size // 2): (wdw_size // 2) + 20]) if num_spls > 20 else print('ORIGINAL SIG (FLOAT64) BEFORE SPGM:\n', signal)
 
-    # Hop size is half-length of window if OVA, else it's just window length (if length sufficient)
+    # Hop size is half-length of window if OVA (if length sufficient), else it's just window length
     hop_size = ((wdw_size // hop_size_divisor) 
                 if (ova and num_spls >= (wdw_size + (wdw_size // hop_size_divisor))) 
                 else wdw_size)
@@ -238,8 +240,8 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_type, ova=False
     
     hop_size = wdw_size // hop_size_divisor
     # Support for different hop sizes
-    synthetic_sig_len = int(((num_sgmts / hop_size_divisor) + (1-(1/hop_size_divisor))) * wdw_size) if ova else num_sgmts * wdw_size
-    print('Synthetic Sig Len FULL:', synthetic_sig_len)
+    synthetic_sig_len = int(((num_sgmts/hop_size_divisor) + (1-(1/hop_size_divisor))) * wdw_size) if ova else num_sgmts * wdw_size
+    # print('Synthetic Sig Len FULL:', synthetic_sig_len)
     synthetic_sig = np.empty((synthetic_sig_len))
     for i in range(num_sgmts):
         ova_index = i * (wdw_size // hop_size_divisor)

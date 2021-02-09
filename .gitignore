@@ -8,6 +8,9 @@ __pycache__/
 /brahms_restore_ml/drnn/tensorflow/
 /brahms_restore_ml/drnn/tf-nightly/
 /brahms_restore_ml/drnn/recent_model/
+/brahms_restore_ml/drnn/recent_model_133of3072/
+/brahms_restore_ml/drnn/recent_model_149of3072/
+/brahms_restore_ml/drnn/recent_model_151of3072/
 /brahms_restore_ml/drnn/src/subclass_model_example.py
 /brahms_restore_ml/drnn/src/custom_train_loop_example.py
 /brahms_restore_ml/drnn/src/install_and_run.py
@@ -23,8 +26,13 @@ __pycache__/
 
 /blind_test_samples/
 /full_test_samples/
+/brahms_begin_note_trim.wav
+/brahms_begin_trim_bv.wav
+/brahms_begin_trim.wav
+/brahms_note_exact_trim.wav
 
 /brahms_restore_ml/nmf/all_notes_ff_wav/
+/brahms_restore_ml/nmf/all_notes_ff_wav_A=430Hz/
 /brahms_restore_ml/nmf/avged_ova_notes/
 /brahms_restore_ml/nmf/brahms_partial_wav/
 /brahms_restore_ml/nmf/trimmed_notes/

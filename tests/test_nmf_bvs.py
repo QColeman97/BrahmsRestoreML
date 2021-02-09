@@ -1,6 +1,8 @@
 # test_nmf_bvs.py - Quinn Coleman - Senior Research Project / Master's Thesis
 # Tests for basis vector functions.
 
+# Run with $ python -m unittest tests.test_bvs
+
 from brahms_restore_ml.nmf.nmf import NUM_PIANO_NOTES
 from brahms_restore_ml.audio_data_processing import *
 from brahms_restore_ml.nmf.basis_vectors import *
@@ -24,7 +26,7 @@ class BasisVectorTests(unittest.TestCase):
 
    def test_make_basis_vector(self):
       note_sr, note_sig = wavfile.read(piano_note_filepath)
-      bv = make_basis_vector(note_sig, note_sig.dtype, note_sr, 0, PIANO_WDW_SIZE, ova=True, avg=True, write_path=test_path) 
+      bv = make_basis_vector(note_sig, note_sig.dtype, note_sr, str(0), PIANO_WDW_SIZE, ova=True, avg=True, write_path=test_path) 
       self.assertEqual(bv.shape, ((PIANO_WDW_SIZE//2)+1,))
 
    def test_make_noise_basis_vectors(self):
