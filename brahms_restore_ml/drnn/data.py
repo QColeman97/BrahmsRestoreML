@@ -1,6 +1,11 @@
 from ..audio_data_processing import *
+from ..nmf.basis_vectors import get_basis_vectors
+import numpy as np
+import os
 import random
 import re
+
+bare_noise_path = os.path.dirname(os.path.realpath(__file__)) + '/../../brahms_noise_izotope_rx.wav'
 
 # May try replacing with lambda in the call in train
 def make_gen_callable(_gen):
@@ -33,6 +38,16 @@ def random_slice(min_sig_len, src1_sig, src2_sig=None, mix_sig=None):
 
 def preprocess_signals(piano_sig, noise_sig, min_sig_len, mix_sig=None, 
                                     src_amp_low=0.75, src_amp_high=1.15):
+    # NEW For single noise file - span the whole
+    noise_new_start = None
+    while len(noise_sig) != len(piano_sig):
+        if noise_new_start is None:
+            noise_new_start = random.randint(0, len(noise_sig)-1)
+            noise_sig = np.concatenate((noise_sig[noise_new_start:], noise_sig[:noise_new_start]))
+        noise_sig = np.concatenate((noise_sig, noise_sig))
+        if len(noise_sig) > len(piano_sig):
+            noise_sig = noise_sig[: len(piano_sig)]
+    
     if mix_sig is not None:
         assert len(mix_sig) == len(piano_sig) == len(noise_sig)
         mix_sig = mix_sig.astype('float64')
@@ -100,14 +115,16 @@ def signal_to_nn_features(signal, wdw_size=PIANO_WDW_SIZE, epsilon=EPSILON):
 def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_feat,
                         min_sig_len, dmged_piano_artificial_noise=False,
                         src_amp_low=0.75, src_amp_high=1.15, 
-                        data_path=None, x_files=None, from_numpy=False):
+                        data_path=None, x_files=None, from_numpy=False, bare_noise=True): # new
+    # TEMP - bare_noise enabled by default
 
     while True:
         for offset in range(0, num_samples, batch_size):
             if (x_files is not None) or from_numpy:
                 x_batch_labels = x_files[offset:offset+batch_size]
             y1_batch_labels = y1_files[offset:offset+batch_size]
-            y2_batch_labels = y2_files[offset:offset+batch_size]
+            if (not bare_noise) and (not from_numpy):
+                y2_batch_labels = y2_files[offset:offset+batch_size]
             if (num_samples / batch_size == 0):
                 actual_batch_size = batch_size
                 x, y1, y2 = (np.empty((batch_size, num_seq, num_feat)).astype('float32'),
@@ -129,7 +146,7 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
                     noise_spgm = np.load(nl_filepath, allow_pickle=True)
                 else:
                     pl_filepath = y1_batch_labels[i]
-                    nl_filepath = y2_batch_labels[i]
+                    nl_filepath = bare_noise_path if bare_noise else y2_batch_labels[i]
                     _, piano_label_sig = wavfile.read(pl_filepath)
                     _, noise_label_sig = wavfile.read(nl_filepath)
                     if x_files is not None:

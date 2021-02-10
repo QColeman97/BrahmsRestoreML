@@ -1,6 +1,10 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Input, SimpleRNN, Dense, TimeDistributed, Layer, LSTM, Bidirectional, BatchNormalization, Concatenate
 from tensorflow.keras.models import Model
+# from ..nmf.basis_vectors import get_basis_vectors
+# from ..audio_data_processing import PIANO_WDW_SIZE
+# import numpy as np
+# import os
 
 class Standardize(Layer):
     def __init__(self, mean, std, **kwargs):
@@ -75,11 +79,22 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     # test=16, 
                     test=0):#, 
                     # pc_run=False):
+
+    # Must pass in basis vectors w/ audio data!!!
+    # piano_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, avg=True, debug=False, a430hz=True, 
+    #     score=True, filepath=os.path.dirname(os.path.realpath(__file__)) + '/../nmf/np_saves_bv/basis_vectors')
+    # # piano_basis_vectors = np.expand_dims(piano_basis_vectors, axis=0)   # Give a samples dimension (1 sample)
+    # piano_basis_vectors = piano_basis_vectors[batch_size, :, :]   # Give a samples dimension (1 sample)
+    # # piano_bvs_tensor = tf.convert_to_tensor(piano_basis_vectors, dtype=tf.float32)
+    # # piano_bvs_tensor = tf.expand_dims(piano_bvs_tensor, 0)
+
     # TEST FLOAT16
     # MIXED PRECISION
     input_layer = Input(shape=(sequences, features), name='piano_noise_mixed')
     # input_layer = Input(shape=(sequences, features), dtype='float16', 
     #                     name='piano_noise_mixed')
+
+    # input_layer = Concatenate() ([piano_basis_vectors, input_layer])
 
     if config is not None:
         num_layers = len(config['layers'])

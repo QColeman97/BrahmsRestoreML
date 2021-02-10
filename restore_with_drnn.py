@@ -20,7 +20,9 @@ def run_top_gs_result(num, best_config,
                       brahms_path, combos_str, data_path=None, min_sig_len=None):
     train_batch_size = best_config['batch_size']
     # # Temp test for LSTM -> until can grid search
-    # train_batch_size = 3
+    # train_batch_size = 3 if train_batch_size < 3 else train_batch_size
+    # TEMP - until F35 back up, make managable for PC
+    train_batch_size = 6
     train_loss_const = best_config['gamma']
     train_epochs = best_config['epochs']
     train_opt_name = best_config['optimizer']
@@ -116,13 +118,15 @@ def main():
     mode = sys.argv[1] 
     pc_run = True if (sys.argv[2].lower() == 'true') else False
     # Differentiate PC GS from F35 GS
-    dmged_piano_artificial_noise_mix = True if pc_run else False
+    # dmged_piano_artificial_noise_mix = True if pc_run else False
+    dmged_piano_artificial_noise_mix = False    # TEMP while F35 down
     test_on_synthetic = False
-    wdw_size = PIANO_WDW_SIZE
+    # wdw_size = PIANO_WDW_SIZE
     data_path = 'brahms_restore_ml/drnn/drnn_data/'
     arch_config_path = 'brahms_restore_ml/drnn/config/'
     gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # PC
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'    # F35
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results      
     recent_model_path = 'brahms_restore_ml/drnn/recent_model'
     infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     brahms_path = 'brahms.wav'
@@ -284,6 +288,7 @@ def main():
                         _ = gs_result_file.readline()
                     best_config = json.loads(gs_result_file.readline())
                     # Temp test for LSTM -> until can grid search
+                    # # TEMP - until F35 back up, make managable for PC
                     # if (len(best_config['layers']) < 4) or (len(best_config['layers']) == 4 and best_config['layers'][0]['type'] == 'Dense'):
                     run_top_gs_result(num, best_config, 
                     # TRAIN_MEAN, TRAIN_STD, 

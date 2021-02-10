@@ -132,14 +132,15 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
 # W LOGIC
 # Basis vectors in essence are the "best" dft of a sound w/ constant pitch (distinct freq signature)
 def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, debug=False, precise_noise=False, eq=False, 
-                      num_noise=0, noise_start=6, noise_stop=25, randomize='None', a430hz=False, score=False, audible_range=False):
+                      num_noise=0, noise_start=6, noise_stop=25, randomize='None', a430hz=False, score=False, audible_range=False,
+                      filepath=os.path.dirname(os.path.realpath(__file__)) + '/np_saves_bv/basis_vectors'):
     if randomize == 'Piano':
         # Piano basis vectors are random for semisupervised learn piano
         basis_vectors = np.random.rand(nmf.NUM_PIANO_NOTES, (wdw_size//2) + 1)
     else:
         # Save/load basis vectors (w/o noise) to/from numpy files
-        real_currdir = os.path.dirname(os.path.realpath(__file__))
-        filepath = real_currdir + '/np_saves_bv/basis_vectors'
+        # real_currdir = os.path.dirname(os.path.realpath(__file__))
+        # filepath = real_currdir + '/np_saves_bv/basis_vectors'
         if mary:
             filepath += '_mary'
         if ova:

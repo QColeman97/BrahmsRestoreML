@@ -653,7 +653,8 @@ def restore_with_drnn(output_path, recent_model_path,
         print('Restoring audio of file:', test_filepath)
         test_sr, test_sig = wavfile.read(test_filepath)
     test_sig_type = test_sig.dtype
-    test_sig = random_slice(min_sig_len, test_sig)
+    # TEMP - slice doesn't work yet
+    # test_sig = random_slice(min_sig_len, test_sig)
     # Spectrogram creation - test. Only use phases of test
     test_spgm, test_phases = make_spectrogram(test_sig, wdw_size, epsilon, ova=True, debug=False)
 
