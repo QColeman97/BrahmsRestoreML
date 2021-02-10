@@ -135,7 +135,7 @@ def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, d
                       num_noise=0, noise_start=6, noise_stop=25, randomize='None', a430hz=False, score=False, audible_range=False):
     if randomize == 'Piano':
         # Piano basis vectors are random for semisupervised learn piano
-        basis_vectors = np.random.rand(nmf.NUM_PIANO_NOTES, (wdw_size//2) + 1)
+        basis_vectors = np.random.rand(nmf.NUM_SCORE_NOTES if score else nmf.NUM_PIANO_NOTES, (wdw_size//2) + 1)
     else:
         # Save/load basis vectors (w/o noise) to/from numpy files
         real_currdir = os.path.dirname(os.path.realpath(__file__))
