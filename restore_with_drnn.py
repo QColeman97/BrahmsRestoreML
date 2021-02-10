@@ -18,7 +18,7 @@ def run_top_gs_result(num, best_config,
                       infer_output_path, 
                     #   wdw_size, 
                       brahms_path, combos_str, data_path=None, min_sig_len=None,
-                      use_basis_vectors=False):
+                      tuned_a430hz=False, use_basis_vectors=False):
     train_batch_size = best_config['batch_size']
     # # Temp test for LSTM -> until can grid search
     # train_batch_size = 3 if train_batch_size < 3 else train_batch_size
@@ -67,7 +67,7 @@ def run_top_gs_result(num, best_config,
                         # train_mean, train_std, 
                         None, None, None, '', None,
                         dmged_piano_artificial_noise_mix, data_path, min_sig_len, True,
-                        use_basis_vectors))
+                        tuned_a430hz, use_basis_vectors))
     process_train.start()
     process_train.join()
 
@@ -135,7 +135,7 @@ def main():
     infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     brahms_path = 'brahms.wav'
 
-    # add-on
+    # To run best model configs, data_from_numpy == True
     do_curr_best, curr_best_combos, curr_best_done_on_pc = True, '3072', False
     # # F35 LSTM
     # top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
@@ -146,22 +146,25 @@ def main():
     top_result_paths = [gs_output_path + 'result_' + str(x) + '_of_' + curr_best_combos +
                         ('.txt' if curr_best_done_on_pc else '_noPC.txt') for x in top_result_nums]
     # NEW
+    output_file_addon = ''
     data_from_numpy = True
     tuned_a430hz = False
-    basis_vector_features = False
+    basis_vector_features = True
     if tuned_a430hz:
         recent_model_path += '_a430hz'
+        output_file_addon += '_a430hz'
     if basis_vector_features:
         recent_model_path += '_bvs'
+        output_file_addon += '_bvs'
 
     # EMPERICALLY DERIVED HPs
     # Note: FROM PO-SEN PAPER - about loss_const
     #   Empirically, the value γ is in the range of 0.05∼0.2 in order
     #   to achieve SIR improvements and maintain SAR and SDR.
     train_batch_size = 6 if pc_run else 12
-    train_loss_const = 0.05
+    train_loss_const = 0.1
     train_epochs = 10
-    train_opt_name, train_opt_clipval, train_opt_lr = 'RMSprop', 0.9, 0.001
+    train_opt_name, train_opt_clipval, train_opt_lr = 'Adam', 0.9, 0.001
     training_arch_config = None
 
     epsilon, patience, val_split = 10 ** (-10), train_epochs, 0.25
@@ -171,6 +174,7 @@ def main():
         restore_with_drnn(infer_output_path, recent_model_path, 
                           train_opt_name, train_opt_clipval, train_opt_lr,
                           MIN_SIG_LEN, test_filepath=brahms_path, pc_run=pc_run,
+                          name_addon=output_file_addon,
                           use_basis_vectors=basis_vector_features)
     else:
         train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run)
@@ -178,20 +182,28 @@ def main():
 
         if data_from_numpy:
             # Load in train/validation numpy data
+            # noise_piano_filepath_prefix = (data_path + 'dmged_mix_numpy/mixed'
+            #         if dmged_piano_artificial_noise_mix else 
+            #     (data_path + 'piano_noise_a430hz_bv_numpy/mixed' 
+            #         if (tuned_a430hz and basis_vector_features) else
+            #     (data_path + 'piano_noise_a430hz_numpy/mixed' if tuned_a430hz else
+            #     (data_path + 'piano_noise_bv_numpy/mixed' if basis_vector_features else
+            #     (data_path + 'piano_noise_numpy/mixed')))))
+            # piano_label_filepath_prefix = (data_path + 'piano_source_numpy/piano'
+            #         if dmged_piano_artificial_noise_mix else 
+            #     (data_path + 'piano_source_a430hz_bv_numpy/piano'
+            #         if (tuned_a430hz and basis_vector_features) else        
+            #     (data_path + 'piano_source_a430hz_numpy/piano' if tuned_a430hz else
+            #     (data_path + 'piano_source_bv_numpy/piano' if basis_vector_features else
+            #     (data_path + 'piano_source_numpy/piano')))))
             noise_piano_filepath_prefix = (data_path + 'dmged_mix_numpy/mixed'
                     if dmged_piano_artificial_noise_mix else 
-                (data_path + 'piano_noise_a430hz_bv_numpy/mixed' 
-                    if (tuned_a430hz and basis_vector_features) else
                 (data_path + 'piano_noise_a430hz_numpy/mixed' if tuned_a430hz else
-                (data_path + 'piano_noise_bv_numpy/mixed' if basis_vector_features else
-                (data_path + 'piano_noise_numpy/mixed')))))
+                (data_path + 'piano_noise_numpy/mixed')))
             piano_label_filepath_prefix = (data_path + 'piano_source_numpy/piano'
-                    if dmged_piano_artificial_noise_mix else 
-                (data_path + 'piano_source_a430hz_bv_numpy/piano'
-                    if (tuned_a430hz and basis_vector_features) else        
+                    if dmged_piano_artificial_noise_mix else     
                 (data_path + 'piano_source_a430hz_numpy/piano' if tuned_a430hz else
-                (data_path + 'piano_source_bv_numpy/piano' if basis_vector_features else
-                (data_path + 'piano_source_numpy/piano')))))
+                (data_path + 'piano_source_numpy/piano')))
             noise_label_filepath_prefix = (data_path + 'dmged_noise_numpy/noise'
                 if dmged_piano_artificial_noise_mix else data_path + 'noise_source_numpy/noise')
         else:
@@ -285,8 +297,9 @@ def main():
             # print('NOTICE: TRAIN SEQ LEN', train_seq, 'TRAIN FEAT LEN', train_feat, 'MIN SIG LEN',
             #     min_sig_len)
             train_seq, train_feat, min_sig_len = TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MIN_SIG_LEN
-            if basis_vector_features:
-                train_seq += NUM_SCORE_NOTES
+            # broken
+            # if basis_vector_features:
+            #     train_seq += NUM_SCORE_NOTES
 
             # Validation & Training Split
             indices = list(range(actual_samples))
@@ -332,7 +345,8 @@ def main():
                                     infer_output_path, 
                                     # wdw_size, 
                                     brahms_path, curr_best_combos, data_path=data_path, 
-                                    min_sig_len=min_sig_len, use_basis_vectors=basis_vector_features)
+                                    min_sig_len=min_sig_len, tuned_a430hz=tuned_a430hz,
+                                    use_basis_vectors=basis_vector_features)
             else:
                 # REPL TEST - arch config, all config, optiizer config
                 if random_hps:
@@ -450,6 +464,7 @@ def main():
                                         dataset2=dmged_piano_artificial_noise_mix,
                                         data_path=data_path, min_sig_len=min_sig_len, 
                                         data_from_numpy=data_from_numpy,
+                                        tuned_a430hz=tuned_a430hz,
                                         use_basis_vectors=basis_vector_features)
                 if sample:
                     restore_with_drnn(infer_output_path, recent_model_path, # wdw_size, epsilon, 
@@ -459,7 +474,7 @@ def main():
                                     # test_filepath=None, 
                                     test_sig=test_sig, test_sr=test_sr,
                                     # config=training_arch_config, t_mean=train_mean, t_std=train_std, 
-                                    pc_run=pc_run,
+                                    pc_run=pc_run, name_addon=output_file_addon,
                                     use_basis_vectors=basis_vector_features)
                 else:
                     restore_with_drnn(infer_output_path, recent_model_path, # wdw_size, epsilon,
@@ -468,7 +483,7 @@ def main():
                                     min_sig_len, 
                                     test_filepath=brahms_path,
                                     # config=training_arch_config, t_mean=train_mean, t_std=train_std, 
-                                    pc_run=pc_run,
+                                    pc_run=pc_run, name_addon=output_file_addon,
                                     use_basis_vectors=basis_vector_features)
 
         # GRID SEARCH
@@ -519,8 +534,9 @@ def main():
             # train_seq, train_feat, min_sig_len = get_raw_data_stats(y1_files, y2_files, x_files, 
             #                                                         brahms_filename=brahms_path)
             train_seq, train_feat, min_sig_len = TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MIN_SIG_LEN
-            if basis_vector_features:
-                train_seq += NUM_SCORE_NOTES
+            # broken
+            # if basis_vector_features:
+            #     train_seq += NUM_SCORE_NOTES
             print('Grid Search Input Stats:')
             print('N Feat:', train_feat, 'Seq Len:', train_seq)
 

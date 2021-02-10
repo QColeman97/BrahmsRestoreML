@@ -43,7 +43,8 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
                         recent_model_path=None, pc_run=False, # t_mean=None, t_std=None, 
                         grid_search_iter=None, gs_path=None, combos=None, gs_id='',
                         ret_queue=None, dataset2=False, data_path=None, min_sig_len=None,
-                        data_from_numpy=False, use_basis_vectors=False):
+                        data_from_numpy=False, tuned_a430hz=False,
+                        use_basis_vectors=False):
                         # pad_len=-1):
 
     from .model import make_model
@@ -99,21 +100,31 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     train_generator = nn_data_generator(y1_train_files, y2_train_files, num_train,
             batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, min_sig_len=min_sig_len,
             dmged_piano_artificial_noise=dataset2, data_path=data_path,
-            x_files=x_train_files, from_numpy=data_from_numpy, use_bv=use_basis_vectors)
+            x_files=x_train_files, from_numpy=data_from_numpy, tuned_a430hz=tuned_a430hz,
+            use_bv=use_basis_vectors)
     validation_generator = nn_data_generator(y1_val_files, y2_val_files, num_val,
             batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, min_sig_len=min_sig_len,
             dmged_piano_artificial_noise=dataset2, data_path=data_path,
-            x_files=x_val_files, from_numpy=data_from_numpy, use_bv=use_basis_vectors)
+            x_files=x_val_files, from_numpy=data_from_numpy, tuned_a430hz=tuned_a430hz,
+            use_bv=use_basis_vectors)
 
     train_dataset = tf.data.Dataset.from_generator(
         make_gen_callable(train_generator), 
-        output_types=(tf.float32, tf.float32),
-        output_shapes=((None, n_seq, n_feat), (None, n_seq, n_feat*2)),
+        output_types=((tf.float32, tf.float32), tf.float32) if use_basis_vectors else 
+                        (tf.float32, tf.float32),
+        # output_types=(tf.float32, tf.float32),
+        output_shapes=(((None, NUM_SCORE_NOTES, n_feat), (None, n_seq, n_feat)), (None, n_seq, n_feat*2))
+                        if use_basis_vectors else 
+                        ((None, n_seq, n_feat), (None, n_seq, n_feat*2)),
     )
     val_dataset = tf.data.Dataset.from_generator(
         make_gen_callable(validation_generator), 
-        output_types=(tf.float32, tf.float32),
-        output_shapes=((None, n_seq, n_feat), (None, n_seq, n_feat*2)),
+        output_types=((tf.float32, tf.float32), tf.float32) if use_basis_vectors else 
+                        (tf.float32, tf.float32),
+        # output_types=(tf.float32, tf.float32),
+        output_shapes=(((None, NUM_SCORE_NOTES, n_feat), (None, n_seq, n_feat)), (None, n_seq, n_feat*2))
+                        if use_basis_vectors else 
+                        ((None, n_seq, n_feat), (None, n_seq, n_feat*2)),
     )
 
     train_dataset.cache().prefetch(tf.data.experimental.AUTOTUNE)
@@ -454,8 +465,8 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                                                     gs_iter,
                                                                     gsres_path,
                                                                     combos, gs_id,
-                                                                    send_end, dataset2, None, None))
-
+                                                                    send_end, dataset2, None, None,
+                                                                    False, False, False))
                             process_train.start()
                     
                             # Keep polling until child errors or child success (either one guaranteed to happen)

@@ -1,10 +1,7 @@
 import tensorflow as tf
 from tensorflow.keras.layers import Input, SimpleRNN, Dense, TimeDistributed, Layer, LSTM, Bidirectional, BatchNormalization, Concatenate
 from tensorflow.keras.models import Model
-# from ..nmf.basis_vectors import get_basis_vectors
-# from ..audio_data_processing import PIANO_WDW_SIZE
-# import numpy as np
-# import os
+from ..nmf.nmf import NUM_SCORE_NOTES
 
 class Standardize(Layer):
     def __init__(self, mean, std, **kwargs):
@@ -80,12 +77,10 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     test=0,
                     use_bv=False):#, 
                     # pc_run=False):
-
-    # TEST FLOAT16
-    # MIXED PRECISION
+    # new
+    if use_bv:
+        bv_input = Input(shape=(NUM_SCORE_NOTES, features), name='basis_vectors')
     input_layer = Input(shape=(sequences, features), name='piano_noise_mixed')
-    # input_layer = Input(shape=(sequences, features), dtype='float16', 
-    #                     name='piano_noise_mixed')
 
     if config is not None:
         num_layers = len(config['layers'])
@@ -438,8 +433,10 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
     preds_and_gamma = Concatenate(axis=0) ([piano_pred, noise_pred, loss_const_tensor])
                                             # tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
                                             # ])
-    model = Model(inputs=input_layer, outputs=preds_and_gamma)
-
+    # model = (Model(inputs=[bv_input, input_layer], outputs=preds_and_gamma)
+    #     if use_bv else Model(inputs=input_layer, outputs=preds_and_gamma))
+    model = (Model(inputs=[bv_input, input_layer], outputs=preds_and_gamma)
+        if use_bv else Model(inputs=input_layer, outputs=preds_and_gamma))
     if pre_trained_wgts is not None:
         # preds_and_gamma = Concatenate(axis=0) ([piano_pred, 
         #                                     noise_pred, 

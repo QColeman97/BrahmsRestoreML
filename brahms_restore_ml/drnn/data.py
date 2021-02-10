@@ -1,5 +1,6 @@
 from ..audio_data_processing import *
 from ..nmf.basis_vectors import get_basis_vectors
+from ..nmf.nmf import NUM_SCORE_NOTES
 import numpy as np
 import os
 import random
@@ -155,10 +156,10 @@ def preprocess_signals(piano_sig, noise_sig, min_sig_len, mix_sig=None,
 def signal_to_nn_features(signal, use_bv=False, wdw_size=PIANO_WDW_SIZE, epsilon=EPSILON):
     spgm, _ = make_spectrogram(signal, wdw_size, epsilon, ova=True, debug=False)
     # print('MADE SPGM, SHAPE:', spgm.shape)
-    if use_bv:
-        piano_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, avg=True, debug=False, a430hz=True, 
-            score=True, filepath=os.path.dirname(os.path.realpath(__file__)) + '/../nmf/np_saves_bv/basis_vectors')
-        spgm = np.concatenate((piano_basis_vectors, spgm))
+    # if use_bv:
+    #     piano_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, avg=True, debug=False, a430hz=True, 
+    #         score=True, filepath=os.path.dirname(os.path.realpath(__file__)) + '/../nmf/np_saves_bv/basis_vectors')
+    #     spgm = np.concatenate((piano_basis_vectors, spgm))
     # Float 32 for neural nets
     spgm = np.clip(spgm, np.finfo('float32').min, np.finfo('float32').max)
     spgm = spgm.astype('float32')
@@ -174,6 +175,9 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
                         src_amp_low=0.75, src_amp_high=1.15, 
                         data_path=None, x_files=None, from_numpy=False, bare_noise=True,    # new
                         tuned_a430hz=False, use_bv=False): # new
+    if use_bv:
+        piano_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, avg=True, debug=False, a430hz=True, 
+            score=True, filepath=os.path.dirname(os.path.realpath(__file__)) + '/../nmf/np_saves_bv/basis_vectors')
     # TEMP - bare_noise enabled by default
     while True:
         for offset in range(0, num_samples, batch_size):
@@ -183,17 +187,24 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
             y1_batch_labels = y1_files[offset:offset+batch_size]
             if (not bare_noise) or from_numpy:
                 y2_batch_labels = y2_files[offset:offset+batch_size]
-            if (num_samples / batch_size == 0):
-                actual_batch_size = batch_size
-                x, y1, y2 = (np.empty((batch_size, num_seq, num_feat)).astype('float32'),
-                            np.empty((batch_size, num_seq, num_feat)).astype('float32'),
-                            np.empty((batch_size, num_seq, num_feat)).astype('float32'))
-            else:
-                actual_batch_size = len(y1_batch_labels)
-                x, y1, y2 = (np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'),
+            # if (num_samples / batch_size == 0):
+            #     actual_batch_size = batch_size
+            #     x, y1, y2 = (np.empty((batch_size, num_seq, num_feat)).astype('float32'),
+            #                 np.empty((batch_size, num_seq, num_feat)).astype('float32'),
+            #                 np.empty((batch_size, num_seq, num_feat)).astype('float32'))
+            # else:
+            #     actual_batch_size = len(y1_batch_labels)
+            #     x, y1, y2 = (np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'),
+            #                 np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'),
+            #                 np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'))
+            actual_batch_size = (batch_size if (num_samples / batch_size == 0) else 
+                                 len(y1_batch_labels))
+            x, y1, y2 = (np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'),
                             np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'),
                             np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'))
-            
+            if use_bv:
+                batched_bvs = np.empty((actual_batch_size, NUM_SCORE_NOTES, num_feat)).astype('float32')
+
             for i in range(actual_batch_size):
                 if from_numpy:
                     mix_filepath = x_batch_labels[i]
@@ -218,25 +229,29 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
                     mix_sig, piano_sig, noise_sig = preprocess_signals(
                         piano_label_sig, noise_label_sig, min_sig_len=min_sig_len, 
                         src_amp_low=src_amp_low, src_amp_high=src_amp_high)
-                    mix_spgm = signal_to_nn_features(mix_sig, use_bv=use_bv)
-                    piano_spgm = signal_to_nn_features(piano_sig, use_bv=use_bv)
-                    noise_spgm = signal_to_nn_features(noise_sig, use_bv=use_bv)
+                    mix_spgm = signal_to_nn_features(mix_sig) #, use_bv=use_bv)
+                    piano_spgm = signal_to_nn_features(piano_sig) #, use_bv=use_bv)
+                    noise_spgm = signal_to_nn_features(noise_sig) #, use_bv=use_bv)
                     # Get number from filename
                     file_num_str = list(re.findall(r'\d+', pl_filepath))[-1]
                     # Write to file for from numpy fixed data gen
-                    piano_suffix = ('piano_source_a430hz_bv_numpy/piano' if (tuned_a430hz and use_bv) else 
-                                   ('piano_source_a430hz_numpy/piano' if tuned_a430hz else
-                                   ('piano_source_bv_numpy/piano' if use_bv else
-                                   ('piano_source_numpy/piano'))))
+                    piano_suffix = ('piano_source_a430hz_numpy/piano' if tuned_a430hz else
+                                   ('piano_source_numpy/piano'))
+                    # piano_suffix = ('piano_source_a430hz_bv_numpy/piano' if (tuned_a430hz and use_bv) else 
+                    #                ('piano_source_a430hz_numpy/piano' if tuned_a430hz else
+                    #                ('piano_source_bv_numpy/piano' if use_bv else
+                    #                ('piano_source_numpy/piano'))))
                     if dmged_piano_artificial_noise:
                         mix_suffix = ('dmged_mix_bv_numpy/mixed' if use_bv else 
                                       'dmged_mix_numpy/mixed')
                         noise_suffix = 'dmged_noise_numpy/noise'
                     else:
-                        mix_suffix = ('piano_noise_a430hz_bv_numpy/mixed' if (tuned_a430hz and use_bv) else 
-                                     ('piano_noise_a430hz_numpy/mixed' if tuned_a430hz else
-                                     ('piano_noise_bv_numpy/mixed' if use_bv else
-                                     ('piano_noise_numpy/mixed'))))
+                        mix_suffix = ('piano_noise_a430hz_numpy/mixed' if tuned_a430hz else
+                                     ('piano_noise_numpy/mixed'))
+                        # mix_suffix = ('piano_noise_a430hz_bv_numpy/mixed' if (tuned_a430hz and use_bv) else 
+                        #              ('piano_noise_a430hz_numpy/mixed' if tuned_a430hz else
+                        #              ('piano_noise_bv_numpy/mixed' if use_bv else
+                        #              ('piano_noise_numpy/mixed'))))
                         noise_suffix = 'noise_source_numpy/noise'
                     np.save(data_path + mix_suffix + file_num_str, mix_spgm)
                     np.save(data_path + piano_suffix + file_num_str, piano_spgm)
@@ -245,8 +260,13 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
                 x[i] = mix_spgm
                 y1[i] = piano_spgm
                 y2[i] = noise_spgm
-
-            yield ([x, np.concatenate((y1, y2), axis=-1)])
+                if use_bv:
+                    batched_bvs[i] = piano_basis_vectors
+            # yield ([x, np.concatenate((y1, y2), axis=-1)])
+            if use_bv:
+                yield ([batched_bvs, x], np.concatenate((y1, y2), axis=-1))
+            else:
+                yield (x, np.concatenate((y1, y2), axis=-1))
 
 # NN DATA STATS FUNCS
 # Provide values for constants, only needed when dataset changes
