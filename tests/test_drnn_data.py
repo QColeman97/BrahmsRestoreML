@@ -25,6 +25,9 @@ class DRNNDataTests(unittest.TestCase):
         with self.subTest():
             self.assertEqual(spgm.dtype, 'float32')
 
+    def test_preprocess_sig_loop_noise(self):
+        pass
+
     def test_preprocess_sig_mix(self):
         sig1 = np.arange(10)
         sig2 = np.ones((10,))
@@ -43,6 +46,7 @@ class DRNNDataTests(unittest.TestCase):
         sig1 = np.arange(10)
         sig2 = np.ones((10,))
         src_amp_low, src_amp_high = 0.05, 5.0
+        print('IN TEST MIN SIG LEN:', len(sig1))
         sig_mix, sig1, sig2 = preprocess_signals(sig1, sig2, len(sig1),
                                                 src_amp_low=src_amp_low, 
                                                 src_amp_high=src_amp_high)
