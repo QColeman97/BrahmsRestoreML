@@ -17,7 +17,8 @@ def run_top_gs_result(num, best_config,
                       patience, epsilon, recent_model_path, pc_run, dmged_piano_artificial_noise_mix,
                       infer_output_path, 
                     #   wdw_size, 
-                      brahms_path, combos_str, data_path=None, min_sig_len=None):
+                      brahms_path, combos_str, data_path=None, min_sig_len=None,
+                      use_basis_vectors=False):
     train_batch_size = best_config['batch_size']
     # # Temp test for LSTM -> until can grid search
     # train_batch_size = 3 if train_batch_size < 3 else train_batch_size
@@ -65,7 +66,8 @@ def run_top_gs_result(num, best_config,
                         recent_model_path, pc_run,
                         # train_mean, train_std, 
                         None, None, None, '', None,
-                        dmged_piano_artificial_noise_mix, data_path, min_sig_len, True, True))
+                        dmged_piano_artificial_noise_mix, data_path, min_sig_len, True,
+                        use_basis_vectors))
     process_train.start()
     process_train.join()
 
@@ -87,7 +89,7 @@ def run_top_gs_result(num, best_config,
                         # training_arch_config, 
                         # train_mean, train_std, 
                         PIANO_WDW_SIZE, EPSILON,
-                        pc_run, '_'+num+'of'+combos_str, True))
+                        pc_run, '_'+num+'of'+combos_str, use_basis_vectors))
     # TEMP - old
     # process_infer = multiprocessing.Process(target=restore_with_drnn, args=(infer_output_path, recent_model_path, wdw_size, epsilon,
     #                     train_loss_const, train_opt_name, train_opt_clipval, train_opt_lr, brahms_path, None, None,
@@ -329,8 +331,8 @@ def main():
                                     patience, epsilon, recent_model_path, pc_run, dmged_piano_artificial_noise_mix,
                                     infer_output_path, 
                                     # wdw_size, 
-                                    brahms_path, curr_best_combos, data_path=data_path, min_sig_len=min_sig_len)
-
+                                    brahms_path, curr_best_combos, data_path=data_path, 
+                                    min_sig_len=min_sig_len, use_basis_vectors=basis_vector_features)
             else:
                 # REPL TEST - arch config, all config, optiizer config
                 if random_hps:
