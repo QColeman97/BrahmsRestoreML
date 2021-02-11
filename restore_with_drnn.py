@@ -89,7 +89,7 @@ def run_top_gs_result(num, best_config,
                         # training_arch_config, 
                         # train_mean, train_std, 
                         PIANO_WDW_SIZE, EPSILON,
-                        pc_run, '_'+num+'of'+combos_str, use_basis_vectors))
+                        pc_run, '_'+num+'of'+combos_str, tuned_a430hz, use_basis_vectors))
     # TEMP - old
     # process_infer = multiprocessing.Process(target=restore_with_drnn, args=(infer_output_path, recent_model_path, wdw_size, epsilon,
     #                     train_loss_const, train_opt_name, train_opt_clipval, train_opt_lr, brahms_path, None, None,
@@ -148,7 +148,7 @@ def main():
     # NEW
     output_file_addon = ''
     data_from_numpy = True
-    tuned_a430hz = False
+    tuned_a430hz = True
     basis_vector_features = True
     if tuned_a430hz:
         recent_model_path += '_a430hz'
@@ -174,7 +174,7 @@ def main():
         restore_with_drnn(infer_output_path, recent_model_path, 
                           train_opt_name, train_opt_clipval, train_opt_lr,
                           MIN_SIG_LEN, test_filepath=brahms_path, pc_run=pc_run,
-                          name_addon=output_file_addon,
+                          name_addon=output_file_addon, tuned_a430hz=tuned_a430hz,
                           use_basis_vectors=basis_vector_features)
     else:
         train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run)
@@ -475,6 +475,7 @@ def main():
                                     test_sig=test_sig, test_sr=test_sr,
                                     # config=training_arch_config, t_mean=train_mean, t_std=train_std, 
                                     pc_run=pc_run, name_addon=output_file_addon,
+                                    tuned_a430hz=tuned_a430hz,
                                     use_basis_vectors=basis_vector_features)
                 else:
                     restore_with_drnn(infer_output_path, recent_model_path, # wdw_size, epsilon,
@@ -484,6 +485,7 @@ def main():
                                     test_filepath=brahms_path,
                                     # config=training_arch_config, t_mean=train_mean, t_std=train_std, 
                                     pc_run=pc_run, name_addon=output_file_addon,
+                                    tuned_a430hz=tuned_a430hz,
                                     use_basis_vectors=basis_vector_features)
 
         # GRID SEARCH

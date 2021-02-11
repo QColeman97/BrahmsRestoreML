@@ -174,10 +174,10 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
                         min_sig_len, dmged_piano_artificial_noise=False,
                         src_amp_low=0.75, src_amp_high=1.15, 
                         data_path=None, x_files=None, from_numpy=False, bare_noise=True,    # new
-                        tuned_a430hz=False, use_bv=False): # new
-    if use_bv:
-        piano_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, avg=True, debug=False, a430hz=True, 
-            score=True, filepath=os.path.dirname(os.path.realpath(__file__)) + '/../nmf/np_saves_bv/basis_vectors')
+                        tuned_a430hz=False, piano_basis_vectors=None): # new
+    # if use_bv:
+    #     piano_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, avg=True, debug=False, a430hz=True, 
+    #         score=True, filepath=os.path.dirname(os.path.realpath(__file__)) + '/../nmf/np_saves_bv/basis_vectors')
     # TEMP - bare_noise enabled by default
     while True:
         for offset in range(0, num_samples, batch_size):
@@ -202,7 +202,7 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
             x, y1, y2 = (np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'),
                             np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'),
                             np.empty((actual_batch_size, num_seq, num_feat)).astype('float32'))
-            if use_bv:
+            if piano_basis_vectors is not None:
                 batched_bvs = np.empty((actual_batch_size, NUM_SCORE_NOTES, num_feat)).astype('float32')
 
             for i in range(actual_batch_size):
@@ -242,8 +242,9 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
                     #                ('piano_source_bv_numpy/piano' if use_bv else
                     #                ('piano_source_numpy/piano'))))
                     if dmged_piano_artificial_noise:
-                        mix_suffix = ('dmged_mix_bv_numpy/mixed' if use_bv else 
-                                      'dmged_mix_numpy/mixed')
+                        # mix_suffix = ('dmged_mix_bv_numpy/mixed' if use_bv else 
+                        #               'dmged_mix_numpy/mixed')
+                        mix_suffix = 'dmged_mix_numpy/mixed'
                         noise_suffix = 'dmged_noise_numpy/noise'
                     else:
                         mix_suffix = ('piano_noise_a430hz_numpy/mixed' if tuned_a430hz else
@@ -260,11 +261,11 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
                 x[i] = mix_spgm
                 y1[i] = piano_spgm
                 y2[i] = noise_spgm
-                if use_bv:
+                if piano_basis_vectors is not None:
                     batched_bvs[i] = piano_basis_vectors
             # yield ([x, np.concatenate((y1, y2), axis=-1)])
-            if use_bv:
-                yield ([batched_bvs, x], np.concatenate((y1, y2), axis=-1))
+            if piano_basis_vectors is not None:
+                yield ((batched_bvs, x), np.concatenate((y1, y2), axis=-1))
             else:
                 yield (x, np.concatenate((y1, y2), axis=-1))
 

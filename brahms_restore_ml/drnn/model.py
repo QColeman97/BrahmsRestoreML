@@ -2,6 +2,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import Input, SimpleRNN, Dense, TimeDistributed, Layer, LSTM, Bidirectional, BatchNormalization, Concatenate
 from tensorflow.keras.models import Model
 from ..nmf.nmf import NUM_SCORE_NOTES
+from .drnn import TRAIN_SEQ_LEN
 
 class Standardize(Layer):
     def __init__(self, mean, std, **kwargs):
@@ -39,7 +40,7 @@ class TimeFreqMasking(Layer):
     def call(self, inputs):
         y_hat_self, y_hat_other, x_mixed = inputs
         mask = tf.abs(y_hat_self) / (tf.abs(y_hat_self) + tf.abs(y_hat_other) + self.epsilon)
-        y_tilde_self = mask * x_mixed
+        y_tilde_self = mask[:, :TRAIN_SEQ_LEN, :] * x_mixed
         return y_tilde_self
     
     # config only contains things in __init__
@@ -68,6 +69,14 @@ def discrim_loss(y_true, y_pred):
     )
     
 
+def is_last_rnn(num_layers, first_layer_type, rnn_index):
+    if first_layer_type == 'Dense':
+        return ((num_layers == 4 and rnn_index == 1) or 
+                (num_layers == 5 and rnn_index == 2))
+    else:
+        return ((num_layers == 3 and rnn_index == 1) or 
+                (num_layers == 4 and rnn_index == 2))
+
 def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     loss_const=0.05, config=None, t_mean=None, t_std=None, 
                     optimizer=tf.keras.optimizers.RMSprop(),
@@ -84,30 +93,38 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
 
     if config is not None:
         num_layers = len(config['layers'])
-        prev_layer_type = None  # Works b/c all RNN stacks are size > 1
+        rnn_index = -1
+        prev_layer_type, first_layer_type = None, None  # Works b/c all RNN stacks are size > 1
         for i in range(num_layers):
             layer_config = config['layers'][i]
             curr_layer_type = layer_config['type']
+            if i == 0:
+                first_layer_type = curr_layer_type
+            if curr_layer_type == 'RNN':    # Works b/c RNN layers contiguous
+                rnn_index += 1
 
             # Standardize option
             if config['scale'] and i == 0:
                 x = Standardize(t_mean, t_std) (input_layer)
 
-            # Add skip connection if necessary
+            # Add skip connection if necessary (and not using bv's)
             if (config['rnn_res_cntn'] and prev_layer_type is not None and
-                prev_layer_type != 'Dense' and curr_layer_type == 'Dense'):
+                    prev_layer_type != 'Dense' and curr_layer_type == 'Dense' and #):
+                    not use_bv):
                 x = Concatenate() ([x, input_layer])
     
             if curr_layer_type == 'RNN':
                 if config['bidir']:
-                    x = Bidirectional(SimpleRNN(features // layer_config['nrn_div'], 
+                    x = Bidirectional(SimpleRNN(features if (use_bv and is_last_rnn(num_layers, first_layer_type, rnn_index)) else 
+                                                features // layer_config['nrn_div'], 
                             activation=layer_config['act'], 
                             use_bias=config['bias_rnn'],
                             dropout=config['rnn_dropout'][0],
                             recurrent_dropout=config['rnn_dropout'][1],
                             return_sequences=True)) (input_layer if (i == 0 and not config['scale']) else x)
                 else:
-                    x = SimpleRNN(features // layer_config['nrn_div'], 
+                    x = SimpleRNN(features if (use_bv and is_last_rnn(num_layers, first_layer_type, rnn_index)) else 
+                                  features // layer_config['nrn_div'], 
                             activation=layer_config['act'], 
                             use_bias=config['bias_rnn'],
                             dropout=config['rnn_dropout'][0],
@@ -116,14 +133,16 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
 
             elif curr_layer_type == 'LSTM':
                 if config['bidir']:
-                    x = Bidirectional(LSTM(features // layer_config['nrn_div'], 
+                    x = Bidirectional(LSTM(features if (use_bv and is_last_rnn(num_layers, first_layer_type, rnn_index)) else 
+                                           features // layer_config['nrn_div'], 
                             activation=layer_config['act'], 
                             use_bias=config['bias_rnn'],
                             dropout=config['rnn_dropout'][0],
                             recurrent_dropout=config['rnn_dropout'][1],
                             return_sequences=True)) (input_layer if (i == 0 and not config['scale']) else x)
                 else:
-                    x = LSTM(features // layer_config['nrn_div'], 
+                    x = LSTM(features if (use_bv and is_last_rnn(num_layers, first_layer_type, rnn_index)) else 
+                             features // layer_config['nrn_div'],
                             activation=layer_config['act'], 
                             use_bias=config['bias_rnn'],
                             dropout=config['rnn_dropout'][0],
@@ -133,6 +152,10 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                 if i == (num_layers - 1):   # Last layer is fork layer
                     # Reverse standardization at end of model if appropriate
                     if config['scale']:
+                        if use_bv:  # new
+                            stdized_bv_input = Standardize(t_mean, t_std) (bv_input)
+                            x = Concatenate(axis=-2) ([stdized_bv_input, x])
+
                         piano_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
                                                         activation=layer_config['act'], 
                                                         use_bias=config['bias_dense']), 
@@ -151,6 +174,9 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                         noise_hat = UnStandardize(t_mean, t_std) (noise_hat)
                 
                     else:
+                        if use_bv:  # new
+                            x = Concatenate(axis=-2) ([bv_input, x])
+
                         piano_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
                                                         activation=layer_config['act'], 
                                                         use_bias=config['bias_dense']), 
@@ -364,7 +390,13 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
         x = SimpleRNN(features // 2, 
                     activation='relu', 
                     return_sequences=True) (input_layer) 
-        x = SimpleRNN(features // 2, 
+        if use_bv:  # new
+            x = SimpleRNN(features, 
+                    activation='relu',
+                    return_sequences=True) (x)
+            x = Concatenate(axis=-2) ([bv_input, x])    # TODO: bvs before or after music in time?
+        else:
+            x = SimpleRNN(features // 2, 
                 activation='relu',
                 return_sequences=True) (x)
         piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
