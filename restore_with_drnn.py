@@ -10,13 +10,22 @@ import json
 import math
 import multiprocessing
 
-def run_top_gs_result(num, best_config, train_mean, train_std, x_train_files, y1_train_files, y2_train_files,
+def run_top_gs_result(num, best_config, 
+                    #   train_mean, train_std, 
+                      x_train_files, y1_train_files, y2_train_files,
                       x_val_files, y1_val_files, y2_val_files, num_train, num_val, train_feat, train_seq,
                       patience, epsilon, recent_model_path, pc_run, dmged_piano_artificial_noise_mix,
-                      infer_output_path, wdw_size, brahms_path, combos_str, data_path=None, max_sig_len=-1):
+                      infer_output_path, 
+                    #   wdw_size, 
+                      brahms_path, combos_str, data_path=None, min_sig_len=None,
+                      tuned_a430hz=False, use_basis_vectors=False):
     train_batch_size = best_config['batch_size']
     # # Temp test for LSTM -> until can grid search
-    # train_batch_size = 3
+    # train_batch_size = 3 if train_batch_size < 3 else train_batch_size
+    # TEMP - until F35 back up, make managable for PC
+    train_batch_size = 3
+    # # TEMP - make what PC can actually handle (3072 run, but definitely 2048)
+    # train_batch_size = 6
     train_loss_const = best_config['gamma']
     train_epochs = best_config['epochs']
     train_opt_name = best_config['optimizer']
@@ -55,8 +64,10 @@ def run_top_gs_result(num, best_config, train_mean, train_std, x_train_files, y1
                         train_opt_name, train_opt_clipval, train_opt_lr,
                         patience, epsilon, training_arch_config, 
                         recent_model_path, pc_run,
-                        train_mean, train_std, None, None, None, None, None,
-                        dmged_piano_artificial_noise_mix))
+                        # train_mean, train_std, 
+                        None, None, None, '', None,
+                        dmged_piano_artificial_noise_mix, data_path, min_sig_len, True,
+                        tuned_a430hz, use_basis_vectors))
     process_train.start()
     process_train.join()
 
@@ -72,13 +83,21 @@ def run_top_gs_result(num, best_config, train_mean, train_std, x_train_files, y1
     #                     config=training_arch_config, t_mean=train_mean, t_std=train_std,
     #                     dataset2=dmged_piano_artificial_noise_mix)
     # Temp test for LSTM -> until can grid search
-    process_infer = multiprocessing.Process(target=restore_audio_file, args=(infer_output_path, recent_model_path, wdw_size, epsilon,
-                        train_loss_const, train_opt_name, train_opt_clipval, train_opt_lr, brahms_path, None, None,
-                        training_arch_config, train_mean, train_std, pc_run, '_'+num+'of'+combos_str))
+    process_infer = multiprocessing.Process(target=restore_with_drnn, args=(infer_output_path, recent_model_path, # wdw_size, epsilon,
+                        # train_loss_const, 
+                        train_opt_name, train_opt_clipval, train_opt_lr, min_sig_len, brahms_path, None, None,
+                        # training_arch_config, 
+                        # train_mean, train_std, 
+                        PIANO_WDW_SIZE, EPSILON,
+                        pc_run, '_'+num+'of'+combos_str, use_basis_vectors))
+    # TEMP - old
+    # process_infer = multiprocessing.Process(target=restore_with_drnn, args=(infer_output_path, recent_model_path, wdw_size, epsilon,
+    #                     train_loss_const, train_opt_name, train_opt_clipval, train_opt_lr, brahms_path, None, None,
+    #                     training_arch_config, train_mean, train_std, pc_run, '_'+num+'of'+combos_str))
     process_infer.start()
     process_infer.join()
 
-    # restore_audio_file(infer_output_path, recent_model_path, wdw_size, epsilon,
+    # restore_with_drnn(infer_output_path, recent_model_path, wdw_size, epsilon,
     #                 train_loss_const, train_opt_name, train_opt_clipval, train_opt_lr,
     #                 test_filepath=brahms_path,
     #                 config=training_arch_config, t_mean=train_mean, t_std=train_std, pc_run=pc_run,
@@ -103,64 +122,100 @@ def main():
     mode = sys.argv[1] 
     pc_run = True if (sys.argv[2].lower() == 'true') else False
     # Differentiate PC GS from F35 GS
-    dmged_piano_artificial_noise_mix = True if pc_run else False
+    # dmged_piano_artificial_noise_mix = True if pc_run else False
+    dmged_piano_artificial_noise_mix = False    # TEMP while F35 down
     test_on_synthetic = False
-    wdw_size = PIANO_WDW_SIZE
+    # wdw_size = PIANO_WDW_SIZE
     data_path = 'brahms_restore_ml/drnn/drnn_data/'
     arch_config_path = 'brahms_restore_ml/drnn/config/'
-    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # PC
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # PC
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'    # F35
+    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results      
     recent_model_path = 'brahms_restore_ml/drnn/recent_model'
     infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     brahms_path = 'brahms.wav'
 
-    # add-on
-    do_curr_best, curr_best_combos, curr_best_pc = True, '2048', True
+    # To run best model configs, data_from_numpy == True
+    do_curr_best, curr_best_combos, curr_best_done_on_pc = True, '3072', False
     # # F35 LSTM
     # top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
-    # # F35 WB
-    # top_result_nums = [1488, 1568, 149, 1496, 1680, 86, 151, 152]
-    # PC WB
-    top_result_nums = [997, 1184, 1312, 1310, 1311, 1736]
+    # F35 WB
+    top_result_nums = [1568] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
+    # # PC WB
+    # top_result_nums = [997, 1184, 1312, 1310, 1311, 1736]
     top_result_paths = [gs_output_path + 'result_' + str(x) + '_of_' + curr_best_combos +
-                        ('.txt' if curr_best_pc else '_noPC.txt') for x in top_result_nums]
+                        ('.txt' if curr_best_done_on_pc else '_noPC.txt') for x in top_result_nums]
+    # NEW
+    output_file_addon = ''
+    data_from_numpy = True
+    tuned_a430hz = False
+    basis_vector_features = True
+    if tuned_a430hz:
+        recent_model_path += '_a430hz'
+        output_file_addon += '_a430hz'
+    if basis_vector_features:
+        recent_model_path += '_bvs'
+        output_file_addon += '_bvs'
 
     # EMPERICALLY DERIVED HPs
     # Note: FROM PO-SEN PAPER - about loss_const
     #   Empirically, the value γ is in the range of 0.05∼0.2 in order
     #   to achieve SIR improvements and maintain SAR and SDR.
     train_batch_size = 6 if pc_run else 12
-    train_loss_const = 0.05
+    train_loss_const = 0.1
     train_epochs = 10
-    train_opt_name, train_opt_clipval, train_opt_lr = 'RMSprop', 0.9, 0.001
+    train_opt_name, train_opt_clipval, train_opt_lr = 'Adam', 0.9, 0.001
     training_arch_config = None
 
     epsilon, patience, val_split = 10 ** (-10), train_epochs, 0.25
 
     # INFER ONLY
-    # Branch temporarily broken - tf dependency
     if mode == 'r':
-        restore_audio_file(infer_output_path, recent_model_path, wdw_size, epsilon,
-                            train_loss_const, train_opt_name, train_opt_clipval, train_opt_lr,
-                            brahms_path, t_mean=TRAIN_MEAN, t_std=TRAIN_STD, pc_run=pc_run)
+        restore_with_drnn(infer_output_path, recent_model_path, 
+                          train_opt_name, train_opt_clipval, train_opt_lr,
+                          MIN_SIG_LEN, test_filepath=brahms_path, pc_run=pc_run,
+                          name_addon=output_file_addon,
+                          use_basis_vectors=basis_vector_features)
     else:
         train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run)
         # print('First arch config optn after return:', arch_config_optns[0])
 
-        # Load in train/validation data
-        noise_piano_filepath_prefix = ((data_path + 'dmged_mix_numpy/mixed')
-            if dmged_piano_artificial_noise_mix else (data_path + 'piano_noise_numpy/mixed'))
-        piano_label_filepath_prefix = ((data_path + 'piano_source_numpy/piano')
-            if dmged_piano_artificial_noise_mix else (data_path + 'piano_source_numpy/piano'))
-        noise_label_filepath_prefix = ((data_path + 'dmged_noise_numpy/noise')
-            if dmged_piano_artificial_noise_mix else (data_path + 'noise_source_numpy/noise'))
-        # # FIX DMGED/ART DATA - get wav files
-        # noise_piano_filepath_prefix = ((data_path + 'dmged_mix_wav/features')
-        #     if dmged_piano_artificial_noise_mix else (data_path + 'piano_noise_numpy/mixed'))
-        # piano_label_filepath_prefix = ((data_path + 'final_piano_wav/psource')
-        #     if dmged_piano_artificial_noise_mix else (data_path + 'piano_source_numpy/piano'))
-        # noise_label_filepath_prefix = ((data_path + 'dmged_noise_wav/nsource')
-        #     if dmged_piano_artificial_noise_mix else (data_path + 'noise_source_numpy/noise'))
+        if data_from_numpy:
+            # Load in train/validation numpy data
+            # noise_piano_filepath_prefix = (data_path + 'dmged_mix_numpy/mixed'
+            #         if dmged_piano_artificial_noise_mix else 
+            #     (data_path + 'piano_noise_a430hz_bv_numpy/mixed' 
+            #         if (tuned_a430hz and basis_vector_features) else
+            #     (data_path + 'piano_noise_a430hz_numpy/mixed' if tuned_a430hz else
+            #     (data_path + 'piano_noise_bv_numpy/mixed' if basis_vector_features else
+            #     (data_path + 'piano_noise_numpy/mixed')))))
+            # piano_label_filepath_prefix = (data_path + 'piano_source_numpy/piano'
+            #         if dmged_piano_artificial_noise_mix else 
+            #     (data_path + 'piano_source_a430hz_bv_numpy/piano'
+            #         if (tuned_a430hz and basis_vector_features) else        
+            #     (data_path + 'piano_source_a430hz_numpy/piano' if tuned_a430hz else
+            #     (data_path + 'piano_source_bv_numpy/piano' if basis_vector_features else
+            #     (data_path + 'piano_source_numpy/piano')))))
+            noise_piano_filepath_prefix = (data_path + 'dmged_mix_numpy/mixed'
+                    if dmged_piano_artificial_noise_mix else 
+                (data_path + 'piano_noise_a430hz_numpy/mixed' if tuned_a430hz else
+                (data_path + 'piano_noise_numpy/mixed')))
+            piano_label_filepath_prefix = (data_path + 'piano_source_numpy/piano'
+                    if dmged_piano_artificial_noise_mix else     
+                (data_path + 'piano_source_a430hz_numpy/piano' if tuned_a430hz else
+                (data_path + 'piano_source_numpy/piano')))
+            noise_label_filepath_prefix = (data_path + 'dmged_noise_numpy/noise'
+                if dmged_piano_artificial_noise_mix else data_path + 'noise_source_numpy/noise')
+        else:
+            # Load in train/validation WAV file data
+            noise_piano_filepath_prefix = (data_path + 'dmged_mix_wav/features'
+                if dmged_piano_artificial_noise_mix else data_path + 'dmged_mix_wav/features')
+            piano_label_filepath_prefix = (data_path + 'final_piano_wav_a=430hz/psource'
+                    if dmged_piano_artificial_noise_mix else 
+                (data_path + 'final_piano_wav_a=430hz/psource' if tuned_a430hz else 
+                (data_path + 'final_piano_wav/psource')))
+            noise_label_filepath_prefix = (data_path + 'dmged_noise_wav/nsource'
+                if dmged_piano_artificial_noise_mix else data_path + 'noise_source_numpy/noise')
         print('\nTRAINING WITH DATASET', '2 (ARTIFICIAL DMG)' if dmged_piano_artificial_noise_mix else '1 (ORIG)')
 
         # TRAIN & INFER
@@ -198,32 +253,53 @@ def main():
                 # FIX DMGED/ART DATA
                 random.shuffle(sample_indices)
             
-            # FIX DMGED/ART DATA
-            # if dmged_piano_artificial_noise_mix:
+            # if data_from_numpy:
+            x_files = np.array([(noise_piano_filepath_prefix + str(i) + ('.npy' if data_from_numpy else '.wav'))
+                        for i in sample_indices])
+            y1_files = np.array([(piano_label_filepath_prefix + str(i) + ('.npy' if data_from_numpy else '.wav'))
+                        for i in sample_indices])
+            y2_files = np.array([(noise_label_filepath_prefix + str(i) + ('.npy' if data_from_numpy else '.wav'))
+                        for i in sample_indices])
+            # else:
+            #     # FIX DMGED/ART DATA
+            #     # if dmged_piano_artificial_noise_mix:
             #     x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.wav')
             #                 for i in sample_indices])
             #     y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.wav')
             #                 for i in sample_indices])
             #     y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.wav')
             #                 for i in sample_indices])
-            # else:
-            x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.npy')
-                        for i in sample_indices])
-            y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.npy')
-                        for i in sample_indices])
-            y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.npy')
-                        for i in sample_indices])
+                # else:
             
-            # # # Temp - do to calc max len for padding - it's 3081621 (for youtube src data)
-            # # # it's 3784581 (for Spotify/Youtube Final Data)
-            # # # it's 3784581 (for damaged Spotify/YouTube Final Data)
-            # # max_sig_len = None
-            # # for x_file in x_files:
-            # #     _, sig = wavfile.read(x_file)
-            # #     if max_sig_len is None or len(sig) >max_sig_len:
-            # #         max_sig_len = len(sig)
-            # # print('NOTICE: MAX SIG LEN', max_sig_len)
-            max_sig_len = MAX_SIG_LEN
+
+            # OLD
+            # # # # Temp - do to calc max len for padding - it's 3081621 (for youtube src data)
+            # # # # it's 3784581 (for Spotify/Youtube Final Data)
+            # # # # it's 3784581 (for damaged Spotify/YouTube Final Data)
+            # # # max_sig_len = None
+            # # # for x_file in x_files:
+            # # #     _, sig = wavfile.read(x_file)
+            # # #     if max_sig_len is None or len(sig) >max_sig_len:
+            # # #         max_sig_len = len(sig)
+            # # # print('NOTICE: MAX SIG LEN', max_sig_len)
+            # max_sig_len = MAX_SIG_LEN
+            # # # Temp - get training data dim (from dummy) (for model & data making)
+            # # max_len_sig = np.ones((max_sig_len))
+            # # dummy_train_spgm, _ = make_spectrogram(max_len_sig, wdw_size, epsilon,
+            # #                                     ova=True, debug=False)
+            # # train_seq, train_feat = dummy_train_spgm.shape
+            # # print('NOTICE: TRAIN SEQ LEN', train_seq, 'TRAIN FEAT LEN', train_feat)
+            # train_seq, train_feat = TRAIN_SEQ_LEN, TRAIN_FEAT_LEN
+
+            # # NEW
+            # train_seq, train_feat, min_sig_len = get_raw_data_stats(y1_files,
+            #                                                         brahms_filename=brahms_path)
+            # print('NOTICE: TRAIN SEQ LEN', train_seq, 'TRAIN FEAT LEN', train_feat, 'MIN SIG LEN',
+            #     min_sig_len)
+            train_seq, train_feat, min_sig_len = TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MIN_SIG_LEN
+            # broken
+            # if basis_vector_features:
+            #     train_seq += NUM_SCORE_NOTES
 
             # Validation & Training Split
             indices = list(range(actual_samples))
@@ -236,19 +312,11 @@ def main():
             y2_val_files = y2_files[val_indices]
             num_train, num_val = len(y1_train_files), len(y1_val_files)
 
-            # DEBUG PRINT
-            # print('y1_train_files:', y1_train_files[:10])
-            # print('y1_val_files:', y1_val_files[:10])
-            # print('y2_train_files:', y2_train_files[:10])
-            # print('y2_val_files:', y2_val_files[:10])
-
-            # # Temp - get training data dim (from dummy) (for model & data making)
-            # max_len_sig = np.ones((max_sig_len))
-            # dummy_train_spgm, _ = make_spectrogram(max_len_sig, wdw_size, epsilon,
-            #                                     ova=True, debug=False)
-            # train_seq, train_feat = dummy_train_spgm.shape
-            # print('NOTICE: TRAIN SEQ LEN', train_seq, 'TRAIN FEAT LEN', train_feat)
-            train_seq, train_feat = TRAIN_SEQ_LEN, TRAIN_FEAT_LEN
+            # # DEBUG PRINT
+            # # print('y1_train_files:', y1_train_files[:10])
+            # # print('y1_val_files:', y1_val_files[:10])
+            # # print('y2_train_files:', y2_train_files[:10])
+            # # print('y2_val_files:', y2_val_files[:10])
 
             # CUSTOM TRAINING Dist training needs a "global_batch_size"
             # if not pc_run:
@@ -267,12 +335,18 @@ def main():
                         _ = gs_result_file.readline()
                     best_config = json.loads(gs_result_file.readline())
                     # Temp test for LSTM -> until can grid search
-                    # if (len(best_config['layers']) < 4) or (len(best_config['layers']) == 4 and best_config['layers'][0]['type'] == 'Dense'):
-                    run_top_gs_result(num, best_config, TRAIN_MEAN, TRAIN_STD, x_train_files, y1_train_files, y2_train_files,
+                    # # TEMP - until F35 back up, make managable for PC
+                    if (len(best_config['layers']) < 4) or (len(best_config['layers']) == 4 and best_config['layers'][0]['type'] == 'Dense'):
+                        run_top_gs_result(num, best_config, 
+                    # TRAIN_MEAN, TRAIN_STD, 
+                                    x_train_files, y1_train_files, y2_train_files,
                                     x_val_files, y1_val_files, y2_val_files, num_train, num_val, train_feat, train_seq,
                                     patience, epsilon, recent_model_path, pc_run, dmged_piano_artificial_noise_mix,
-                                    infer_output_path, wdw_size, brahms_path, curr_best_combos)
-
+                                    infer_output_path, 
+                                    # wdw_size, 
+                                    brahms_path, curr_best_combos, data_path=data_path, 
+                                    min_sig_len=min_sig_len, tuned_a430hz=tuned_a430hz,
+                                    use_basis_vectors=basis_vector_features)
             else:
                 # REPL TEST - arch config, all config, optiizer config
                 if random_hps:
@@ -359,21 +433,22 @@ def main():
                 # else:
                 #     print('CONFIG:', training_arch_config)
 
-                # # TEMP - update for each unique dataset
-                # Note - If not numpy, consider if dataset2. If numpy, supply x files.
-                # train_mean, train_std = get_data_stats(y1_train_files, y2_train_files, num_train,
-                #                                   train_seq=train_seq, train_feat=train_feat, 
-                #                                   wdw_size=wdw_size, epsilon=epsilon, 
-                #                                 #   pad_len=max_sig_len)
-                #                                   pad_len=max_sig_len, x_filenames=x_train_files)
-                # print('REMEMBER Train Mean:', train_mean, 'Train Std:', train_std, '\n')
-                # # Train Mean: 1728.2116672701493 Train Std: 6450.4985228518635 - 10/18/20 - preprocess & mix final data
-                # # Train Mean: 3788.6515897900226 Train Std: 17932.36734269604 - 11/09/20 - damged piano artificial noise data
-                # FIX DMGED/ART DATA
-                if dmged_piano_artificial_noise_mix:
-                    train_mean, train_std = TRAIN_MEAN_DMGED, TRAIN_STD_DMGED
-                else:
-                    train_mean, train_std = TRAIN_MEAN, TRAIN_STD
+                # OLD
+                # # # TEMP - update for each unique dataset
+                # # Note - If not numpy, consider if dataset2. If numpy, supply x files.
+                # # train_mean, train_std = get_data_stats(y1_train_files, y2_train_files, num_train,
+                # #                                   train_seq=train_seq, train_feat=train_feat, 
+                # #                                   wdw_size=wdw_size, epsilon=epsilon, 
+                # #                                 #   pad_len=max_sig_len)
+                # #                                   pad_len=max_sig_len, x_filenames=x_train_files)
+                # # print('REMEMBER Train Mean:', train_mean, 'Train Std:', train_std, '\n')
+                # # # Train Mean: 1728.2116672701493 Train Std: 6450.4985228518635 - 10/18/20 - preprocess & mix final data
+                # # # Train Mean: 3788.6515897900226 Train Std: 17932.36734269604 - 11/09/20 - damged piano artificial noise data
+                # # FIX DMGED/ART DATA
+                # if dmged_piano_artificial_noise_mix:
+                #     train_mean, train_std = TRAIN_MEAN_DMGED, TRAIN_STD_DMGED
+                # else:
+                #     train_mean, train_std = TRAIN_MEAN, TRAIN_STD
 
                 model = evaluate_source_sep(x_train_files, y1_train_files, y2_train_files, 
                                         x_val_files, y1_val_files, y2_val_files,
@@ -381,22 +456,35 @@ def main():
                                         n_feat=train_feat, n_seq=train_seq, 
                                         batch_size=train_batch_size, 
                                         loss_const=train_loss_const, epochs=train_epochs, 
-                                        opt_name=train_opt_name, opt_clip_val=train_opt_clipval, opt_lr=train_opt_lr,
+                                        opt_name=train_opt_name, opt_clip_val=train_opt_clipval, 
+                                        opt_lr=train_opt_lr,
                                         patience=patience, epsilon=epsilon,
                                         recent_model_path=recent_model_path, pc_run=pc_run,
-                                        config=training_arch_config, t_mean=train_mean, t_std=train_std,
-                                        dataset2=dmged_piano_artificial_noise_mix)
+                                        config=training_arch_config, # t_mean=train_mean, t_std=train_std,
+                                        dataset2=dmged_piano_artificial_noise_mix,
+                                        data_path=data_path, min_sig_len=min_sig_len, 
+                                        data_from_numpy=data_from_numpy,
+                                        tuned_a430hz=tuned_a430hz,
+                                        use_basis_vectors=basis_vector_features)
                 if sample:
-                    restore_audio_file(infer_output_path, recent_model_path, wdw_size, epsilon, 
-                                    train_loss_const, train_opt_name, train_opt_clipval, train_opt_lr,
-                                    test_filepath=None, 
+                    restore_with_drnn(infer_output_path, recent_model_path, # wdw_size, epsilon, 
+                                    # train_loss_const,
+                                    train_opt_name, train_opt_clipval, train_opt_lr,
+                                    min_sig_len, 
+                                    # test_filepath=None, 
                                     test_sig=test_sig, test_sr=test_sr,
-                                    config=training_arch_config, t_mean=train_mean, t_std=train_std, pc_run=pc_run)
+                                    # config=training_arch_config, t_mean=train_mean, t_std=train_std, 
+                                    pc_run=pc_run, name_addon=output_file_addon,
+                                    use_basis_vectors=basis_vector_features)
                 else:
-                    restore_audio_file(infer_output_path, recent_model_path, wdw_size, epsilon,
-                                    train_loss_const, train_opt_name, train_opt_clipval, train_opt_lr,
+                    restore_with_drnn(infer_output_path, recent_model_path, # wdw_size, epsilon,
+                                    # train_loss_const, 
+                                    train_opt_name, train_opt_clipval, train_opt_lr,
+                                    min_sig_len, 
                                     test_filepath=brahms_path,
-                                    config=training_arch_config, t_mean=train_mean, t_std=train_std, pc_run=pc_run)
+                                    # config=training_arch_config, t_mean=train_mean, t_std=train_std, 
+                                    pc_run=pc_run, name_addon=output_file_addon,
+                                    use_basis_vectors=basis_vector_features)
 
         # GRID SEARCH
         elif mode == 'g':
@@ -423,7 +511,6 @@ def main():
                         for i in sample_indices])
             y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.npy')
                         for i in sample_indices])
-            # max_sig_len = MAX_SIG_LEN
 
             # Validation & Training Split
             indices = list(range(actual_samples))
@@ -434,32 +521,42 @@ def main():
             x_val_files = x_files[val_indices]
             y1_val_files = y1_files[val_indices]
             y2_val_files = y2_files[val_indices]
-
+            # OLD
+            # max_sig_len = MAX_SIG_LEN
             # Temp - get training data dim (from dummy) (for model & data making)
             # max_len_sig = np.ones((MAX_SIG_LEN))
             # dummy_train_spgm = make_spectrogram(max_len_sig, wdw_size, 
             #                                     ova=True, debug=False)[0].astype('float32').T
             # TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = dummy_train_spgm.shape
-            train_seq, train_feat = TRAIN_SEQ_LEN, TRAIN_FEAT_LEN
+            # train_seq, train_feat = TRAIN_SEQ_LEN, TRAIN_FEAT_LEN
+            
+            # NEW
+            # train_seq, train_feat, min_sig_len = get_raw_data_stats(y1_files, y2_files, x_files, 
+            #                                                         brahms_filename=brahms_path)
+            train_seq, train_feat, min_sig_len = TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MIN_SIG_LEN
+            # broken
+            # if basis_vector_features:
+            #     train_seq += NUM_SCORE_NOTES
             print('Grid Search Input Stats:')
             print('N Feat:', train_feat, 'Seq Len:', train_seq)
 
-            # TEMP - update for each unique dataset
-            # num_train, num_val = len(y1_train_files), len(y1_val_files)
-            # Note - If not numpy, consider if dataset2. If numpy, supply x files.
-            # train_mean, train_std = get_data_stats(y1_train_files, y2_train_files, num_train,
-            #                                   train_seq=train_seq, train_feat=train_feat, 
-            #                                   wdw_size=wdw_size, epsilon=epsilon, 
-            #                                   pad_len=max_sig_len)
-            # print('REMEMBER Train Mean:', train_mean, 'Train Std:', train_std, '\n')
-            # Train Mean: 1728.2116672701493 Train Std: 6450.4985228518635 - 10/18/20
-            train_mean, train_std = TRAIN_MEAN, TRAIN_STD
+            # OLD
+            # # TEMP - update for each unique dataset
+            # # num_train, num_val = len(y1_train_files), len(y1_val_files)
+            # # Note - If not numpy, consider if dataset2. If numpy, supply x files.
+            # # train_mean, train_std = get_data_stats(y1_train_files, y2_train_files, num_train,
+            # #                                   train_seq=train_seq, train_feat=train_feat, 
+            # #                                   wdw_size=wdw_size, epsilon=epsilon, 
+            # #                                   pad_len=max_sig_len)
+            # # print('REMEMBER Train Mean:', train_mean, 'Train Std:', train_std, '\n')
+            # # Train Mean: 1728.2116672701493 Train Std: 6450.4985228518635 - 10/18/20
+            # train_mean, train_std = TRAIN_MEAN, TRAIN_STD
 
             grid_search(x_train_files, y1_train_files, y2_train_files,
                         x_val_files, y1_val_files, y2_val_files,
                         n_feat=train_feat, n_seq=train_seq,
                         epsilon=epsilon,
-                        t_mean=train_mean, t_std=train_std,
+                        # t_mean=train_mean, t_std=train_std,
                         train_configs=train_configs,
                         arch_config_optns=arch_config_optns,
                         gsres_path=gs_output_path,
