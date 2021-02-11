@@ -95,22 +95,27 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     optimizer = (tf.keras.optimizers.RMSprop(clipvalue=opt_clip_val, learning_rate=opt_lr) if 
                     opt_name == 'RMSprop' else
                 tf.keras.optimizers.Adam(clipvalue=opt_clip_val, learning_rate=opt_lr))
+    # Instantiate piano basis vectors if needed
+    piano_basis_vectors = None
+    if use_basis_vectors:
+        piano_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, avg=True, debug=False, a430hz=tuned_a430hz, 
+            score=True, filepath=os.path.dirname(os.path.realpath(__file__)) + '/../nmf/np_saves_bv/basis_vectors')
 
     # Note - If not numpy, consider if dataset2. If numpy, supply x files.
     train_generator = nn_data_generator(y1_train_files, y2_train_files, num_train,
             batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, min_sig_len=min_sig_len,
             dmged_piano_artificial_noise=dataset2, data_path=data_path,
             x_files=x_train_files, from_numpy=data_from_numpy, tuned_a430hz=tuned_a430hz,
-            use_bv=use_basis_vectors)
+            piano_basis_vectors=piano_basis_vectors)
     validation_generator = nn_data_generator(y1_val_files, y2_val_files, num_val,
             batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, min_sig_len=min_sig_len,
             dmged_piano_artificial_noise=dataset2, data_path=data_path,
             x_files=x_val_files, from_numpy=data_from_numpy, tuned_a430hz=tuned_a430hz,
-            use_bv=use_basis_vectors)
+            piano_basis_vectors=piano_basis_vectors)
 
     train_dataset = tf.data.Dataset.from_generator(
         make_gen_callable(train_generator), 
-        output_types=((tf.float32, tf.float32), tf.float32) if use_basis_vectors else 
+        output_types=((tf.float32, tf.float32), (tf.float32)) if use_basis_vectors else 
                         (tf.float32, tf.float32),
         # output_types=(tf.float32, tf.float32),
         output_shapes=(((None, NUM_SCORE_NOTES, n_feat), (None, n_seq, n_feat)), (None, n_seq, n_feat*2))
@@ -119,7 +124,7 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     )
     val_dataset = tf.data.Dataset.from_generator(
         make_gen_callable(validation_generator), 
-        output_types=((tf.float32, tf.float32), tf.float32) if use_basis_vectors else 
+        output_types=((tf.float32, tf.float32), (tf.float32)) if use_basis_vectors else 
                         (tf.float32, tf.float32),
         # output_types=(tf.float32, tf.float32),
         output_shapes=(((None, NUM_SCORE_NOTES, n_feat), (None, n_seq, n_feat)), (None, n_seq, n_feat*2))
@@ -644,13 +649,19 @@ def infer_old(x, phases, wdw_size, model, # loss_const, # optimizer,
                                           orig_sig_type, ova=True, debug=False)
     wavfile.write(output_path + 'noise' + name_addon + '.wav', sr, synthetic_sig)
 
-def infer(sample, infer_model):
+def infer(sample, infer_model, piano_bvs=None):
     import tensorflow as tf
 
     deficit = infer_model.layers[0].input_shape[0][1] - sample.shape[0]
     sample = np.concatenate((sample, np.zeros((deficit, sample.shape[1]))))
     sample = np.expand_dims(sample, axis=0)   # Give a samples dimension (1 sample)
-    print('brahms spgm block shape to be predicted on (padded) (w/ a batch dimension):', sample.shape)
+    if piano_bvs is not None:
+        batch_piano_bvs = np.expand_dims(piano_bvs, axis=0)
+        sample = (batch_piano_bvs, sample)
+        print('brahms spgm block shape to be predicted on (padded) (w/ a batch dimension):', sample[1].shape)
+        print('piano basis vectors shape to be predicted on (w/ a batch dimension):', sample[0].shape)
+    else:
+        print('brahms spgm block shape to be predicted on (padded) (w/ a batch dimension):', sample.shape)
     result_spgms = infer_model.predict(sample, batch_size=1)
     clear_spgm, noise_spgm = tf.split(result_spgms[:-1, :, :], num_or_size_splits=2, axis=0)
     clear_spgm = np.squeeze(clear_spgm.numpy())
@@ -668,7 +679,8 @@ def restore_with_drnn(output_path, recent_model_path,
                        opt_name, opt_clip_val, opt_lr, min_sig_len,
                        test_filepath=None, test_sig=None, test_sr=None, 
                        wdw_size=PIANO_WDW_SIZE, epsilon=EPSILON,
-                       pc_run=False, name_addon='', use_basis_vectors=False):
+                       pc_run=False, name_addon='', tuned_a430hz=False,
+                       use_basis_vectors=False):
     import tensorflow as tf
 
     infer_model = tf.keras.models.load_model(recent_model_path, compile=False)
@@ -691,8 +703,10 @@ def restore_with_drnn(output_path, recent_model_path,
     # b_slice_sgmts, _ = sig_length_to_spgm_shape(len(brahms_slices[0]))
     # brahms_spgm, brahms_phases, bad_spgm, bad_phases = None, None, None, None
 
+    # Instantiate piano basis vectors if needed
+    piano_basis_vectors = None
     if use_basis_vectors:
-        piano_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, avg=True, debug=False, a430hz=True, 
+        piano_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, avg=True, debug=False, a430hz=tuned_a430hz, 
             score=True, filepath=os.path.dirname(os.path.realpath(__file__)) + '/../nmf/np_saves_bv/basis_vectors')
 
     test_spgm, test_phases = make_spectrogram(test_sig, wdw_size, epsilon, ova=True, debug=False)
@@ -700,8 +714,8 @@ def restore_with_drnn(output_path, recent_model_path,
     input_split_index = 0
     while input_split_index < test_spgm.shape[0]:
         model_input_spgm = test_spgm[input_split_index: (input_split_index+TRAIN_SEQ_LEN)]
-        if use_basis_vectors:
-            model_input_spgm = np.concatenate((piano_basis_vectors, model_input_spgm))
+        # if use_basis_vectors:
+        #     model_input_spgm = np.concatenate((piano_basis_vectors, model_input_spgm))
         
         # deficit = infer_model.layers[0].input_shape[0][1] - model_input_spgm.shape[0]
         # model_input_spgm = np.concatenate((model_input_spgm, np.zeros((deficit, model_input_spgm.shape[1]))))
@@ -716,7 +730,7 @@ def restore_with_drnn(output_path, recent_model_path,
         # restored_spgm = clear_spgm if restored_spgm is None else np.concatenate((restored_spgm, clear_spgm))
         # bad_spgm = noise_spgm if bad_spgm is None else np.concatenate((bad_spgm, noise_spgm))
         
-        clear_spgm, noise_spgm = infer(model_input_spgm, infer_model)
+        clear_spgm, noise_spgm = infer(model_input_spgm, infer_model, piano_bvs=piano_basis_vectors)
 
         restored_spgm = clear_spgm if restored_spgm is None else np.concatenate((restored_spgm, clear_spgm))
         bad_spgm = noise_spgm if bad_spgm is None else np.concatenate((bad_spgm, noise_spgm))
