@@ -4,10 +4,10 @@ import numpy as np
 
 def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=False):
     top_gs_result_vl_files, top_gs_result_l_files = [], []
-    with open('drnn/top_gs_results_vl_' + str(combos) + '.txt') as fp:
+    with open('brahms_restore_ml/drnn/top_gs_results_vl_' + str(combos) + '.txt') as fp:
         for line in fp:
             top_gs_result_vl_files.append(int(line.split(',')[0]))
-    with open('drnn/top_gs_results_l_' + str(combos) + '.txt') as fp:
+    with open('brahms_restore_ml/drnn/top_gs_results_l_' + str(combos) + '.txt') as fp:
         for line in fp:
             top_gs_result_l_files.append(int(line.split(',')[0]))
 
@@ -131,10 +131,10 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
 
 
 def main():
-    combos = 2048
-    grid_search_results_path = 'drnn/output_grid_search_pc_wb/'
+    combos = 3072
+    grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'
     do_val_loss = True
-    pc = True
+    pc = False
 
     show_most_varied_hps(combos, grid_search_results_path, do_val_loss, pc)
 
