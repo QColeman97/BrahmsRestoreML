@@ -7,6 +7,7 @@ from matplotlib.ticker import FuncFormatter
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+import os
 
 # DSP CONSTANTS:
 STD_SR_HZ = 44100
@@ -15,8 +16,27 @@ PIANO_WDW_SIZE = 4096
 SPGM_BRAHMS_RATIO = 0.08
 EPSILON = 10 ** (-10)
 
+def plot_signal(sig, orig_type, name, plot_path, show=False):
+    # Make plottable mono
+    if isinstance(sig[0], np.ndarray):
+        sig = np.average(sig, axis=-1).astype(orig_type)
+
+    t = np.arange(0, len(sig))
+    fig, ax = plt.subplots()
+    ax.plot(t, sig)
+
+    name_suffix = ''
+    if orig_type == 'int16':
+        name_suffix += ' (16-bit PCM)'
+    ax.set(xlabel='time (samples)', ylabel='amplitude',
+           title=name + name_suffix)
+    fig.savefig(plot_path)
+    if show:
+        plt.show()
+    return ax.get_aspect()
+
 # Supports matrices & arrays
-def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=False):    
+def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=False, plot_path=None):    
     def frequency_in_hz(x, pos):
         # return '%.1f Hz' % x
         return '%.2f Hz' % ((x * STD_SR_HZ)/PIANO_WDW_SIZE)
@@ -39,15 +59,6 @@ def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=F
     if true_dim:
         _ = ax.imshow(np.log(matrix), aspect=0.5, origin='lower')
     else:
-        # ratio = 1
-        # if xlabel == 'frequency' or xlabel == 'time segments':
-        #     ratio = 10
-        #     if ylabel == 'k':
-        #         ratio *= 5
-        # else:
-        #     ratio = 0.1
-        #     if xlabel == 'k':
-        #         ratio /= 2
         ratio = n_cols / n_rows
         print('RATIO FOR', n_rows, 'x', str(n_cols)+':', ratio)
         extent = [-0.5, n_cols-0.5, -0.5, n_rows-0.5]
@@ -65,16 +76,14 @@ def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=F
                 extent=extent)
         except TypeError as e:
             print('CAUGHT ERROR IN PLOT_MATRIX', e)
-    # else:
-    #     ax.title.set_text(name)
-    #     ax.set_ylabel(ylabel)
-    #     _ = ax.imshow(matrix, extent=[0, n_cols, n_rows, 0])
-    #     fig.tight_layout()
-    #     # bottom, top = plt.ylim()
-    #     # print('Bottom:', bottom, 'Top:', top)
-    #     plt.ylim(n_rows, 0.0)   # Crop an axis (to ~double the piano frequency max)
-    #     ax.set_aspect(ratio)    # Set a visually nice ratio
-    plt.show() if show else plt.savefig(name + '.png')
+
+    if show:
+        plt.show()
+    else:
+        if plot_path is None:
+            plt.savefig(name + '.png')
+        else:
+            plt.savefig(plot_path)
 
 
 # SIGNAL -> SPECTROGRAM
@@ -336,6 +345,8 @@ def write_partial_sig(sig, wdw_size, start_index, end_index, out_filepath, sig_s
 
 def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=False, write_file=False, debug=False):
     orig_sig_type = sig.dtype
+    debug_plot_path = os.getcwd() + '/brahms_restore_ml/nmf/plot_pics/'
+    plot_signal(sig, orig_sig_type, name='Piano Recording Signal', plot_path=(debug_plot_path + 'piano_waveform.png'))
 
     print('\n--Making Signal Spectrogram--\n')
     if segment:
@@ -343,14 +354,15 @@ def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=Fa
         # no_voice_sig = sig[(77 * wdw_size):]# + (wdw_size // 2):] 
         # out_filepath = 'novoice_' + out_filepath
         spectrogram, phases = make_spectrogram(sig, wdw_size, EPSILON, ova=ova, debug=debug)
-
     else:
         print('\n--Making Signal Spectrogram--\n')
         spectrogram, phases = make_spectrogram(sig, wdw_size, EPSILON, ova=ova, debug=debug)
+
+    plot_matrix(spectrogram.T, name='Piano Recording Spectrogram', 
+                xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(debug_plot_path + 'piano_spectrogram.png'))
     
     print('\n--Making Synthetic Signal--\n')
     synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, orig_sig_type, ova=ova, debug=debug)
-    
     if write_file:
         wavfile.write(out_filepath, sig_sr, synthetic_sig)
 

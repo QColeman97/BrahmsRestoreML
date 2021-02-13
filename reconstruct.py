@@ -5,7 +5,7 @@ import sys
 import librosa
 
 def main():
-    if len(sys.argv) < 3 or len(sys.argv) > 5:
+    if len(sys.argv) < 2 or len(sys.argv) > 4:
         print('\nUsage: reconstruct.py <signal> [-d] [window_size]')
         print('Parameter options:')
         print('Signal           filepath        - String denoting a WAV filepath')
@@ -39,15 +39,15 @@ def main():
     
     # Debug-print/plot option, wdw size
     debug_flag, wdw_size = False, PIANO_WDW_SIZE
-    if len(sys.argv) > 3:
-        if len(sys.argv) == 4:
-            if sys.argv[3] == '-d':
+    if len(sys.argv) > 2:
+        if len(sys.argv) == 3:
+            if sys.argv[2] == '-d':
                 debug_flag = True
             else:
-                wdw_size = int(sys.argv[3])
+                wdw_size = int(sys.argv[2])
         else:
             debug_flag = True
-            wdw_size = int(sys.argv[4]) if (sys.argv[3] == '-d') else int(sys.argv[3])
+            wdw_size = int(sys.argv[3]) if (sys.argv[2] == '-d') else int(sys.argv[2])
 
     # FOR TESTING
     no_voice = False
