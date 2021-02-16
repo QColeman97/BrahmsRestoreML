@@ -29,13 +29,21 @@ __pycache__/
 
 /blind_test_samples/
 /full_test_samples/
-/brahms_begin_note_trim.wav
-/brahms_begin_trim_bv.wav
-/brahms_begin_trim.wav
-/brahms_note_exact_trim.wav
+/brahms_note_trim_a3.wav
+/brahms_note_trim_aflat3.wav
+/brahms_note_trim_c4.wav
+/brahms_note_trim_first_eflat4.wav
+/brahms_note_trim_g6.wav
+/brahms_trim_bv_a3.wav
+/brahms_trim_bv_aflat3.wav
+/brahms_trim_bv_c4.wav
+/brahms_trim_bv_first_eflat4.wav
+/brahms_trim_bv_g6.wav
+/brahms_begin_from_trim.wav
 
 /brahms_restore_ml/nmf/all_notes_ff_wav/
 /brahms_restore_ml/nmf/all_notes_ff_wav_A=430Hz/
+/brahms_restore_ml/nmf/all_notes_ff_wav_A=436Hz/
 /brahms_restore_ml/nmf/avged_ova_notes/
 /brahms_restore_ml/nmf/brahms_partial_wav/
 /brahms_restore_ml/nmf/trimmed_notes/

@@ -57,7 +57,7 @@ def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=F
     else:
         n_rows, n_cols = matrix.shape
     if true_dim:
-        _ = ax.imshow(np.log(matrix), aspect=0.5, origin='lower')
+        _ = ax.imshow(np.log(matrix), aspect=0.5, origin='lower', interpolation='none')
     else:
         ratio = n_cols / n_rows
         print('RATIO FOR', n_rows, 'x', str(n_cols)+':', ratio)
@@ -73,7 +73,8 @@ def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=F
             _ = ax.imshow(np.log(matrix), 
                 aspect=ratio,
                 origin='lower',
-                extent=extent)
+                extent=extent,
+                interpolation='none')
         except TypeError as e:
             print('CAUGHT ERROR IN PLOT_MATRIX', e)
 

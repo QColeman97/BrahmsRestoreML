@@ -89,7 +89,8 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
     # all_notes_ff_wav yielding a list of filename strings, need to sort it by note
     base_dir = os.getcwd()
     if a430hz:
-        os.chdir(real_currdir + '/all_notes_ff_wav_A=430Hz')
+        os.chdir(real_currdir + '/all_notes_ff_wav_A=436Hz')
+        # os.chdir(real_currdir + '/all_notes_ff_wav_A=430Hz')  # old
     else:
         os.chdir(real_currdir + '/all_notes_ff_wav') 
     unsorted_audio_files = [x for x in os.listdir(os.getcwd())]# if x.endswith('wav')]
@@ -150,7 +151,7 @@ def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, d
         if eq:
             filepath += '_eqsig' # '_eqmeansig' '_eqmediansig'
         if a430hz:
-            filepath += '_a430hz'
+            filepath += '_a436hz' # old '_a430hz'
         if score:
             filepath += '_score'
         filepath += '.npy'
