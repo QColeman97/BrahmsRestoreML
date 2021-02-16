@@ -23,9 +23,9 @@ def main():
     score_piano_bv = True
     a430hz_bv = True
     # marybv_flag = False     # Special case for Mary.wav - basis vectors size optimization test
-    out_filepath = 'brahms_restore_ml/nmf/output/output_restored_wav_v5/'
-    # # TEMP
-    # out_filepath = 'brahms_restore_ml/nmf/output/output_restored_experimental/'
+    # out_filepath = 'brahms_restore_ml/nmf/output/output_restored_wav_v5/'
+    # TEMP
+    out_filepath = 'brahms_restore_ml/nmf/output/output_restored_experimental/'
 
     # Experimental
     # Ternary flag - 'Piano', 'Noise', or 'None' (If not 'None', noisebv_flag MUST BE TRUE)
@@ -69,10 +69,11 @@ def main():
     # # Below Necessary & Default - no longer in name
     # if ova_flag:
     #     out_filepath += '_ova'
-    # if a430hz_bv:
-    #     out_filepath += '_a430hz'
-    # if score_piano_bv:
-    #     out_filepath += '_scorebv'
+    # TEMP
+    if a430hz_bv:
+        out_filepath += '_a436hz'
+    if score_piano_bv:
+        out_filepath += '_scorebv'
     if audible_range_bv:
         out_filepath += '_arbv'
 
@@ -96,7 +97,6 @@ def main():
                     semisuplearn=semi_sup_learn, semisupmadeinit=semi_sup_made_init,
                     l1_penalty=l1_penalty, debug=debug_flag, a430hz_bv=a430hz_bv,
                     scorebv=score_piano_bv, audible_range_bv=audible_range_bv)
-
 
 if __name__ == '__main__':
     main()
