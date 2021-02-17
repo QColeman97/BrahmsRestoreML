@@ -88,7 +88,8 @@ def random_slice(min_sig_len, src1_sig, src2_sig=None, mix_sig=None, slice_index
     #         return mix_sig[:min_sig_len], src1_sig[:min_sig_len], src2_sig[:min_sig_len]
 
 def preprocess_signals(piano_sig, noise_sig, min_sig_len, mix_sig=None, 
-                                    src_amp_low=0.75, src_amp_high=1.15):
+                       src_amp_low=0.75, src_amp_high=1.15, dmged_piano_sig=None,
+                       data_path=None, num=None):
     # NEW For single noise file - span the whole
     noise_new_start = None
     while len(noise_sig) != len(piano_sig):
@@ -114,6 +115,26 @@ def preprocess_signals(piano_sig, noise_sig, min_sig_len, mix_sig=None,
         piano_sig = np.average(piano_sig, axis=-1)
     if isinstance(noise_sig[0], np.ndarray):  # Stereo signal = 2 channels
         noise_sig = np.average(noise_sig, axis=-1)
+    # new - dmged piano only
+    if dmged_piano_sig is not None:
+        # assert len(dmged_piano_sig) == len(noise_sig)
+        # TEMP - until I can rewrite files
+        changed = False
+        while len(dmged_piano_sig) > len(noise_sig):
+            dmged_piano_sig = dmged_piano_sig[1:]
+            changed = True
+            print('Mismatch on dmged piano occurance', num)
+        while len(dmged_piano_sig) < len(noise_sig):
+            dmged_piano_sig = np.concatenate((dmged_piano_sig, np.array([0], dtype='int16')))
+            changed = True
+            print('Mismatch on dmged piano occurance', num)
+        if changed:
+            # wavfile.write(data_path + 'dmged', STD_SR_HZ, dmged_piano_sig)
+            # changed = False
+            pass
+        dmged_piano_sig = dmged_piano_sig.astype('float64')
+        if isinstance(dmged_piano_sig[0], np.ndarray):  # Stereo signal = 2 channels
+            dmged_piano_sig = np.average(dmged_piano_sig, axis=-1)
 
     if mix_sig is None:
         # Decided on:
@@ -121,9 +142,13 @@ def preprocess_signals(piano_sig, noise_sig, min_sig_len, mix_sig=None,
         #   sigs padded or sliced to length of Brahms sig
         # Slice sigs to min_sig_len
         # because, no sigs in here will be smaller than 'pad_len' which is now min_sig_len
-        sliced = random_slice(min_sig_len, piano_sig, src2_sig=noise_sig)
+        sliced = random_slice(min_sig_len, piano_sig, src2_sig=noise_sig, mix_sig=dmged_piano_sig) # new - dmged piano only hack
+        # sliced = random_slice(min_sig_len, piano_sig, src2_sig=noise_sig)
         # sliced = random_slice(min_sig_len, [piano_sig, noise_sig])
-        piano_sig, noise_sig = sliced[0], sliced[1]
+        if dmged_piano_sig is not None:
+            piano_sig, noise_sig, dmged_piano_sig = sliced[0], sliced[1], sliced[2]
+        else:
+            piano_sig, noise_sig = sliced[0], sliced[1] 
         # Mix & vary SNR
         src_percent_1 = random.randrange(int(src_amp_low*100), int(src_amp_high*100)) / 100
         src_percent_2 = 1 / src_percent_1
@@ -131,16 +156,30 @@ def preprocess_signals(piano_sig, noise_sig, min_sig_len, mix_sig=None,
         piano_src_is_1 = bool(random.getrandbits(1))
         if piano_src_is_1:
             piano_sig *= src_percent_1
+            if dmged_piano_sig is not None:
+                dmged_piano_sig *= src_percent_1
             noise_sig *= src_percent_2
         else:
             piano_sig *= src_percent_2
+            if dmged_piano_sig is not None:
+                dmged_piano_sig *= src_percent_2
             noise_sig *= src_percent_1
-        avg_src_sum = (np.sum(np.abs(piano_sig)) + np.sum(np.abs(noise_sig))) / 2
-        mix_sig = piano_sig + noise_sig
+        if dmged_piano_sig is not None:
+            avg_src_sum = (np.sum(np.abs(dmged_piano_sig)) + np.sum(np.abs(noise_sig))) / 2
+            mix_sig = dmged_piano_sig + noise_sig
+        else:
+            avg_src_sum = (np.sum(np.abs(piano_sig)) + np.sum(np.abs(noise_sig))) / 2
+            mix_sig = piano_sig + noise_sig
         # Key - mixed signal should be on amplitude level of its sources
         # print('Mix sig abs sum:', np.sum(np.abs(mix_sig)), 'avg src sum:', avg_src_sum)
         mix_srcs_ratio = (avg_src_sum / np.sum(np.abs(mix_sig)))
         mix_sig *= mix_srcs_ratio
+        # # TEMP
+        # wavfile.write(data_path + 'noise' + str(num) + '.wav', STD_SR_HZ, noise_sig.astype('int16'))
+        # wavfile.write(data_path + 'piano' + str(num) + '.wav', STD_SR_HZ, piano_sig.astype('int16'))
+        # wavfile.write(data_path + 'dmged_piano' + str(num) + '.wav', STD_SR_HZ, dmged_piano_sig.astype('int16'))
+        # wavfile.write(data_path + 'mix' + str(num) + '.wav', STD_SR_HZ, mix_sig.astype('int16'))
+
     else:
         sliced = random_slice(min_sig_len, piano_sig, src2_sig=noise_sig, mix_sig=mix_sig)
         piano_sig, noise_sig, mix_sig = sliced[0], sliced[1], sliced[2]
@@ -174,7 +213,7 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
                         min_sig_len, dmged_piano_artificial_noise=False,
                         src_amp_low=0.75, src_amp_high=1.15, 
                         data_path=None, x_files=None, from_numpy=False, bare_noise=True,    # new
-                        tuned_a430hz=False, piano_basis_vectors=None): # new
+                        tuned_a430hz=False, piano_basis_vectors=None, dmged_y1_files=None): # new
     # if use_bv:
     #     piano_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, avg=True, debug=False, a430hz=True, 
     #         score=True, filepath=os.path.dirname(os.path.realpath(__file__)) + '/../nmf/np_saves_bv/basis_vectors')
@@ -185,6 +224,8 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
             if from_numpy:
                 x_batch_labels = x_files[offset:offset+batch_size]
             y1_batch_labels = y1_files[offset:offset+batch_size]
+            if dmged_y1_files is not None:  # new - for dgmed piano only
+                dmged_y1_batch_formix = dmged_y1_files[offset:offset+batch_size]
             if (not bare_noise) or from_numpy:
                 y2_batch_labels = y2_files[offset:offset+batch_size]
             # if (num_samples / batch_size == 0):
@@ -218,6 +259,10 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
                     nl_filepath = bare_noise_path if bare_noise else y2_batch_labels[i]
                     _, piano_label_sig = wavfile.read(pl_filepath)
                     _, noise_label_sig = wavfile.read(nl_filepath)
+                    dmged_piano_sig = None
+                    if dmged_y1_files is not None:
+                        dmged_p_filepath = dmged_y1_batch_formix[i]
+                        _, dmged_piano_sig = wavfile.read(dmged_p_filepath)
                     # if x_files is not None:
                     #     mix_filepath = x_batch_labels[i]
                     #     _, mix_sig = wavfile.read(mix_filepath)
@@ -228,31 +273,29 @@ def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_
                     # else:
                     mix_sig, piano_sig, noise_sig = preprocess_signals(
                         piano_label_sig, noise_label_sig, min_sig_len=min_sig_len, 
-                        src_amp_low=src_amp_low, src_amp_high=src_amp_high)
+                        src_amp_low=src_amp_low, src_amp_high=src_amp_high,
+                        dmged_piano_sig=dmged_piano_sig, data_path=data_path, num=offset + i)
                     mix_spgm = signal_to_nn_features(mix_sig) #, use_bv=use_bv)
                     piano_spgm = signal_to_nn_features(piano_sig) #, use_bv=use_bv)
                     noise_spgm = signal_to_nn_features(noise_sig) #, use_bv=use_bv)
                     # Get number from filename
                     file_num_str = list(re.findall(r'\d+', pl_filepath))[-1]
                     # Write to file for from numpy fixed data gen
-                    piano_suffix = ('piano_source_a430hz_numpy/piano' if tuned_a430hz else
+                    piano_suffix = ('piano_source_a436hz_numpy/piano' if tuned_a430hz else  # tune_temp
                                    ('piano_source_numpy/piano'))
-                    # piano_suffix = ('piano_source_a430hz_bv_numpy/piano' if (tuned_a430hz and use_bv) else 
-                    #                ('piano_source_a430hz_numpy/piano' if tuned_a430hz else
-                    #                ('piano_source_bv_numpy/piano' if use_bv else
-                    #                ('piano_source_numpy/piano'))))
                     if dmged_piano_artificial_noise:
-                        # mix_suffix = ('dmged_mix_bv_numpy/mixed' if use_bv else 
-                        #               'dmged_mix_numpy/mixed')
-                        mix_suffix = 'dmged_mix_numpy/mixed'
+                        # OLD - may not try again
+                        # mix_suffix = 'dmged_mix_numpy/mixed'
+                        # noise_suffix = 'dmged_noise_numpy/noise'
+                        mix_suffix = 'dmgedp_artn_mix_numpy/mixed'
                         noise_suffix = 'dmged_noise_numpy/noise'
+                    elif dmged_y1_files is not None:  # dmged piano only
+                        mix_suffix = ('dmged_mix_a436hz_numpy/mixed' if tuned_a430hz else   # tune_temp
+                                      ('dmged_mix_numpy/mixed'))
+                        noise_suffix = 'noise_source_numpy/noise'
                     else:
-                        mix_suffix = ('piano_noise_a430hz_numpy/mixed' if tuned_a430hz else
+                        mix_suffix = ('piano_noise_a436hz_numpy/mixed' if tuned_a430hz else # tune_temp
                                      ('piano_noise_numpy/mixed'))
-                        # mix_suffix = ('piano_noise_a430hz_bv_numpy/mixed' if (tuned_a430hz and use_bv) else 
-                        #              ('piano_noise_a430hz_numpy/mixed' if tuned_a430hz else
-                        #              ('piano_noise_bv_numpy/mixed' if use_bv else
-                        #              ('piano_noise_numpy/mixed'))))
                         noise_suffix = 'noise_source_numpy/noise'
                     np.save(data_path + mix_suffix + file_num_str, mix_spgm)
                     np.save(data_path + piano_suffix + file_num_str, piano_spgm)
@@ -300,17 +343,20 @@ def get_raw_data_stats(y1_filenames, y2_filenames=None, x_filenames=None,
     return train_seq, train_feat, min_sig_len
 
 # Call in evaluate_source_sep
+# New rule - don't use on numpy b/c acts on new data yet written to numpy files
 # Rule - If from_numpy True, x_files cant be None
 #      - If from_numpy False, dataset2 must be considered for npy writes
 def get_features_stats(y1_filenames, y2_filenames, num_samples, train_seq, train_feat, 
               min_sig_len, src_amp_low=0.75, src_amp_high=1.15, dataset2=False,
-              data_path=None, x_filenames=None, from_numpy=False):
+              data_path=None, x_filenames=None, from_numpy=False, 
+              tuned_a430hz=False, dmged_y1_filenames=None):
 
     generator = nn_data_generator(y1_filenames, y2_filenames, num_samples,
             batch_size=1, num_seq=train_seq, num_feat=train_feat,
             min_sig_len=min_sig_len, dmged_piano_artificial_noise=dataset2, 
             src_amp_low=src_amp_low, src_amp_high=src_amp_high,
-            data_path=data_path, x_files=x_filenames, from_numpy=from_numpy)
+            data_path=data_path, x_files=x_filenames, from_numpy=from_numpy,
+            tuned_a430hz=tuned_a430hz, dmged_y1_files=dmged_y1_filenames)
 
     samples = np.empty((num_samples, train_seq, train_feat))
     # piano_samples = np.empty((num_samples, train_seq, train_feat))

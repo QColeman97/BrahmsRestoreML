@@ -27,7 +27,8 @@ from ..nmf.nmf import NUM_SCORE_NOTES
 # TRAINING DATA SPECIFIC CONSTANTS (Add to when data changes)
 # MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
 MIN_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 2302826, 1124, 2049
-TRAIN_MEAN_DMGED, TRAIN_STD_DMGED = 3788.6515897900226, 17932.36734269604
+TRAIN_MEAN_DMGED_MIX, TRAIN_STD_DMGED_MIX = 3788.6515897900226, 17932.36734269604   # not used
+TRAIN_MEAN_DMGED, TRAIN_STD_DMGED = 1322.7727055593953, 3369.599673108199
 TRAIN_MEAN, TRAIN_STD = 1728.2116672701493, 6450.4985228518635
 TOTAL_SMPLS = 61
 TRAIN_SEQ_LEN_BV = TRAIN_SEQ_LEN + NUM_SCORE_NOTES
@@ -43,8 +44,8 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
                         recent_model_path=None, pc_run=False, # t_mean=None, t_std=None, 
                         grid_search_iter=None, gs_path=None, combos=None, gs_id='',
                         ret_queue=None, dataset2=False, data_path=None, min_sig_len=None,
-                        data_from_numpy=False, tuned_a430hz=False,
-                        use_basis_vectors=False):
+                        data_from_numpy=False, tuned_a430hz=False, use_basis_vectors=False, 
+                        dmged_y1_train_files=None, dmged_y1_val_files=None):
                         # pad_len=-1):
 
     from .model import make_model
@@ -81,12 +82,17 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     # tf.config.experimental_run_functions_eagerly(True)  # For TF 2.2 (non-nightly)
     print('Eager execution enabled? (default)', tf.executing_eagerly())
 
-    # # Get feature stats if needed
-    # t_mean, t_std = get_features_stats(y1_train_files + y2_train_files, y2_train_files + y2_val_files,
-    #                                    num_train + num_val, n_feat, n_feat, min_sig_len, dataset2=dataset2, 
-    #                                    data_path=data_path, x_filenames=x_train_files + x_val_files, 
-    #                                    from_numpy=data_from_numpy)
+    # # Get feature stats if needed - don't use from_numpy
+    # t_mean, t_std = get_features_stats(np.concatenate((y1_train_files, y1_val_files)), 
+    #                                    np.concatenate((y2_train_files, y2_val_files)),
+    #                                    num_train + num_val, n_seq, n_feat, min_sig_len, dataset2=dataset2, 
+    #                                    data_path=data_path, x_filenames=np.concatenate((x_train_files, x_val_files)), 
+    #                                    from_numpy=data_from_numpy, tuned_a430hz=tuned_a430hz, 
+    #                                    dmged_y1_filenames=np.concatenate((dmged_y1_train_files, dmged_y1_val_files)))
+    # print('\nNOTICE - NEW TRAIN MEAN:', t_mean, 'NEW TRAIN STD:', t_std, '\n')
     if dataset2:
+        t_mean, t_std = TRAIN_MEAN_DMGED_MIX, TRAIN_STD_DMGED_MIX
+    elif dmged_y1_train_files is not None:
         t_mean, t_std = TRAIN_MEAN_DMGED, TRAIN_STD_DMGED
     else:
         t_mean, t_std = TRAIN_MEAN, TRAIN_STD
@@ -106,12 +112,12 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
             batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, min_sig_len=min_sig_len,
             dmged_piano_artificial_noise=dataset2, data_path=data_path,
             x_files=x_train_files, from_numpy=data_from_numpy, tuned_a430hz=tuned_a430hz,
-            piano_basis_vectors=piano_basis_vectors)
+            piano_basis_vectors=piano_basis_vectors, dmged_y1_files=dmged_y1_train_files)   # new - dmged piano only
     validation_generator = nn_data_generator(y1_val_files, y2_val_files, num_val,
             batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, min_sig_len=min_sig_len,
             dmged_piano_artificial_noise=dataset2, data_path=data_path,
             x_files=x_val_files, from_numpy=data_from_numpy, tuned_a430hz=tuned_a430hz,
-            piano_basis_vectors=piano_basis_vectors)
+            piano_basis_vectors=piano_basis_vectors, dmged_y1_files=dmged_y1_val_files)     # new - dmged piano only
 
     train_dataset = tf.data.Dataset.from_generator(
         make_gen_callable(train_generator), 
@@ -471,7 +477,7 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                                                     gsres_path,
                                                                     combos, gs_id,
                                                                     send_end, dataset2, None, None,
-                                                                    False, False, False))
+                                                                    False, False, False, None, None))
                             process_train.start()
                     
                             # Keep polling until child errors or child success (either one guaranteed to happen)
