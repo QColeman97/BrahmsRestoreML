@@ -138,8 +138,8 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
 
             # NEW
             k_voice = 10
-            Vvoice = V[:, :WDW_NUM_AFTER_VOICE]
-            Vrest = V[:, WDW_NUM_AFTER_VOICE:]
+            Vvoice = V[:, :WDW_NUM_AFTER_VOICE].copy()
+            Vrest = V[:, WDW_NUM_AFTER_VOICE:].copy()
             Hvoice = np.random.rand(k_voice, WDW_NUM_AFTER_VOICE)
             Wvoice = np.random.rand(m, k_voice)
             ones_voice = np.ones((m, WDW_NUM_AFTER_VOICE))
@@ -315,6 +315,14 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
         print('\n--Making Synthetic Brahms Spectrogram (Source-Separating)--\n')
         synthetic_piano_spgm = piano_basis_vectors @ piano_activations
         synthetic_noise_spgm = noise_basis_vectors @ noise_activations
+
+        if debug:
+            plot_matrix(synthetic_piano_spgm, 'Synthetic Piano Spectrogram (BEFORE MASKING)', 'time segments', 'frequency', ratio=SPGM_BRAHMS_RATIO, show=True)
+        # New - apply filter tf mask - no difference seen
+        synthetic_spgm = basis_vectors @ activations
+        piano_mask = synthetic_piano_spgm / synthetic_spgm
+        synthetic_piano_spgm = piano_mask * spectrogram
+
         # Include noise within result to battle any normalizing wavfile.write might do
         synthetic_spgm = np.concatenate((synthetic_piano_spgm, synthetic_noise_spgm), axis=-1)
         if debug:
