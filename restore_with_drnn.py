@@ -129,15 +129,16 @@ def main():
     # wdw_size = PIANO_WDW_SIZE
     data_path = 'brahms_restore_ml/drnn/drnn_data/'
     arch_config_path = 'brahms_restore_ml/drnn/config/'
-    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # PC
+    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # best results      
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_pc_wb/'           # PC
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'    # F35
-    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results      
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results      
     recent_model_path = 'brahms_restore_ml/drnn/recent_model'
     infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     brahms_path = 'brahms.wav'
 
     # To run best model configs, data_from_numpy == True
-    do_curr_best, curr_best_combos, curr_best_done_on_pc = True, '3072', False
+    do_curr_best, curr_best_combos, curr_best_done_on_pc = False, '3072', False
     # # F35 LSTM
     # top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
     # F35 WB
@@ -181,7 +182,8 @@ def main():
                           name_addon=output_file_addon, tuned_a430hz=tuned_a430hz,
                           use_basis_vectors=basis_vector_features)
     else:
-        train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run)
+        train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run, 
+                                                          use_bv=basis_vector_features)
         # print('First arch config optn after return:', arch_config_optns[0])
 
         if data_from_numpy:
@@ -559,7 +561,9 @@ def main():
                         early_stop_pat=early_stop_pat, 
                         pc_run=pc_run, gs_id=gs_id, 
                         restart=restart,
-                        dataset2=dmged_piano_artificial_noise_mix)
+                        dataset2=dmged_piano_artificial_noise_mix,
+                        tuned_a430hz=tuned_a430hz, 
+                        use_basis_vectors=basis_vector_features)
 
 
 if __name__ == '__main__':
