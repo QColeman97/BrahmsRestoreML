@@ -67,7 +67,7 @@ def run_top_gs_result(num, best_config,
                         # train_mean, train_std, 
                         None, None, None, '', None,
                         dmged_piano_artificial_noise_mix, data_path, min_sig_len, True,
-                        tuned_a430hz, use_basis_vectors))
+                        tuned_a430hz, use_basis_vectors, None, None))
     process_train.start()
     process_train.join()
 
@@ -124,19 +124,21 @@ def main():
     # Differentiate PC GS from F35 GS
     # dmged_piano_artificial_noise_mix = True if pc_run else False
     dmged_piano_artificial_noise_mix = False    # TEMP while F35 down
+    dmged_piano_only = True
     test_on_synthetic = False
     # wdw_size = PIANO_WDW_SIZE
     data_path = 'brahms_restore_ml/drnn/drnn_data/'
     arch_config_path = 'brahms_restore_ml/drnn/config/'
-    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # PC
+    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # best results      
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_pc_wb/'           # PC
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'    # F35
-    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results      
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results      
     recent_model_path = 'brahms_restore_ml/drnn/recent_model'
     infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     brahms_path = 'brahms.wav'
 
     # To run best model configs, data_from_numpy == True
-    do_curr_best, curr_best_combos, curr_best_done_on_pc = True, '3072', False
+    do_curr_best, curr_best_combos, curr_best_done_on_pc = False, '3072', False
     # # F35 LSTM
     # top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
     # F35 WB
@@ -151,11 +153,14 @@ def main():
     tuned_a430hz = True
     basis_vector_features = True
     if tuned_a430hz:
-        recent_model_path += '_a430hz'
-        output_file_addon += '_a430hz'
+        recent_model_path += '_a436hz' # tune_temp '_a430hz'
+        output_file_addon += '_a436hz' # tune_temp '_a430hz'
     if basis_vector_features:
         recent_model_path += '_bvs'
         output_file_addon += '_bvs'
+    if dmged_piano_only:
+        recent_model_path += '_dmgedp'
+        output_file_addon += '_dmgedp'
 
     # EMPERICALLY DERIVED HPs
     # Note: FROM PO-SEN PAPER - about loss_const
@@ -177,32 +182,21 @@ def main():
                           name_addon=output_file_addon, tuned_a430hz=tuned_a430hz,
                           use_basis_vectors=basis_vector_features)
     else:
-        train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run)
+        train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run, 
+                                                          use_bv=basis_vector_features)
         # print('First arch config optn after return:', arch_config_optns[0])
 
         if data_from_numpy:
             # Load in train/validation numpy data
-            # noise_piano_filepath_prefix = (data_path + 'dmged_mix_numpy/mixed'
-            #         if dmged_piano_artificial_noise_mix else 
-            #     (data_path + 'piano_noise_a430hz_bv_numpy/mixed' 
-            #         if (tuned_a430hz and basis_vector_features) else
-            #     (data_path + 'piano_noise_a430hz_numpy/mixed' if tuned_a430hz else
-            #     (data_path + 'piano_noise_bv_numpy/mixed' if basis_vector_features else
-            #     (data_path + 'piano_noise_numpy/mixed')))))
-            # piano_label_filepath_prefix = (data_path + 'piano_source_numpy/piano'
-            #         if dmged_piano_artificial_noise_mix else 
-            #     (data_path + 'piano_source_a430hz_bv_numpy/piano'
-            #         if (tuned_a430hz and basis_vector_features) else        
-            #     (data_path + 'piano_source_a430hz_numpy/piano' if tuned_a430hz else
-            #     (data_path + 'piano_source_bv_numpy/piano' if basis_vector_features else
-            #     (data_path + 'piano_source_numpy/piano')))))
-            noise_piano_filepath_prefix = (data_path + 'dmged_mix_numpy/mixed'
+            noise_piano_filepath_prefix = (data_path + 'dmgedp_artn_mix_numpy/mixed'
                     if dmged_piano_artificial_noise_mix else 
-                (data_path + 'piano_noise_a430hz_numpy/mixed' if tuned_a430hz else
-                (data_path + 'piano_noise_numpy/mixed')))
+                (data_path + 'dmged_mix_a436hz_numpy/mixed' if (dmged_piano_only and tuned_a430hz) else # tune_temp
+                (data_path + 'dmged_mix_numpy/mixed' if dmged_piano_only else
+                (data_path + 'piano_noise_a436hz_numpy/mixed' if tuned_a430hz else  # tune_temp
+                (data_path + 'piano_noise_numpy/mixed')))))
             piano_label_filepath_prefix = (data_path + 'piano_source_numpy/piano'
                     if dmged_piano_artificial_noise_mix else     
-                (data_path + 'piano_source_a430hz_numpy/piano' if tuned_a430hz else
+                (data_path + 'piano_source_a436hz_numpy/piano' if tuned_a430hz else # tune_temp
                 (data_path + 'piano_source_numpy/piano')))
             noise_label_filepath_prefix = (data_path + 'dmged_noise_numpy/noise'
                 if dmged_piano_artificial_noise_mix else data_path + 'noise_source_numpy/noise')
@@ -212,11 +206,17 @@ def main():
                 if dmged_piano_artificial_noise_mix else data_path + 'dmged_mix_wav/features')
             piano_label_filepath_prefix = (data_path + 'final_piano_wav_a=430hz/psource'
                     if dmged_piano_artificial_noise_mix else 
-                (data_path + 'final_piano_wav_a=430hz/psource' if tuned_a430hz else 
+                (data_path + 'final_piano_wav_a=436hz/psource' if tuned_a430hz else     # tune_temp
                 (data_path + 'final_piano_wav/psource')))
             noise_label_filepath_prefix = (data_path + 'dmged_noise_wav/nsource'
                 if dmged_piano_artificial_noise_mix else data_path + 'noise_source_numpy/noise')
-        print('\nTRAINING WITH DATASET', '2 (ARTIFICIAL DMG)' if dmged_piano_artificial_noise_mix else '1 (ORIG)')
+            if dmged_piano_only:    # new - works with a430hz only
+                dmged_piano_filepath_prefix = (data_path + 'dmged_piano_wav_a=436hz/psource' # tune_temp
+                    if tuned_a430hz else 
+                (data_path + 'dmged_piano_wav_a=430hz/psource'))
+                print('\nTRAINING WITH DATASET 3 (DMGED PIANO)')
+            else:
+                print('\nTRAINING WITH DATASET', '2 (ARTIFICIAL DMG)' if dmged_piano_artificial_noise_mix else '1 (ORIG)')
 
         # TRAIN & INFER
         if mode == 't':
@@ -252,25 +252,16 @@ def main():
                 sample_indices = list(range(TOTAL_SMPLS))
                 # FIX DMGED/ART DATA
                 random.shuffle(sample_indices)
-            
-            # if data_from_numpy:
+
             x_files = np.array([(noise_piano_filepath_prefix + str(i) + ('.npy' if data_from_numpy else '.wav'))
                         for i in sample_indices])
             y1_files = np.array([(piano_label_filepath_prefix + str(i) + ('.npy' if data_from_numpy else '.wav'))
                         for i in sample_indices])
             y2_files = np.array([(noise_label_filepath_prefix + str(i) + ('.npy' if data_from_numpy else '.wav'))
                         for i in sample_indices])
-            # else:
-            #     # FIX DMGED/ART DATA
-            #     # if dmged_piano_artificial_noise_mix:
-            #     x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.wav')
-            #                 for i in sample_indices])
-            #     y1_files = np.array([(piano_label_filepath_prefix + str(i) + '.wav')
-            #                 for i in sample_indices])
-            #     y2_files = np.array([(noise_label_filepath_prefix + str(i) + '.wav')
-            #                 for i in sample_indices])
-                # else:
-            
+            if dmged_piano_only and (not data_from_numpy):
+                dmged_y1_files = np.array([(dmged_piano_filepath_prefix + str(i) + '.wav')
+                        for i in sample_indices])
 
             # OLD
             # # # # Temp - do to calc max len for padding - it's 3081621 (for youtube src data)
@@ -312,6 +303,9 @@ def main():
             y2_val_files = y2_files[val_indices]
             num_train, num_val = len(y1_train_files), len(y1_val_files)
 
+            dmged_y1_train_files = np.delete(dmged_y1_files, val_indices) if (dmged_piano_only and (not data_from_numpy)) else None
+            dmged_y1_val_files = dmged_y1_files[val_indices] if (dmged_piano_only and (not data_from_numpy)) else None
+
             # # DEBUG PRINT
             # # print('y1_train_files:', y1_train_files[:10])
             # # print('y1_val_files:', y1_val_files[:10])
@@ -328,7 +322,7 @@ def main():
 
             if do_curr_best:
                 for top_result_path in top_result_paths:
-                    # TEMP - For damaged data
+                    # TEMP - For damaged data - b/c "_noPC" is missing in txt file
                     num = top_result_path.split('_')[-3] if dmged_piano_artificial_noise_mix else top_result_path.split('_')[-4]
                     gs_result_file = open(top_result_path, 'r')
                     for _ in range(4):
@@ -465,7 +459,9 @@ def main():
                                         data_path=data_path, min_sig_len=min_sig_len, 
                                         data_from_numpy=data_from_numpy,
                                         tuned_a430hz=tuned_a430hz,
-                                        use_basis_vectors=basis_vector_features)
+                                        use_basis_vectors=basis_vector_features,
+                                        dmged_y1_train_files=dmged_y1_train_files,
+                                        dmged_y1_val_files=dmged_y1_val_files)
                 if sample:
                     restore_with_drnn(infer_output_path, recent_model_path, # wdw_size, epsilon, 
                                     # train_loss_const,
@@ -565,7 +561,9 @@ def main():
                         early_stop_pat=early_stop_pat, 
                         pc_run=pc_run, gs_id=gs_id, 
                         restart=restart,
-                        dataset2=dmged_piano_artificial_noise_mix)
+                        dataset2=dmged_piano_artificial_noise_mix,
+                        tuned_a430hz=tuned_a430hz, 
+                        use_basis_vectors=basis_vector_features)
 
 
 if __name__ == '__main__':

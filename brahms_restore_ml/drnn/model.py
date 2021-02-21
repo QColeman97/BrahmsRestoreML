@@ -114,7 +114,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                 x = Concatenate() ([x, input_layer])
     
             if curr_layer_type == 'RNN':
-                if config['bidir']:
+                if config['bidir'] and (not use_bv):
                     x = Bidirectional(SimpleRNN(features if (use_bv and is_last_rnn(num_layers, first_layer_type, rnn_index)) else 
                                                 features // layer_config['nrn_div'], 
                             activation=layer_config['act'], 
@@ -132,7 +132,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                             return_sequences=True) (input_layer if (i == 0 and not config['scale']) else x)
 
             elif curr_layer_type == 'LSTM':
-                if config['bidir']:
+                if config['bidir'] and (not use_bv):
                     x = Bidirectional(LSTM(features if (use_bv and is_last_rnn(num_layers, first_layer_type, rnn_index)) else 
                                            features // layer_config['nrn_div'], 
                             activation=layer_config['act'], 
@@ -152,7 +152,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                 if i == (num_layers - 1):   # Last layer is fork layer
                     # Reverse standardization at end of model if appropriate
                     if config['scale']:
-                        if use_bv:  # new
+                        if use_bv and prev_layer_type == 'RNN':  # new
                             stdized_bv_input = Standardize(t_mean, t_std) (bv_input)
                             x = Concatenate(axis=-2) ([stdized_bv_input, x])
 
@@ -174,7 +174,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                         noise_hat = UnStandardize(t_mean, t_std) (noise_hat)
                 
                     else:
-                        if use_bv:  # new
+                        if use_bv and prev_layer_type == 'RNN':  # new
                             x = Concatenate(axis=-2) ([bv_input, x])
 
                         piano_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
@@ -192,6 +192,10 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                             noise_hat = BatchNormalization() (noise_hat)
 
                 else:
+                    if (use_bv and 
+                            prev_layer_type is not None and prev_layer_type == 'RNN'):
+                        x = Concatenate(axis=-2) ([bv_input, x])
+
                     x = TimeDistributed(Dense(features // layer_config['nrn_div'],
                                             activation=layer_config['act'], 
                                             use_bias=config['bias_dense']), 

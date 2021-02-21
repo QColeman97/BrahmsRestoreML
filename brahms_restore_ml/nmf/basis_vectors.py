@@ -89,7 +89,7 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
     # all_notes_ff_wav yielding a list of filename strings, need to sort it by note
     base_dir = os.getcwd()
     if a430hz:
-        os.chdir(real_currdir + '/all_notes_ff_wav_A=436Hz')
+        os.chdir(real_currdir + '/all_notes_ff_wav_A=436Hz')    # tune_temp
         # os.chdir(real_currdir + '/all_notes_ff_wav_A=430Hz')  # old
     else:
         os.chdir(real_currdir + '/all_notes_ff_wav') 
