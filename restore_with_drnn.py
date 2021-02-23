@@ -18,16 +18,18 @@ def run_top_gs_result(num, best_config,
                       infer_output_path, 
                     #   wdw_size, 
                       brahms_path, combos_str, data_path=None, min_sig_len=None,
-                      tuned_a430hz=False, use_basis_vectors=False):
+                      tuned_a430hz=False, use_basis_vectors=False,
+                      loop_bare_noise=False):
     train_batch_size = best_config['batch_size']
     # # Temp test for LSTM -> until can grid search
     # train_batch_size = 3 if train_batch_size < 3 else train_batch_size
     # TEMP - until F35 back up, make managable for PC
-    train_batch_size = 3
+    train_batch_size = 4
     # # TEMP - make what PC can actually handle (3072 run, but definitely 2048)
     # train_batch_size = 6
     train_loss_const = best_config['gamma']
     train_epochs = best_config['epochs']
+    # train_epochs = 15 # TEMP - optimize learning
     train_opt_name = best_config['optimizer']
     train_opt_clipval = None if (best_config['clip value'] == -1) else best_config['clip value']
     train_opt_lr = best_config['learning rate']
@@ -67,7 +69,8 @@ def run_top_gs_result(num, best_config,
                         # train_mean, train_std, 
                         None, None, None, '', None,
                         dmged_piano_artificial_noise_mix, data_path, min_sig_len, True,
-                        tuned_a430hz, use_basis_vectors, None, None))
+                        tuned_a430hz, use_basis_vectors, None, None, 
+                        loop_bare_noise))
     process_train.start()
     process_train.join()
 
@@ -124,34 +127,40 @@ def main():
     # Differentiate PC GS from F35 GS
     # dmged_piano_artificial_noise_mix = True if pc_run else False
     dmged_piano_artificial_noise_mix = False    # TEMP while F35 down
-    dmged_piano_only = True
+    dmged_piano_only = False    # Promising w/ BVs
     test_on_synthetic = False
     # wdw_size = PIANO_WDW_SIZE
     data_path = 'brahms_restore_ml/drnn/drnn_data/'
     arch_config_path = 'brahms_restore_ml/drnn/config/'
-    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # best results      
-    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_pc_wb/'           # PC
+    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # for use w/ grid search mode    
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_pc_wb/'     # PC
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'    # F35
-    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results      
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results   
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_bvs/'       # bvs     
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_bvs_2/'       # bvs 2   
     recent_model_path = 'brahms_restore_ml/drnn/recent_model'
     infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     brahms_path = 'brahms.wav'
 
-    # To run best model configs, data_from_numpy == True
-    do_curr_best, curr_best_combos, curr_best_done_on_pc = False, '3072', False
+    # To run best model configs, data_from_numpy == True & mode == train
+    do_curr_best, curr_best_combos, curr_best_done_on_pc = False, '12', True
     # # F35 LSTM
     # top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
-    # F35 WB
-    top_result_nums = [1568] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
+    # # F35 WB
+    # top_result_nums = [1568] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
     # # PC WB
     # top_result_nums = [997, 1184, 1312, 1310, 1311, 1736]
+    # # BVS Architectures
+    # top_result_nums = [6] # 13, 20, 6, 10, 23]
+    # BVS Architectures #2
+    top_result_nums = [10]
     top_result_paths = [gs_output_path + 'result_' + str(x) + '_of_' + curr_best_combos +
                         ('.txt' if curr_best_done_on_pc else '_noPC.txt') for x in top_result_nums]
     # NEW
     output_file_addon = ''
     data_from_numpy = True
-    tuned_a430hz = True
-    basis_vector_features = True
+    tuned_a430hz = False # may not be helpful, as of now does A=436Hz by default
+    basis_vector_features = False
     if tuned_a430hz:
         recent_model_path += '_a436hz' # tune_temp '_a430hz'
         output_file_addon += '_a436hz' # tune_temp '_a430hz'
@@ -161,6 +170,9 @@ def main():
     if dmged_piano_only:
         recent_model_path += '_dmgedp'
         output_file_addon += '_dmgedp'
+    # NEW - for small grid searches only
+    gs_write_model = True
+    loop_bare_noise = False  # unsused, but to control bare_noise in nn_data_gen
 
     # EMPERICALLY DERIVED HPs
     # Note: FROM PO-SEN PAPER - about loss_const
@@ -183,7 +195,8 @@ def main():
                           use_basis_vectors=basis_vector_features)
     else:
         train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run, 
-                                                          use_bv=basis_vector_features)
+                                                          use_bv=basis_vector_features,
+                                                          small_gs=gs_write_model)
         # print('First arch config optn after return:', arch_config_optns[0])
 
         if data_from_numpy:
@@ -191,15 +204,19 @@ def main():
             noise_piano_filepath_prefix = (data_path + 'dmgedp_artn_mix_numpy/mixed'
                     if dmged_piano_artificial_noise_mix else 
                 (data_path + 'dmged_mix_a436hz_numpy/mixed' if (dmged_piano_only and tuned_a430hz) else # tune_temp
+                (data_path + 'dmged_mix_looped_noise_numpy/mixed' if (dmged_piano_only and loop_bare_noise) else
+                (data_path + 'piano_noise_looped_numpy/mixed' if loop_bare_noise else
                 (data_path + 'dmged_mix_numpy/mixed' if dmged_piano_only else
                 (data_path + 'piano_noise_a436hz_numpy/mixed' if tuned_a430hz else  # tune_temp
-                (data_path + 'piano_noise_numpy/mixed')))))
+                (data_path + 'piano_noise_numpy/mixed')))))))
             piano_label_filepath_prefix = (data_path + 'piano_source_numpy/piano'
                     if dmged_piano_artificial_noise_mix else     
                 (data_path + 'piano_source_a436hz_numpy/piano' if tuned_a430hz else # tune_temp
                 (data_path + 'piano_source_numpy/piano')))
             noise_label_filepath_prefix = (data_path + 'dmged_noise_numpy/noise'
-                if dmged_piano_artificial_noise_mix else data_path + 'noise_source_numpy/noise')
+                    if dmged_piano_artificial_noise_mix else 
+                (data_path + 'noise_source_looped_numpy/noise' if loop_bare_noise else
+                (data_path + 'noise_source_numpy/noise')))
         else:
             # Load in train/validation WAV file data
             noise_piano_filepath_prefix = (data_path + 'dmged_mix_wav/features'
@@ -209,7 +226,7 @@ def main():
                 (data_path + 'final_piano_wav_a=436hz/psource' if tuned_a430hz else     # tune_temp
                 (data_path + 'final_piano_wav/psource')))
             noise_label_filepath_prefix = (data_path + 'dmged_noise_wav/nsource'
-                if dmged_piano_artificial_noise_mix else data_path + 'noise_source_numpy/noise')
+                    if dmged_piano_artificial_noise_mix else data_path + 'final_noise_wav/nsource')
             if dmged_piano_only:    # new - works with a430hz only
                 dmged_piano_filepath_prefix = (data_path + 'dmged_piano_wav_a=436hz/psource' # tune_temp
                     if tuned_a430hz else 
@@ -330,8 +347,8 @@ def main():
                     best_config = json.loads(gs_result_file.readline())
                     # Temp test for LSTM -> until can grid search
                     # # TEMP - until F35 back up, make managable for PC
-                    if (len(best_config['layers']) < 4) or (len(best_config['layers']) == 4 and best_config['layers'][0]['type'] == 'Dense'):
-                        run_top_gs_result(num, best_config, 
+                    # if (len(best_config['layers']) < 4) or (len(best_config['layers']) == 4 and best_config['layers'][0]['type'] == 'Dense'):
+                    run_top_gs_result(num, best_config, 
                     # TRAIN_MEAN, TRAIN_STD, 
                                     x_train_files, y1_train_files, y2_train_files,
                                     x_val_files, y1_val_files, y2_val_files, num_train, num_val, train_feat, train_seq,
@@ -340,7 +357,8 @@ def main():
                                     # wdw_size, 
                                     brahms_path, curr_best_combos, data_path=data_path, 
                                     min_sig_len=min_sig_len, tuned_a430hz=tuned_a430hz,
-                                    use_basis_vectors=basis_vector_features)
+                                    use_basis_vectors=basis_vector_features,
+                                    loop_bare_noise=loop_bare_noise)
             else:
                 # REPL TEST - arch config, all config, optiizer config
                 if random_hps:
@@ -461,7 +479,8 @@ def main():
                                         tuned_a430hz=tuned_a430hz,
                                         use_basis_vectors=basis_vector_features,
                                         dmged_y1_train_files=dmged_y1_train_files,
-                                        dmged_y1_val_files=dmged_y1_val_files)
+                                        dmged_y1_val_files=dmged_y1_val_files,
+                                        loop_bare_noise=loop_bare_noise)
                 if sample:
                     restore_with_drnn(infer_output_path, recent_model_path, # wdw_size, epsilon, 
                                     # train_loss_const,
@@ -563,7 +582,8 @@ def main():
                         restart=restart,
                         dataset2=dmged_piano_artificial_noise_mix,
                         tuned_a430hz=tuned_a430hz, 
-                        use_basis_vectors=basis_vector_features)
+                        use_basis_vectors=basis_vector_features,
+                        save_model_path=recent_model_path if gs_write_model else None) # NEW - for small grid searchse
 
 
 if __name__ == '__main__':

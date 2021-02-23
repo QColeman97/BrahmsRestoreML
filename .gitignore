@@ -8,6 +8,14 @@ __pycache__/
 /brahms_restore_ml/drnn/tensorflow/
 /brahms_restore_ml/drnn/tf-nightly/
 /brahms_restore_ml/drnn/recent_model/
+/brahms_restore_ml/drnn/recent_model_1of4/
+/brahms_restore_ml/drnn/recent_model_2of4/
+/brahms_restore_ml/drnn/recent_model_3of4/
+/brahms_restore_ml/drnn/recent_model_4of4/
+/brahms_restore_ml/drnn/recent_model_1of4_noiseloop/
+/brahms_restore_ml/drnn/recent_model_2of4_noiseloop/
+/brahms_restore_ml/drnn/recent_model_3of4_noiseloop/
+/brahms_restore_ml/drnn/recent_model_4of4_noiseloop/
 /brahms_restore_ml/drnn/recent_model_bvs/
 /brahms_restore_ml/drnn/recent_model_a430hz/
 /brahms_restore_ml/drnn/recent_model_a430hz_bvs/
@@ -24,6 +32,8 @@ __pycache__/
 /brahms_restore_ml/drnn/src/logs/
 /brahms_restore_ml/drnn/output_grid_search_save_11_19/
 /brahms_restore_ml/drnn/output_grid_search_PC_bs5_oom/
+/brahms_restore_ml/drnn/output_grid_search_bvs/
+/brahms_restore_ml/drnn/output_grid_search_bvs_2/
 /brahms_restore_ml/drnn/output_grid_search/
 /brahms_restore_ml/drnn/output_restore/
 

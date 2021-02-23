@@ -146,20 +146,24 @@ def main():
     # F35 wb (rnn) - 3072 combos
     # F35 (lstm) - 192 combos
     # PC wb (rnn) - 2048 combos
-    num_gs_iters = 192
-    pc = False
+    # PC bvs (rnn) - 24 combos
+    num_gs_iters = 24
+    pc = True
 
     if num_gs_iters == 3072:
-        grid_search_results_path = 'drnn/output_grid_search_wb/'
+        grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'
         within_vl, within_l = 6.5, 0.25
     elif num_gs_iters == 2048:
-        grid_search_results_path = 'drnn/output_grid_search_pc_wb/'
+        grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_pc_wb/'
         within_vl, within_l = 0.15, 0.05   
     elif num_gs_iters == 192:
-        grid_search_results_path = 'drnn/output_grid_search_lstm/'
+        grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'
+        within_vl, within_l = 0.7, 0.6
+    elif num_gs_iters == 24:
+        grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_bvs/'
         within_vl, within_l = 0.7, 0.6
     else:
-        grid_search_results_path = 'drnn/output_grid_search/'
+        grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search/'
         within_vl, within_l = 0.1, 0.1
 
     # # top10perc_vl_files, top10perc_l_files = [], []
@@ -179,11 +183,11 @@ def main():
     min_vl_files, min_vl_values = files_close_to_min(within_vl, min_val_loss, grid_search_results_path, num_gs_iters, val_loss=True, pc=pc)
     min_l_files, min_l_values = files_close_to_min(within_l, min_loss, grid_search_results_path, num_gs_iters, pc=pc)
 
-    with open('drnn/top_gs_results_vl_' + str(num_gs_iters) + '.txt', 'w') as fp:
+    with open('brahms_restore_ml/drnn/top_gs_results_vl_' + str(num_gs_iters) + '.txt', 'w') as fp:
         for i, file_num in enumerate(min_vl_files):
             line_string = str(file_num) + ', ' + str(min_vl_values[i]) + '\n'
             fp.write(line_string)
-    with open('drnn/top_gs_results_l_' + str(num_gs_iters) + '.txt', 'w') as fp:
+    with open('brahms_restore_ml/drnn/top_gs_results_l_' + str(num_gs_iters) + '.txt', 'w') as fp:
         for i, file_num in enumerate(min_l_files):
             line_string = str(file_num) + ', ' + str(min_l_values[i]) + '\n'
             fp.write(line_string)
