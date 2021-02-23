@@ -213,7 +213,7 @@ def signal_to_nn_features(signal, use_bv=False, wdw_size=PIANO_WDW_SIZE, epsilon
 def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_feat,
                         min_sig_len, dmged_piano_artificial_noise=False,
                         # src_amp_low=0.75, src_amp_high=1.15, # TEMP - experiment w/ others
-                        src_amp_low=0.5, src_amp_high=2, 
+                        src_amp_low=1, src_amp_high=1.15, 
                         data_path=None, x_files=None, from_numpy=False, bare_noise=False,    # new
                         tuned_a430hz=False, piano_basis_vectors=None, dmged_y1_files=None): # new
     # if use_bv:
