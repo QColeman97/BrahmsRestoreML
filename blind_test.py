@@ -18,7 +18,7 @@ def play_wav(wave_obj):
 def main():
     test_gs = False
     if len(sys.argv) > 1 and sys.argv[1] == 'gs':
-        print('Testing within top gs results')
+        print('Testing within top gs results - BROKEN - fix later')
         test_gs = True
     else:
         print('Testing against benchmarks')
@@ -35,7 +35,8 @@ def main():
     # nmf_sr, nmf_sig = wavfile.read('brahms_restore_ml/nmf/old/old_outputs/output_restored_wav_v3/brahms_sslrnpiano_madeinit_10nbv_l1pen1000.wav')
     # nmf_sr, nmf_sig = wavfile.read('brahms_restore_ml/nmf/output/output_restored_wav_v4/brahms_10nbv.wav')
     nmf_sr, nmf_sig = wavfile.read('brahms_restore_ml/nmf/output/output_restored_wav_v5/brahms_1nbv.wav')
-    # drnn_sig & drnn_sr made above
+    # TEMP - not - drnn_sig & drnn_sr made above
+    drnn_sr, drnn_sig = wavfile.read('brahms_restore_ml/drnn/output_restore/restore_a430hz_bvs_dmgedp.wav')
     ccrma_sr, ccrma_sig = wavfile.read('../Benchmark Systems/ccrma/benchmark2(thebest?).wav')
     po_sen_sr, po_sen_sig = wavfile.read('../Benchmark Systems/po-sen/BrahmsResults/piano_brahms_denoising_model.wav')
     izotope_sr, izotope_sig = wavfile.read('../Benchmark Systems/izotope_rx/brahms_restore_izotope_rx.wav')

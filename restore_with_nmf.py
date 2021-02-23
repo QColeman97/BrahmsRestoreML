@@ -71,7 +71,7 @@ def main():
     #     out_filepath += '_ova'
     # TEMP
     if a430hz_bv:
-        out_filepath += '_a436hz'
+        out_filepath += '_a436hz' # '_a430hz'
     if score_piano_bv:
         out_filepath += '_scorebv'
     if audible_range_bv:
