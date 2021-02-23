@@ -45,7 +45,8 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
                         grid_search_iter=None, gs_path=None, combos=None, gs_id='',
                         ret_queue=None, dataset2=False, data_path=None, min_sig_len=None,
                         data_from_numpy=False, tuned_a430hz=False, use_basis_vectors=False, 
-                        dmged_y1_train_files=None, dmged_y1_val_files=None):
+                        dmged_y1_train_files=None, dmged_y1_val_files=None,
+                        loop_bare_noise=False):
                         # pad_len=-1):
 
     from .model import make_model
@@ -88,7 +89,8 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     #                                    num_train + num_val, n_seq, n_feat, min_sig_len, dataset2=dataset2, 
     #                                    data_path=data_path, x_filenames=np.concatenate((x_train_files, x_val_files)), 
     #                                    from_numpy=data_from_numpy, tuned_a430hz=tuned_a430hz, 
-    #                                    dmged_y1_filenames=np.concatenate((dmged_y1_train_files, dmged_y1_val_files)))
+    #                                    dmged_y1_filenames=np.concatenate((dmged_y1_train_files, dmged_y1_val_files)),
+    #                                    loop_bare_noise=loop_bare_noise)
     # print('\nNOTICE - NEW TRAIN MEAN:', t_mean, 'NEW TRAIN STD:', t_std, '\n')
     if dataset2:
         t_mean, t_std = TRAIN_MEAN_DMGED_MIX, TRAIN_STD_DMGED_MIX
@@ -111,12 +113,14 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     train_generator = nn_data_generator(y1_train_files, y2_train_files, num_train,
             batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, min_sig_len=min_sig_len,
             dmged_piano_artificial_noise=dataset2, data_path=data_path,
-            x_files=x_train_files, from_numpy=data_from_numpy, tuned_a430hz=tuned_a430hz,
+            x_files=x_train_files, from_numpy=data_from_numpy, bare_noise=loop_bare_noise,
+            tuned_a430hz=tuned_a430hz,
             piano_basis_vectors=piano_basis_vectors, dmged_y1_files=dmged_y1_train_files)   # new - dmged piano only
     validation_generator = nn_data_generator(y1_val_files, y2_val_files, num_val,
             batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, min_sig_len=min_sig_len,
             dmged_piano_artificial_noise=dataset2, data_path=data_path,
-            x_files=x_val_files, from_numpy=data_from_numpy, tuned_a430hz=tuned_a430hz,
+            x_files=x_val_files, from_numpy=data_from_numpy, bare_noise=loop_bare_noise,
+            tuned_a430hz=tuned_a430hz,
             piano_basis_vectors=piano_basis_vectors, dmged_y1_files=dmged_y1_val_files)     # new - dmged piano only
 
     train_dataset = tf.data.Dataset.from_generator(
@@ -491,6 +495,7 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                 '\narch_config', arch_config, '\n')
 
                             if save_model_path is not None: # NEW - write out models, all epochs
+                                save_model_path_copy = save_model_path
                                 save_model_path += ('_' + str(gs_iter) + 'of' + str(combos))
                                 early_stop_pat = epochs
 
@@ -514,9 +519,9 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                                                     combos, gs_id,
                                                                     send_end, dataset2, None, None,
                                                                     True, tuned_a430hz, use_basis_vectors, 
-                                                                    None, None))
+                                                                    None, None, False))
                             process_train.start()
-                    
+                                              
                             # Keep polling until child errors or child success (either one guaranteed to happen)
                             losses, val_losses = None, None
                             while process_train.is_alive():
@@ -532,6 +537,9 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                             print('Losses from pipe:', losses)
                             print('Val. losses from pipe:', val_losses)
                             process_train.join()
+
+                            if save_model_path is not None: # NEW - write out models, all epochs
+                                save_model_path = save_model_path_copy
 
                             # Do multiple runs of eval_src_sep to avg over randomness?
                             curr_basic_loss = {'batch_size': batch_size, 
