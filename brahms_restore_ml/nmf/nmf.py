@@ -99,12 +99,26 @@ SPGM_MARY_RATIO = 0.008
 # Have a param to specify when to NOT learn voice in our basis vectors (we shouldn't) 
 # For now, no param and we just shorten the brahms sig before this call
 
+def updateH(H, W, V, n, l1_pen=0):
+    # ones = np.ones(V.shape)
+    # W.T @ ones = broadcasted W.T row-sums
+    WT_mult_ones = np.tile(np.sum(W.T, axis=-1)[np.newaxis].T, (1, n)) # (W.T @ ones)
+    H *= ((W.T @ (V / (W @ H))) / (WT_mult_ones + l1_pen))
+
+def updateW(W, H, V, m):
+    # ones = np.ones(V.shape)
+    # print('ONES SHAPE:', ones.shape, 'HT SHAPE:', H.T.shape)
+    # ones @ H.T = broadcasted H.T column-sums
+    ones_mult_HT = np.tile(np.sum(H.T, axis=0)[np.newaxis], (m, 1))   # (ones @ H.T)
+    W *= (((V / (W @ H)) @ H.T) / ones_mult_HT)
+
 # With any supervision W is returned unchanged. No supervision, W is made & returned
 def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=False, incorrect=False, 
         learn_iter=MAX_LEARN_ITER, mutual_update=True, pen_all=False):
     m, n = V.shape
-    H = np.random.rand(k, n)
-    ones = np.ones(V.shape)
+    H = np.random.rand(k, n) + 1
+    print('H VALUES:', H[0, :100])
+    # ones = np.ones(V.shape)
     if debug:
         print('IN NMF, V shape:', V.shape, 'W shape:', W if (W is None) else W.shape, 'H shape:', H.shape, 'ones shape:', ones.shape)
         print('Sum of input V:', np.sum(V))
@@ -119,7 +133,8 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
         if sslrn == 'None':
             # Supervised Learning
             for _ in range(learn_iter):
-                H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
+                # H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
+                updateH(H, W, V, n, l1_pen=l1_pen)
         # SemiSup - Looks like only use the sections of W & H, & same V & ones, in multiplications for updates to sections of W & H
         elif sslrn == 'Piano':
             # Semi-supervised Learning Piano
@@ -127,60 +142,71 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
                 # if pen_all:
                 #     H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
                 # else:
-                H[:split_index] *= ((W[:, :split_index].T @ (V / (W[:, :split_index] @ H[:split_index]))) / 
-                                        ((W[:, :split_index].T @ ones) + l1_pen))      # only penalize corr. to fixed
-                H[split_index:] *= ((W[:, split_index:].T @ (V / (W[:, split_index:] @ H[split_index:]))) / 
-                                        (W[:, split_index:].T @ ones))
-                W[:, split_index:] *= (((V / (W[:, split_index:] @ H[split_index:])) @ H[split_index:].T) / 
-                                        (ones @ H[split_index:].T))
+                # H[:split_index] *= ((W[:, :split_index].T @ (V / (W[:, :split_index] @ H[:split_index]))) / 
+                #                         ((W[:, :split_index].T @ ones) + l1_pen))      # only penalize corr. to fixed
+                # H[split_index:] *= ((W[:, split_index:].T @ (V / (W[:, split_index:] @ H[split_index:]))) / 
+                #                         (W[:, split_index:].T @ ones))
+                # W[:, split_index:] *= (((V / (W[:, split_index:] @ H[split_index:])) @ H[split_index:].T) / 
+                #                         (ones @ H[split_index:].T))
+                updateH(H[:split_index], W[:, :split_index], V, n, l1_pen=l1_pen)
+                updateH(H[split_index:], W[:, split_index:], V, n)     # only penalize H corresponding to fixed
+                updateW(W[:, split_index:], H[split_index:], V, m)
         else:
             # Semi-supervised Learning Noise
+            if V.shape[1] > 1000:   # For Brahms recording
+                # NEW
+                k_voice = 10
+                Vvoice = V[:, :WDW_NUM_AFTER_VOICE].copy()
+                Vrest = V[:, WDW_NUM_AFTER_VOICE:].copy()
+                Hvoice = np.random.rand(k_voice, WDW_NUM_AFTER_VOICE) + 1
+                Wvoice = np.random.rand(m, k_voice) + 1
+                # ones_voice = np.ones((m, WDW_NUM_AFTER_VOICE))
+                for _ in range(learn_iter):
+                    # Hvoice *= ((Wvoice.T @ (Vvoice / (Wvoice @ Hvoice))) / (Wvoice.T @ ones_voice))
+                    # Wvoice *= (((Vvoice / (Wvoice @ Hvoice)) @ Hvoice.T) / (ones_voice @ Hvoice.T))
+                    updateH(Hvoice, Wvoice, Vvoice, WDW_NUM_AFTER_VOICE)
+                    updateW(Wvoice, Hvoice, Vvoice, m)
 
-            # NEW
-            k_voice = 10
-            Vvoice = V[:, :WDW_NUM_AFTER_VOICE].copy()
-            Vrest = V[:, WDW_NUM_AFTER_VOICE:].copy()
-            Hvoice = np.random.rand(k_voice, WDW_NUM_AFTER_VOICE)
-            Wvoice = np.random.rand(m, k_voice)
-            ones_voice = np.ones((m, WDW_NUM_AFTER_VOICE))
-            for _ in range(learn_iter):
-                Hvoice *= ((Wvoice.T @ (Vvoice / (Wvoice @ Hvoice))) / (Wvoice.T @ ones_voice))
-                Wvoice *= (((Vvoice / (Wvoice @ Hvoice)) @ Hvoice.T) / (ones_voice @ Hvoice.T))
+                Hrest = np.random.rand(k, n - WDW_NUM_AFTER_VOICE) + 1
+                # ones_rest = np.ones((m, n - WDW_NUM_AFTER_VOICE))
+                for _ in range(learn_iter):
+                    # Hrest[split_index:] *= ((W[:, split_index:].T @ (Vrest / (W[:, split_index:] @ Hrest[split_index:]))) / 
+                    #                         ((W[:, split_index:].T @ ones_rest) + l1_pen))      # only penalize corr. to fixed
+                    # Hrest[:split_index] *= ((W[:, :split_index].T @ (Vrest / (W[:, :split_index] @ Hrest[:split_index]))) / 
+                    #                         (W[:, :split_index].T @ ones_rest))
+                    # W[:, :split_index] *= (((Vrest / (W[:, :split_index] @ Hrest[:split_index])) @ Hrest[:split_index].T) / 
+                    #                         (ones_rest @ Hrest[:split_index].T))
+                    updateH(Hrest[split_index:], W[:, split_index:], Vrest, n - WDW_NUM_AFTER_VOICE, l1_pen=l1_pen)  # only penalize H corr. to fixed
+                    updateH(Hrest[:split_index], W[:, :split_index], Vrest, n - WDW_NUM_AFTER_VOICE)
+                    updateW(W[:, :split_index], Hrest[:split_index], Vrest, m)
 
-            Hrest = np.random.rand(k, n - WDW_NUM_AFTER_VOICE)
-            ones_rest = np.ones((m, n - WDW_NUM_AFTER_VOICE))
-            for _ in range(learn_iter):
-                Hrest[split_index:] *= ((W[:, split_index:].T @ (Vrest / (W[:, split_index:] @ Hrest[split_index:]))) / 
-                                        ((W[:, split_index:].T @ ones_rest) + l1_pen))      # only penalize corr. to fixed
-                Hrest[:split_index] *= ((W[:, :split_index].T @ (Vrest / (W[:, :split_index] @ Hrest[:split_index]))) / 
-                                        (W[:, :split_index].T @ ones_rest))
-                W[:, :split_index] *= (((Vrest / (W[:, :split_index] @ Hrest[:split_index])) @ Hrest[:split_index].T) / 
-                                        (ones_rest @ Hrest[:split_index].T))
+                Wpiano = W[:, split_index:]
+                Wnoise = W[:, :split_index]
+                W = np.concatenate((Wnoise, Wvoice, Wpiano), axis=-1)
 
-            Wpiano = W[:, split_index:]
-            Wnoise = W[:, :split_index]
-            W = np.concatenate((Wnoise, Wvoice, Wpiano), axis=-1)
-
-            Hvoice = np.concatenate((Hvoice, np.zeros((k_voice, n - WDW_NUM_AFTER_VOICE))), axis=-1)
-            Hrest = np.concatenate((np.zeros((k, WDW_NUM_AFTER_VOICE)), Hrest), axis=-1)
-            
-            Hpiano = Hrest[split_index:]
-            Hnoise = Hrest[:split_index]
-            H = np.concatenate((Hnoise, Hvoice, Hpiano))
-
-            # OLD
-            # for _ in range(learn_iter):
-            #     # if pen_all:
-            #     #     H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
-            #     # else:
-            #     H[split_index:] *= ((W[:, split_index:].T @ (V / (W[:, split_index:] @ H[split_index:]))) / 
-            #                             ((W[:, split_index:].T @ ones) + l1_pen))      # only penalize corr. to fixed
-            #     H[:split_index] *= ((W[:, :split_index].T @ (V / (W[:, :split_index] @ H[:split_index]))) / 
-            #                             (W[:, :split_index].T @ ones))
-            #     W[:, :split_index] *= (((V / (W[:, :split_index] @ H[:split_index])) @ H[:split_index].T) / 
-            #                             (ones @ H[:split_index].T))
+                Hvoice = np.concatenate((Hvoice, np.zeros((k_voice, n - WDW_NUM_AFTER_VOICE))), axis=-1)
+                Hrest = np.concatenate((np.zeros((k, WDW_NUM_AFTER_VOICE)), Hrest), axis=-1)
+                
+                Hpiano = Hrest[split_index:]
+                Hnoise = Hrest[:split_index]
+                H = np.concatenate((Hnoise, Hvoice, Hpiano))
+            else:
+                # OLD
+                for _ in range(learn_iter):
+                    # # if pen_all:
+                    # #     H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
+                    # # else:
+                    # H[split_index:] *= ((W[:, split_index:].T @ (V / (W[:, split_index:] @ H[split_index:]))) / 
+                    #                         ((W[:, split_index:].T @ ones) + l1_pen))      # only penalize corr. to fixed
+                    # H[:split_index] *= ((W[:, :split_index].T @ (V / (W[:, :split_index] @ H[:split_index]))) / 
+                    #                         (W[:, :split_index].T @ ones))
+                    # W[:, :split_index] *= (((V / (W[:, :split_index] @ H[:split_index])) @ H[:split_index].T) / 
+                    #                         (ones @ H[:split_index].T))
+                    updateH(H[split_index:], W[:, split_index:], V, n, l1_pen=l1_pen)
+                    updateH(H[:split_index], W[:, :split_index], V, n)
+                    updateW(W[:, :split_index], H[:split_index], V, m)
     else:
-        W = np.random.rand(m, k)
+        W = np.random.rand(m, k) + 1
         if debug:
             print('Unsupervised Learning')
         # Unsupervised Learning
@@ -188,8 +214,10 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
             # if pen_all:
             #     H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
             # else:
-            H *= ((W.T @ (V / (W @ H))) / (W.T @ ones))
-            W *= (((V / (W @ H)) @ H.T) / (ones @ H.T))
+            # H *= ((W.T @ (V / (W @ H))) / (W.T @ ones))
+            # W *= (((V / (W @ H)) @ H.T) / (ones @ H.T))
+            updateH(H, W, V, n, l1_pen=l1_pen)
+            updateW(W, H, V, m)
     if debug:
         plot_matrix(W, 'W After Learn', 'k', 'frequency', ratio=BASIS_VECTOR_FULL_RATIO, show=True)
         plot_matrix(H, 'H After Learn', 'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
