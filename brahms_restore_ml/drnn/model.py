@@ -194,7 +194,11 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                 else:
                     if (use_bv and 
                             prev_layer_type is not None and prev_layer_type == 'RNN'):
-                        x = Concatenate(axis=-2) ([bv_input, x])
+                        if config['scale']:
+                            stdized_bv_input = Standardize(t_mean, t_std) (bv_input)
+                            x = Concatenate(axis=-2) ([stdized_bv_input, x])
+                        else:
+                            x = Concatenate(axis=-2) ([bv_input, x])
 
                     x = TimeDistributed(Dense(features // layer_config['nrn_div'],
                                             activation=layer_config['act'], 

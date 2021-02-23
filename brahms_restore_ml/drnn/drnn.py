@@ -167,9 +167,13 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     #                               show_shapes=True)
  
     pc_run_str = '' if pc_run else '_noPC'
-    if pc_run and (grid_search_iter is None):
+    # if pc_run and (grid_search_iter is None):
+    if pc_run:  # NEW - TRY TO WRITE MODELS IN SMALL GRID SEARCHES
         #  Can't for imperative models
         model.save(recent_model_path)
+
+        if (grid_search_iter is not None) and recent_model_path.endswith(str(combos)):
+            pc_run_str += ('_' + str(grid_search_iter) + 'of' + str(combos))
 
         # print('History Dictionary Keys:', hist.history.keys())
         # 'val_loss', 'loss'
@@ -193,7 +197,7 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
         return model
 
 
-def get_hp_configs(bare_config_path, pc_run=False, use_bv=False):
+def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False):
     # import tensorflow as tf
 
     # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
@@ -206,20 +210,22 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False):
     # 11/19/20 for PC - too late, just run this over break - test SGD vs mini-batch SGD (memory conservative)
     # batch_size_optns = [1, 3] if pc_run else [4, 8]    # OOM on f35 and on PC, w/ restart script,
     # batch_size_optns = [1, 3] if pc_run else [8, 16]    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
-    batch_size_optns = [8] if pc_run else [8, 16]    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
-
+    # batch_size_optns = [4] if pc_run else [8, 16]    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
+    batch_size_optns = [4] if (pc_run and not small_gs) else ([8] if small_gs else [8, 16])    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
+    
     # # MEM BOUND TEST
     # batch_size_optns = [8] # - time
     # # batch_size_optns = [25]
 
     # batch_size_optns = [5] if pc_run else [8, 12] 
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
-    epochs_optns = [10]
+    epochs_optns = [20, 50, 100, 500] if use_bv or small_gs else [10]
     # loss_const total options 0 - 0.3 by steps of 0.05
     # loss_const_optns = [0.05, 0.2]
     # loss_const_optns = [0.05, 0.1] if pc_run else [0.05]    # first of two HPs dropping, PC GS time constraint
     # loss_const_optns = [0.05, 0.1] if pc_run else [0.05, 0.1]    # Multi-processing fix -> orig numbers
-    loss_const_optns = [0.1] if pc_run else [0.05, 0.1]    # Multi-processing fix -> orig numbers
+    # loss_const_optns = [0.1] if (pc_run and not small_gs) else ([0.1, 0.15] if small_gs else [0.05, 0.1])    # Multi-processing fix -> orig numbers
+    loss_const_optns = [0.1] if pc_run else [0.05, 0.1]     # Multi-processing fix -> orig numbers
 
     # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
     # Balance between gradient clipping and lr for exploding gradient
@@ -321,24 +327,29 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False):
     # # MEM BOUND TEST
     # dropout_optns = [(0.25,0.25)]
     # dropout_optns = [(0.0,0.0), (0.25,0.25)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
-    dropout_optns = [(0.0,0.0), (0.5,0.5)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
+    # dropout_optns = [(0.0,0.0), (0.5,0.5)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
+    dropout_optns = [(0.0,0.0)] if use_bv or small_gs else [(0.0,0.0), (0.5,0.5)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
     # # MEM BOUND TEST
     # scale_optns = [True]
-    scale_optns = [False, True]
+    # scale_optns = [False, True]
+    scale_optns = [True] if use_bv else ([False] if small_gs else [False, True])
     # # MEM BOUND TEST
     # rnn_skip_optns = [True]
     # rnn_skip_optns = [False, True]
-    rnn_skip_optns = [False] if use_bv else [False, True]
+    # rnn_skip_optns = [False] if use_bv or small_gs else [False, True]
+    rnn_skip_optns = [False] if use_bv else ([True] if small_gs else [False, True])
     bias_rnn_optns = [True]     # False
     bias_dense_optns = [True]   # False
     # HP range test - only True
     # # MEM BOUND TEST
     # bidir_optns = [True]
     # bidir_optns = [False, True]
-    bidir_optns =  [False] if use_bv else [False, True]
+    # bidir_optns =  [False] if use_bv or small_gs else [False, True]
+    bidir_optns =  [False] if use_bv else ([True] if small_gs else [False, True])
     # # MEM BOUND TEST
     # bn_optns = [True]  
-    bn_optns = [False, True]                    # For Dense only
+    bn_optns = [False] if small_gs else [False, True]                    # For Dense only
+    # bn_optns = [False] if use_bv else [False, True]               
     # # MEM BOUND TEST
     # rnn_optns = ['RNN']
     rnn_optns = ['RNN']
@@ -352,6 +363,9 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False):
         if use_bv:
             with open(bare_config_path + 'hp_arch_config_bvs.json') as hp_file:
                 bare_config_optns = json.load(hp_file)['archs']
+        elif small_gs:
+            with open(bare_config_path + 'hp_arch_config_final_no_pc_long.json') as hp_file:
+                bare_config_optns = [json.load(hp_file)['archs'][0]]    # 0th small enough for pc
         else:
             with open(bare_config_path + 'hp_arch_config_final.json') as hp_file:
                 bare_config_optns = json.load(hp_file)['archs']
@@ -404,7 +418,8 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                 train_configs, arch_config_optns,
                 gsres_path, early_stop_pat=3, pc_run=False, 
                 gs_id='', restart=False, dataset2=False,
-                tuned_a430hz=False, use_basis_vectors=False):
+                tuned_a430hz=False, use_basis_vectors=False,
+                save_model_path=None):  # NEW
 
     # IMPORTANT to take advantage of what's known in test data to minimize factors
     # Factors: batchsize, epochs, loss_const, optimizers, gradient clipping,
@@ -475,6 +490,10 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                 'optimizer:', opt_name, 'clipvalue:', clip_val, 'learn_rate:', lr, 
                                 '\narch_config', arch_config, '\n')
 
+                            if save_model_path is not None: # NEW - write out models, all epochs
+                                save_model_path += ('_' + str(gs_iter) + 'of' + str(combos))
+                                early_stop_pat = epochs
+
                             send_end, recv_end = multiprocessing.Pipe()
                             # Multi-processing hack - make TF let go of mem after a model creation & training
                             process_train = multiprocessing.Process(target=evaluate_source_sep, args=(
@@ -487,7 +506,8 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                                                     opt_name, clip_val, lr,
                                                                     early_stop_pat,
                                                                     epsilon,
-                                                                    arch_config, None, pc_run,
+                                                                    # arch_config, None, pc_run,
+                                                                    arch_config, save_model_path, pc_run,  # NEW - write models
                                                                     # t_mean, t_std,
                                                                     gs_iter,
                                                                     gsres_path,
