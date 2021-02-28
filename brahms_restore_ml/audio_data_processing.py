@@ -95,7 +95,9 @@ def sig_length_to_spgm_shape(n_smpls, wdw_size=PIANO_WDW_SIZE, hop_size_divisor=
     # Number of segments depends on if OVA implemented    
     # Only works for hop_size = wdw_size // 2
     num_sgmts = (math.ceil(n_smpls / hop_size) - 1) if ova else math.ceil(n_smpls / wdw_size)
+    # TEMP - 2049 -> 2048
     num_feats = (wdw_size // 2) + 1 # Nothing to do w/ hop size - result of DSP
+    # num_feats = (wdw_size // 2) # Nothing to do w/ hop size - result of DSP
     return (num_sgmts, num_feats)
 
 # Returns pos. magnitude & phases of a DFT, given a signal segment
@@ -112,8 +114,12 @@ def signal_to_pos_fft(sgmt, wdw_size, ova=False, debug_flag=False):
     fft = np.fft.fft(sgmt)
     phases_fft = np.angle(fft)
     mag_fft = np.abs(fft)
+    # TEMP - 2049 -> 2048
     pos_phases_fft = phases_fft[: (wdw_size // 2) + 1]
     pos_mag_fft = mag_fft[: (wdw_size // 2) + 1]
+    # # From docs - for an even number of input points, A[n/2] represents both positive and negative Nyquist frequency (summed?)
+    # pos_phases_fft = phases_fft[: (wdw_size // 2)]
+    # pos_mag_fft = mag_fft[: (wdw_size // 2)]
 
     if debug_flag:
         if ova:
@@ -121,7 +127,9 @@ def signal_to_pos_fft(sgmt, wdw_size, ova=False, debug_flag=False):
         print('FFT of wdw (len =', len(fft), '):\n', fft[:5])
         print('phases of FFT of wdw:\n', phases_fft[:5])
         print('mag FFT of wdw:\n', mag_fft[:5])
+        # TEMP - 2049 -> 2048
         print('pos FFT of wdw:\n', fft[: (wdw_size // 2) + 1])
+        # print('pos FFT of wdw:\n', fft[: (wdw_size // 2)])
         print('\nType of elem in spectrogram:', type(pos_mag_fft[0]), pos_mag_fft[0].dtype, '\n')
         print('positive mag FFT and phase lengths:', len(pos_mag_fft), len(pos_phases_fft))
         print('positive mag FFT:\n', pos_mag_fft[:5])
@@ -187,11 +195,15 @@ def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False, hop_size
 def pos_fft_to_signal(pos_mag_fft, pos_phases_fft, wdw_size, ova=False, 
                       end_sig=None, debug_flag=False, hop_size_divisor=2):
     # Append the mirrors of the synthetic magnitudes and phases to themselves
-    neg_mag_fft = np.flip(pos_mag_fft[1: wdw_size // 2], 0)
+    neg_mag_fft = np.flip(pos_mag_fft[1: wdw_size // 2], axis=0)
     mag_fft = np.concatenate((pos_mag_fft, neg_mag_fft))
+    # # TEMP - 2049 -> 2048
+    # neg_mag_fft = np.flip(pos_mag_fft[1:], axis=0)
+    # # Append nyquist frequency to middle (0?)
+    # mag_fft = np.concatenate((pos_mag_fft, neg_mag_fft))
 
     # The mirror is negative b/c phases are flipped in sign (angle), but not for magnitudes
-    neg_phases_fft = np.flip(pos_phases_fft[1: wdw_size // 2] * -1, 0)
+    neg_phases_fft = np.flip(pos_phases_fft[1: wdw_size // 2] * -1, axis=0)
     phases_fft = np.concatenate((pos_phases_fft, neg_phases_fft))
 
     # Multiply this magnitude fft w/ phases fft
