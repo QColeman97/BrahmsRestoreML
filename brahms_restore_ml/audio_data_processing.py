@@ -198,6 +198,7 @@ def pos_fft_to_signal(pos_mag_fft, pos_phases_fft, wdw_size, ova=False,
     fft = mag_fft * np.exp(1j*phases_fft)
     # Do ifft on the fft -> waveform
     ifft = np.fft.ifft(fft)
+    # This is safe, b/c ifft imag values are 0 for this data
     synthetic_sgmt = ifft.real
 
     if debug_flag:
