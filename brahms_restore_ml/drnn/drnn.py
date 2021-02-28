@@ -663,42 +663,42 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
 #     synthetic_sig = make_synthetic_signal(noise_spgm, phases, wdw_size, 
 #                                           orig_sig_type, ova=True, debug=False)
 #     wavfile.write(output_path + 'noise' + name_addon + '.wav', sr, synthetic_sig)
-
-def infer_old(x, phases, wdw_size, model, # loss_const, # optimizer, 
-        #   seq_len, n_feat, 
-        #   batch_size, 
-        #   epsilon,
-          output_path, sr, orig_sig_type,
-        #   config=None, t_mean=None, t_std=None, 
-          pc_run=False, name_addon=''):
+# OLD
+# def infer_old(x, phases, wdw_size, model, # loss_const, # optimizer, 
+#         #   seq_len, n_feat, 
+#         #   batch_size, 
+#         #   epsilon,
+#           output_path, sr, orig_sig_type,
+#         #   config=None, t_mean=None, t_std=None, 
+#           pc_run=False, name_addon=''):
     
-    import tensorflow as tf
+#     import tensorflow as tf
 
-    # TEMP - until I can make model w/ min sig len sgmts
-    deficit = model.layers[0].input_shape[0][1] - x.shape[0]
-    x = np.concatenate((x, np.zeros((deficit, x.shape[1]))))
-    x = np.expand_dims(x, axis=0)   # Give a samples dimension (1 sample)
-    print('x shape to be predicted on (padded) (w/ a batch dimension):', x.shape)
-    # For small amts of input that fit in one batch: __call__ > predict - didn't work :/
-    # clear_spgm, noise_spgm = model([x, x, x], batch_size=batch_size, training=False)
-    result_spgms = model.predict(x, batch_size=1)
-    clear_spgm, noise_spgm = tf.split(result_spgms[:-1, :, :], num_or_size_splits=2, axis=0)
-    clear_spgm = np.squeeze(clear_spgm.numpy())
-    noise_spgm = np.squeeze(noise_spgm.numpy())
+#     # TEMP - until I can make model w/ min sig len sgmts
+#     deficit = model.layers[0].input_shape[0][1] - x.shape[0]
+#     x = np.concatenate((x, np.zeros((deficit, x.shape[1]))))
+#     x = np.expand_dims(x, axis=0)   # Give a samples dimension (1 sample)
+#     print('x shape to be predicted on (padded) (w/ a batch dimension):', x.shape)
+#     # For small amts of input that fit in one batch: __call__ > predict - didn't work :/
+#     # clear_spgm, noise_spgm = model([x, x, x], batch_size=batch_size, training=False)
+#     result_spgms = model.predict(x, batch_size=1)
+#     clear_spgm, noise_spgm = tf.split(result_spgms[:-1, :, :], num_or_size_splits=2, axis=0)
+#     clear_spgm = np.squeeze(clear_spgm.numpy())
+#     noise_spgm = np.squeeze(noise_spgm.numpy())
 
-    if pc_run:
-        plot_matrix(clear_spgm, name='clear_output_spgm', xlabel='frequency', ylabel='time segments', 
-                ratio=SPGM_BRAHMS_RATIO)
-        plot_matrix(noise_spgm, name='noise_output_spgm', xlabel='frequency', ylabel='time segments', 
-                ratio=SPGM_BRAHMS_RATIO)
+#     if pc_run:
+#         plot_matrix(clear_spgm, name='clear_output_spgm', xlabel='frequency', ylabel='time segments', 
+#                 ratio=SPGM_BRAHMS_RATIO)
+#         plot_matrix(noise_spgm, name='noise_output_spgm', xlabel='frequency', ylabel='time segments', 
+#                 ratio=SPGM_BRAHMS_RATIO)
 
-    synthetic_sig = make_synthetic_signal(clear_spgm, phases, wdw_size, 
-                                          orig_sig_type, ova=True, debug=False)
-    wavfile.write(output_path + 'restore' + name_addon + '.wav', sr, synthetic_sig)
+#     synthetic_sig = make_synthetic_signal(clear_spgm, phases, wdw_size, 
+#                                           orig_sig_type, ova=True, debug=False)
+#     wavfile.write(output_path + 'restore' + name_addon + '.wav', sr, synthetic_sig)
 
-    synthetic_sig = make_synthetic_signal(noise_spgm, phases, wdw_size, 
-                                          orig_sig_type, ova=True, debug=False)
-    wavfile.write(output_path + 'noise' + name_addon + '.wav', sr, synthetic_sig)
+#     synthetic_sig = make_synthetic_signal(noise_spgm, phases, wdw_size, 
+#                                           orig_sig_type, ova=True, debug=False)
+#     wavfile.write(output_path + 'noise' + name_addon + '.wav', sr, synthetic_sig)
 
 def infer(sample, infer_model, piano_bvs=None):
     import tensorflow as tf
