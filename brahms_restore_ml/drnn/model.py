@@ -395,7 +395,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
 
     # Use pre-configurations (default)
     else:
-        x = SimpleRNN(features // 2, 
+        x = SimpleRNN(features, # features // 2, # TEMP - no dim reduc
                     activation='relu', 
                     return_sequences=True) (input_layer) 
         if use_bv:  # new
@@ -404,7 +404,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     return_sequences=True) (x)
             x = Concatenate(axis=-2) ([bv_input, x])    # TODO: bvs before or after music in time?
         else:
-            x = SimpleRNN(features // 2, 
+            x = SimpleRNN(features, # features // 2, # TEMP - no dim reduc
                 activation='relu',
                 return_sequences=True) (x)
         piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch

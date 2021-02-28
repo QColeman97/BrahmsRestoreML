@@ -23,7 +23,7 @@ def run_top_gs_result(num, best_config,
     train_batch_size = best_config['batch_size']
     # # Temp test for LSTM -> until can grid search
     # train_batch_size = 3 if train_batch_size < 3 else train_batch_size
-    # TEMP - until F35 back up, make managable for PC
+    # TEMP - until F35 back up, make managable for PC, for bv_s grid search results
     train_batch_size = 4
     # # TEMP - make what PC can actually handle (3072 run, but definitely 2048)
     # train_batch_size = 6
@@ -171,9 +171,8 @@ def main():
     if dmged_piano_only:
         recent_model_path += '_dmgedp'
         output_file_addon += '_dmgedp'
-    # NEW - for small grid searches only
-    gs_write_model = True
-    loop_bare_noise = False  # unsused, but to control bare_noise in nn_data_gen
+    gs_write_model = False      # for small grid searches only
+    loop_bare_noise = False     # to control bare_noise in nn_data_gen
 
     # EMPERICALLY DERIVED HPs
     # Note: FROM PO-SEN PAPER - about loss_const

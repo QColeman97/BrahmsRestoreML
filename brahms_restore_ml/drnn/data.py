@@ -178,7 +178,8 @@ def preprocess_signals(piano_sig, noise_sig, min_sig_len, mix_sig=None,
         # TEMP
         wavfile.write(data_path + 'noise' + str(num) + '.wav', STD_SR_HZ, noise_sig.astype('int16'))
         wavfile.write(data_path + 'piano' + str(num) + '.wav', STD_SR_HZ, piano_sig.astype('int16'))
-        # wavfile.write(data_path + 'dmged_piano' + str(num) + '.wav', STD_SR_HZ, dmged_piano_sig.astype('int16'))
+        if dmged_piano_sig is not None:
+            wavfile.write(data_path + 'dmged_piano' + str(num) + '.wav', STD_SR_HZ, dmged_piano_sig.astype('int16'))
         wavfile.write(data_path + 'mix' + str(num) + '.wav', STD_SR_HZ, mix_sig.astype('int16'))
 
     else:
