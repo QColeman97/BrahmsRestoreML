@@ -126,6 +126,8 @@ class DSPTests(unittest.TestCase):
                         synth_sig[2] > synth_sig[3] and synth_sig[3] > synth_sig[4] and
                         synth_sig[4] < synth_sig[5])
 
-  
+    def test_reconstruct(self):
+        pass
+
 if __name__ == '__main__':
     unittest.main()

@@ -287,6 +287,7 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_type, ova=False
 
     if debug:
         (print('SYNTHETIC SIG (FLOAT64) AFTER SPGM:\n', synthetic_sig[(wdw_size // 2): (wdw_size // 2) + 20]) 
+        # (print('SYNTHETIC SIG (FLOAT64) AFTER SPGM:\n', synthetic_sig[50:100]) 
             if len(synthetic_sig) > 20 else 
                 print('SYNTHETIC SIG (FLOAT64) AFTER SPGM:\n', synthetic_sig))
 
@@ -344,7 +345,6 @@ def convert_wav_format_down(sig, to_bit_depth='uint8', safe=True, print_sum=Fals
             if np.amax(np.abs(sig)) > np.finfo('float32').max:    # amax doing max of flattened array
                 print('Warning: signal values greater than float32 capacity. Losing data.')
             sig = np.clip(sig, np.finfo('float32').min, np.finfo('float32').max)
-            sig = np.around(sig)
     sig = sig.astype(to_bit_depth) 
     if print_sum and to_bit_depth == 'uint8':
         print('SUM OF BRAHMS CONVERTED BACK TO 8-BIT INT PCM:', np.sum(sig))

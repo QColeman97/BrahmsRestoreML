@@ -245,17 +245,20 @@ def source_split_matrices(activations, basis_vectors, num_noisebv, debug=False):
 
 def make_mary_bv_test_activations(vol_factor=1):
     activations = []
+    actvn_amount = 5
+    note_len = 48
+    # nl_factor = 20
     for j in range(5):
         # 8 divisions of 6 timesteps
         comp = []
         if j == 0: # lowest note
-            comp = [0.0001 * vol_factor if ((2*6) <= i < (3*6)) else 0.0000 for i in range(48)]
+            comp = [actvn_amount * vol_factor if ((2*6) <= i < (3*6)) else EPSILON for i in range(note_len)]
         elif j == 2:
-            comp = [0.0001 * vol_factor if (((1*6) <= i < (2*6)) or ((3*6) <= i < (4*6))) else 0.0000 for i in range(48)]
+            comp = [actvn_amount * vol_factor if (((1*6) <= i < (2*6)) or ((3*6) <= i < (4*6))) else EPSILON for i in range(note_len)]
         elif j == 4:
-            comp = [0.0001 * vol_factor if ((0 <= i < (1*6)) or ((4*6) <= i < (7*6))) else 0.0000 for i in range(48)]
+            comp = [actvn_amount * vol_factor if ((0 <= i < (1*6)) or ((4*6) <= i < (7*6))) else EPSILON for i in range(note_len)]
         else:
-            comp = [0.0000 for i in range(48)]
+            comp = [EPSILON for i in range(note_len)]
         activations.append(comp)
     return np.array(activations)
 
