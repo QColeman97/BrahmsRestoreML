@@ -267,7 +267,7 @@ def make_synthetic_signal(synthetic_spgm, phases, wdw_size, orig_type, ova=False
     # print('Synthetic Sig Len FULL:', synthetic_sig_len)
     synthetic_sig = np.empty((synthetic_sig_len))
     for i in range(num_sgmts):
-        ova_index = i * (wdw_size // hop_size_divisor)
+        ova_index = (i * (wdw_size // hop_size_divisor)) if ova else (i * wdw_size)
         debug_flag = (i == 0 or i == 1) if debug else False
 
         if ova and (i > 0):
