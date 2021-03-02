@@ -88,7 +88,7 @@ def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, pr
     return noise_basis_vectors
 
 def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False, eq=False, eq_thresh=800000, debug=False,
-                       a430hz=False, score=False):
+                       a430hz=False, score=False, dmged=False):
     basis_vectors = np.empty((
         nmf.NUM_SCORE_NOTES if score else (nmf.NUM_MARY_PIANO_NOTES if mary_flag else nmf.NUM_PIANO_NOTES),
         (wdw_size//2)+1))
@@ -101,9 +101,12 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
 
     # all_notes_ff_wav yielding a list of filename strings, need to sort it by note
     base_dir = os.getcwd()
+    # If needed - if a430hz and dmged: pass
     if a430hz:
         os.chdir(real_currdir + '/all_notes_ff_wav_A=436Hz')    # tune_temp
         # os.chdir(real_currdir + '/all_notes_ff_wav_A=430Hz')  # old
+    elif dmged:
+        os.chdir(real_currdir + '/all_notes_ff_wav_dmged') 
     else:
         os.chdir(real_currdir + '/all_notes_ff_wav') 
     unsorted_audio_files = [x for x in os.listdir(os.getcwd())]# if x.endswith('wav')]
@@ -147,7 +150,7 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
 # Basis vectors in essence are the "best" dft of a sound w/ constant pitch (distinct freq signature)
 def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, debug=False, precise_noise=False, eq=False, 
                       num_noise=0, noise_start=6, noise_stop=25, randomize='None', a430hz=False, score=False, audible_range=False,
-                      filepath=os.path.dirname(os.path.realpath(__file__)) + '/np_saves_bv/basis_vectors'):
+                      filepath=os.path.dirname(os.path.realpath(__file__)) + '/np_saves_bv/basis_vectors', dmged_piano=False):
     if randomize == 'Piano':
         # Piano basis vectors are random for semisupervised learn piano
         basis_vectors = np.random.rand(nmf.NUM_SCORE_NOTES if score else nmf.NUM_PIANO_NOTES, (wdw_size//2) + 1) + 1
@@ -167,6 +170,8 @@ def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, d
             filepath += '_a436hz' # old '_a430hz'
         if score:
             filepath += '_score'
+        if dmged_piano:
+            filepath += '_dmged'
         filepath += '.npy'
 
         try:
@@ -175,7 +180,8 @@ def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, d
         except:
             print('FILE NOT FOUND - MAKING BASIS VECTORS:', filepath)
             basis_vectors = make_basis_vectors(wdw_size, filepath, ova=ova, avg=avg, mary_flag=mary, eq=eq, 
-                                               eq_thresh=800000, debug=debug, a430hz=a430hz, score=score)
+                                               eq_thresh=800000, debug=debug, a430hz=a430hz, score=score,
+                                               dmged=dmged_piano)
         if audible_range:
             basis_vectors = (basis_vectors[nmf.SCORE_IGNORE_BOTTOM_NOTES: -1 * nmf.SCORE_IGNORE_TOP_NOTES]
                 if score else
