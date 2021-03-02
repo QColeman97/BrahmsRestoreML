@@ -116,7 +116,7 @@ def updateW(W, H, V, m):
 # With any supervision W is returned unchanged. No supervision, W is made & returned
 def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=False, incorrect=False, 
         learn_iter=MAX_LEARN_ITER, mutual_update=True, pen_all=False, made_init=False):
-    semisup_learn_limit = round(learn_iter * 0.5)   # heighten/lower to try to (enocurage noise to learn)/(prevent piano from learning) noise
+    semisup_learn_limit = round(learn_iter * 0.1)   # if madeinit: heighten/lower to try to (enocurage noise to learn)/(prevent piano from learning) noise
     m, n = V.shape
     H = np.random.rand(k, n) + 1
     print('H VALUES:', H[0, :100])
