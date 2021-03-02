@@ -275,7 +275,6 @@ class NMFTests(unittest.TestCase):
       with self.subTest():
          self.assertEqual(W2.shape, (m, k - split_index)) 
 
-   # Failed case for mary_activations - not crucial
    def test_perfect_product(self):
       mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
       # print('Actual Mary Sig:', mary_sig[50:100], '\nType:', mary_sig.dtype)
@@ -296,6 +295,32 @@ class NMFTests(unittest.TestCase):
       mary_synth_sig = make_synthetic_signal(maryV, mary_synth_phases, PIANO_WDW_SIZE, mary_type, ova=True, debug=True) 
       # print('Synth Mary Sig:', mary_synth_sig[50:100], np.sum(mary_synth_sig))
       wavfile.write(test_path + 'synthetic_mary.wav', mary_sr, mary_synth_sig)
+
+   def test_mary_bvs_supervised_nmf(self):
+      mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
+      write_path = test_path + 'mary_bvs_nmf.wav'
+      restore_with_nmf(mary_sig, PIANO_WDW_SIZE, write_path, mary_sr, marybv=True, 
+                       noisebv=False)
+
+   def test_mary_all_bvs_supervised_nmf(self):
+      mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
+      write_path = test_path + 'mary_allbvs_nmf.wav'
+      restore_with_nmf(mary_sig, PIANO_WDW_SIZE, write_path, mary_sr, marybv=False, 
+                       noisebv=False)
+
+   # Experimental
+   def test_mary_bvs_supervised_nmf_wnoisebvs(self):
+      mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
+      write_path = test_path + 'mary_bvs_nmf_noisebvs.wav'
+      restore_with_nmf(mary_sig, PIANO_WDW_SIZE, write_path, mary_sr, marybv=True, 
+                       noisebv=True)
+
+   def test_mary_all_bvs_supervised_nmf_wnoisebvs(self):
+      mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
+      write_path = test_path + 'mary_allbvs_nmf_noisebvs.wav'
+      restore_with_nmf(mary_sig, PIANO_WDW_SIZE, write_path, mary_sr, marybv=False, 
+                       noisebv=True)
+
 
 if __name__ == '__main__':
     unittest.main()

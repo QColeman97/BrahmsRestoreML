@@ -33,6 +33,19 @@ class BasisVectorTests(unittest.TestCase):
       num_noise_bv = 12
       noise_basis_vectors = make_noise_basis_vectors(num_noise_bv, PIANO_WDW_SIZE, ova=True)
       self.assertEqual(noise_basis_vectors.shape, (num_noise_bv, (PIANO_WDW_SIZE//2)+1))
+
+   # Fix 2 tests below - silent audio
+   def test_bv_sound(self):
+      num_noise = 1
+      write_path = test_path + 'noise_bv.wav'
+      noise_bvs = make_noise_basis_vectors(num_noise, PIANO_WDW_SIZE, ova=True, debug=debug_flag,
+                                           precise_noise=True, write_path=write_path)
+  
+   def test_bv_sound_izotoperx(self):
+      num_noise = 1
+      write_path = test_path + 'noise_bv_izotoperx.wav'
+      noise_bvs = make_noise_basis_vectors(num_noise, PIANO_WDW_SIZE, ova=True, debug=debug_flag,
+                                           precise_noise=False, write_path=write_path)
    
    # Success - takes long time
    # def test_make_basis_vectors(self):

@@ -44,6 +44,7 @@ from scipy.io import wavfile
 import numpy as np
 import matplotlib.pyplot as plt
 from copy import deepcopy
+import random
 
 from .basis_vectors import *
 from ..audio_data_processing import *
@@ -102,25 +103,25 @@ SPGM_MARY_RATIO = 0.008
 def updateH(H, W, V, n, l1_pen=0):
     # ones = np.ones(V.shape)
     # W.T @ ones = broadcasted W.T row-sums
-    WT_mult_ones = np.tile(np.sum(W.T, axis=-1)[np.newaxis].T, (1, n)) # (W.T @ ones)
+    WT_mult_ones = np.tile(np.sum(W.T, axis=-1)[np.newaxis].T, (1, n)) # replaced (W.T @ ones)
     H *= ((W.T @ (V / (W @ H))) / (WT_mult_ones + l1_pen))
 
 def updateW(W, H, V, m):
     # ones = np.ones(V.shape)
     # print('ONES SHAPE:', ones.shape, 'HT SHAPE:', H.T.shape)
     # ones @ H.T = broadcasted H.T column-sums
-    ones_mult_HT = np.tile(np.sum(H.T, axis=0)[np.newaxis], (m, 1))   # (ones @ H.T)
+    ones_mult_HT = np.tile(np.sum(H.T, axis=0)[np.newaxis], (m, 1))   # replaced (ones @ H.T)
     W *= (((V / (W @ H)) @ H.T) / ones_mult_HT)
 
 # With any supervision W is returned unchanged. No supervision, W is made & returned
 def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=False, incorrect=False, 
-        learn_iter=MAX_LEARN_ITER, mutual_update=True, pen_all=False):
+        learn_iter=MAX_LEARN_ITER, mutual_update=True, pen_all=False, made_init=False):
     m, n = V.shape
     H = np.random.rand(k, n) + 1
     print('H VALUES:', H[0, :100])
     # ones = np.ones(V.shape)
     if debug:
-        print('IN NMF, V shape:', V.shape, 'W shape:', W if (W is None) else W.shape, 'H shape:', H.shape, 'ones shape:', ones.shape)
+        print('IN NMF, V shape:', V.shape, 'W shape:', W if (W is None) else W.shape, 'H shape:', H.shape) #, 'ones shape:', ones.shape)
         print('Sum of input V:', np.sum(V))
         plot_matrix(H, 'H Before Learn', 'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
 
@@ -134,11 +135,18 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
             # Supervised Learning
             for _ in range(learn_iter):
                 # H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
-                updateH(H, W, V, n, l1_pen=l1_pen)
+                # updateH(H, W, V, n, l1_pen=l1_pen)
+                # Fix - control l1_penalty to only piano activation
+                if l1_pen == 0:
+                    updateH(H, W, V, n)
+                else:
+                    updateH(H[:split_index], W[:, :split_index], V, n)                  # noise H
+                    updateH(H[split_index:], W[:, split_index:], V, n, l1_pen=l1_pen)   # piano H
+
         # SemiSup - Looks like only use the sections of W & H, & same V & ones, in multiplications for updates to sections of W & H
         elif sslrn == 'Piano':
             # Semi-supervised Learning Piano
-            for _ in range(learn_iter):
+            for i in range(learn_iter):
                 # if pen_all:
                 #     H *= ((W.T @ (V / (W @ H))) / ((W.T @ ones) + l1_pen))
                 # else:
@@ -150,42 +158,49 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
                 #                         (ones @ H[split_index:].T))
                 updateH(H[:split_index], W[:, :split_index], V, n, l1_pen=l1_pen)
                 updateH(H[split_index:], W[:, split_index:], V, n)     # only penalize H corresponding to fixed
-                updateW(W[:, split_index:], H[split_index:], V, m)
+                # updateW(W[:, split_index:], H[split_index:], V, m)
+                # TEMP - to find difference among semi-sup made-init (too much learn overwrites?)
+                if not made_init or (made_init and i < (learn_iter // 2)):
+                    updateW(W[:, split_index:], H[split_index:], V, m)
         else:
             # Semi-supervised Learning Noise
             if V.shape[1] > 1000:   # For Brahms recording
                 # NEW
                 k_voice = 10
-                Vvoice = V[:, :WDW_NUM_AFTER_VOICE].copy()
-                Vrest = V[:, WDW_NUM_AFTER_VOICE:].copy()
-                Hvoice = np.random.rand(k_voice, WDW_NUM_AFTER_VOICE) + 1
+                real_wdw_num_after_voice = WDW_NUM_AFTER_VOICE + 80
+                Vvoice = V[:, :real_wdw_num_after_voice].copy()
+                Vrest = V[:, real_wdw_num_after_voice:].copy()
+                Hvoice = np.random.rand(k_voice, real_wdw_num_after_voice) + 1
                 Wvoice = np.random.rand(m, k_voice) + 1
-                # ones_voice = np.ones((m, WDW_NUM_AFTER_VOICE))
+                # ones_voice = np.ones((m, real_wdw_num_after_voice))
                 for _ in range(learn_iter):
                     # Hvoice *= ((Wvoice.T @ (Vvoice / (Wvoice @ Hvoice))) / (Wvoice.T @ ones_voice))
                     # Wvoice *= (((Vvoice / (Wvoice @ Hvoice)) @ Hvoice.T) / (ones_voice @ Hvoice.T))
-                    updateH(Hvoice, Wvoice, Vvoice, WDW_NUM_AFTER_VOICE)
+                    updateH(Hvoice, Wvoice, Vvoice, real_wdw_num_after_voice)
                     updateW(Wvoice, Hvoice, Vvoice, m)
 
-                Hrest = np.random.rand(k, n - WDW_NUM_AFTER_VOICE) + 1
-                # ones_rest = np.ones((m, n - WDW_NUM_AFTER_VOICE))
-                for _ in range(learn_iter):
+                Hrest = np.random.rand(k, n - real_wdw_num_after_voice) + 1
+                # ones_rest = np.ones((m, n - real_wdw_num_after_voice))
+                for i in range(learn_iter):
                     # Hrest[split_index:] *= ((W[:, split_index:].T @ (Vrest / (W[:, split_index:] @ Hrest[split_index:]))) / 
                     #                         ((W[:, split_index:].T @ ones_rest) + l1_pen))      # only penalize corr. to fixed
                     # Hrest[:split_index] *= ((W[:, :split_index].T @ (Vrest / (W[:, :split_index] @ Hrest[:split_index]))) / 
                     #                         (W[:, :split_index].T @ ones_rest))
                     # W[:, :split_index] *= (((Vrest / (W[:, :split_index] @ Hrest[:split_index])) @ Hrest[:split_index].T) / 
                     #                         (ones_rest @ Hrest[:split_index].T))
-                    updateH(Hrest[split_index:], W[:, split_index:], Vrest, n - WDW_NUM_AFTER_VOICE, l1_pen=l1_pen)  # only penalize H corr. to fixed
-                    updateH(Hrest[:split_index], W[:, :split_index], Vrest, n - WDW_NUM_AFTER_VOICE)
-                    updateW(W[:, :split_index], Hrest[:split_index], Vrest, m)
+                    updateH(Hrest[split_index:], W[:, split_index:], Vrest, n - real_wdw_num_after_voice, l1_pen=l1_pen)  # only penalize H corr. to fixed
+                    updateH(Hrest[:split_index], W[:, :split_index], Vrest, n - real_wdw_num_after_voice)
+                    # updateW(W[:, :split_index], Hrest[:split_index], Vrest, m)
+                    # TEMP - to find difference among semi-sup made-init (too much learn overwrites?)
+                    if not made_init or (made_init and i < (learn_iter // 2)):
+                        updateW(W[:, :split_index], Hrest[:split_index], Vrest, m)
 
                 Wpiano = W[:, split_index:]
                 Wnoise = W[:, :split_index]
                 W = np.concatenate((Wnoise, Wvoice, Wpiano), axis=-1)
 
-                Hvoice = np.concatenate((Hvoice, np.zeros((k_voice, n - WDW_NUM_AFTER_VOICE))), axis=-1)
-                Hrest = np.concatenate((np.zeros((k, WDW_NUM_AFTER_VOICE)), Hrest), axis=-1)
+                Hvoice = np.concatenate((Hvoice, np.zeros((k_voice, n - real_wdw_num_after_voice))), axis=-1)
+                Hrest = np.concatenate((np.zeros((k, real_wdw_num_after_voice)), Hrest), axis=-1)
                 
                 Hpiano = Hrest[split_index:]
                 Hnoise = Hrest[:split_index]
@@ -276,7 +291,7 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
                   learn_iter=MAX_LEARN_ITER, num_noisebv=10, noise_start=6, noise_stop=83, l1_penalty=0, write_noise_sig=False,
                   a430hz_bv=False, scorebv=False, audible_range_bv=False):
     orig_sig_type = sig.dtype
-
+        
     print('\n--Making Piano & Noise Basis Vectors--\n')
     # Are in row orientation - natural
     basis_vectors = get_basis_vectors(wdw_size, ova=ova, mary=marybv, noise=noisebv, avg=avgbv, debug=debug, num_noise=num_noisebv, 
@@ -316,7 +331,7 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
     basis_vectors, spectrogram = basis_vectors.T, spectrogram.T
     basis_vectors, activations = extended_nmf(spectrogram, k, W=basis_vectors, split_index=num_noisebv, 
                                                 debug=debug, incorrect=incorrect_semisup, learn_iter=learn_iter,
-                                                l1_pen=l1_penalty, sslrn=semisuplearn)
+                                                l1_pen=l1_penalty, sslrn=semisuplearn, made_init=semisupmadeinit)
     # spectrogram, basis_vectors = spectrogram.T, basis_vectors.T
     # activations, _ = nmf_learn(spectrogram, k, basis_vectors=basis_vectors, debug=debug, learn_iter=learn_iter, 
     #                             l1_penalty=l1_penalty)
@@ -347,12 +362,31 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
         synthetic_piano_spgm = piano_basis_vectors @ piano_activations
         synthetic_noise_spgm = noise_basis_vectors @ noise_activations
 
+        # TEMP - show the average # non-zero activations per timestep
+        max_notes, avg = None, 0 
+        rand_activation = random.randint(0, piano_activations.shape[1])
+        for i in range(piano_activations.shape[1]):
+            # avg += np.count_nonzero(activations[:, i])
+            # Callobrated at 0.1 for supervised l1-pen=75,000,000 - barely any notes heard (0.3 per timestep)
+            # Callobrated at 0.15 for semi-supervised-learn-noise
+            notes_per_thresh = 0.2
+            t_step_num_notes = len([0 for j in range(piano_activations.shape[0]) if piano_activations[:, i][j] > notes_per_thresh])
+            avg += t_step_num_notes
+            if max_notes is None or (t_step_num_notes > max_notes):
+                max_notes = t_step_num_notes
+        avg = avg / piano_activations.shape[1]
+        print('\nAVERAGE # NON-ZERO PIANO ACTIVATIONS PER TIMESTEP:', avg)
+        print('MAX NON-ZERO PIANO ACTIVATIONs IN A TIMESTEP:', max_notes)
+        print('PIANO ACTIVATIONS AT A TIME STEP:', piano_activations[:, rand_activation], '\n')
+
         if debug:
             plot_matrix(synthetic_piano_spgm, 'Synthetic Piano Spectrogram (BEFORE MASKING)', 'time segments', 'frequency', ratio=SPGM_BRAHMS_RATIO, show=True)
-        # New - apply filter tf mask - no difference seen
+        # Apply filter tf soft mask (no difference seen from before)
         synthetic_spgm = basis_vectors @ activations
         piano_mask = synthetic_piano_spgm / synthetic_spgm
-        synthetic_piano_spgm = piano_mask * spectrogram
+        synthetic_piano_spgm = piano_mask * spectrogram     # piano source
+        noise_mask = synthetic_noise_spgm / synthetic_spgm
+        synthetic_noise_spgm = noise_mask * spectrogram     # noise source
 
         # Include noise within result to battle any normalizing wavfile.write might do
         synthetic_spgm = np.concatenate((synthetic_piano_spgm, synthetic_noise_spgm), axis=-1)
