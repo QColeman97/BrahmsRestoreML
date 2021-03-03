@@ -27,11 +27,16 @@ from ..nmf.nmf import NUM_SCORE_NOTES
 # TRAINING DATA SPECIFIC CONSTANTS (Add to when data changes)
 # MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
 MIN_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 2302826, 1124, 2049
+MIN_SIG_LEN_SMALL, TRAIN_SEQ_LEN_SMALL = 206848, 100
 TRAIN_MEAN_DMGED_MIX, TRAIN_STD_DMGED_MIX = 3788.6515897900226, 17932.36734269604   # not used
+TRAIN_MEAN_DMGED_SMALL, TRAIN_STD_DMGED_SMALL = 1481.607495587682, 4809.489432258252
 TRAIN_MEAN_DMGED, TRAIN_STD_DMGED = 1322.7727055593953, 3369.599673108199
+TRAIN_MEAN_SMALL, TRAIN_STD_SMALL = 1752.0957767840464, 6397.035010013225
 TRAIN_MEAN, TRAIN_STD = 1728.2116672701493, 6450.4985228518635
 TOTAL_SMPLS = 61
+TOTAL_SHORT_SMPLS = 902
 TRAIN_SEQ_LEN_BV = TRAIN_SEQ_LEN + NUM_SCORE_NOTES
+TRAIN_SEQ_LEN_BV_SMALL = TRAIN_SEQ_LEN_SMALL + NUM_SCORE_NOTES
 # NEURAL NETWORK TRAIN, HP-SEARCH & INFER FUNCTIONS
 
 # MODEL TRAIN & EVAL FUNCTION
@@ -46,7 +51,7 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
                         ret_queue=None, dataset2=False, data_path=None, min_sig_len=None,
                         data_from_numpy=False, tuned_a430hz=False, use_basis_vectors=False, 
                         dmged_y1_train_files=None, dmged_y1_val_files=None,
-                        loop_bare_noise=False):
+                        loop_bare_noise=False, low_time_steps=False):
                         # pad_len=-1):
 
     from .model import make_model
@@ -84,20 +89,27 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     print('Eager execution enabled? (default)', tf.executing_eagerly())
 
     # # Get feature stats if needed - don't use from_numpy
-    # t_mean, t_std = get_features_stats(np.concatenate((y1_train_files, y1_val_files)), 
-    #                                    np.concatenate((y2_train_files, y2_val_files)),
+    # dmged_y1_filenames = np.concatenate((dmged_y1_train_files, dmged_y1_val_files)) if dmged_y1_train_files is not None else None
+    # t_mean, t_std = get_features_stats(np.concatenate((y1_val_files, y1_train_files)), 
+    #                                    np.concatenate((y2_val_files, y2_train_files)),
     #                                    num_train + num_val, n_seq, n_feat, min_sig_len, dataset2=dataset2, 
-    #                                    data_path=data_path, x_filenames=np.concatenate((x_train_files, x_val_files)), 
+    #                                    data_path=data_path, x_filenames=np.concatenate((x_val_files, x_train_files)), 
     #                                    from_numpy=data_from_numpy, tuned_a430hz=tuned_a430hz, 
-    #                                    dmged_y1_filenames=np.concatenate((dmged_y1_train_files, dmged_y1_val_files)),
-    #                                    loop_bare_noise=loop_bare_noise)
+    #                                    dmged_y1_filenames=dmged_y1_filenames,
+    #                                    loop_bare_noise=loop_bare_noise, low_time_steps=low_time_steps)
     # print('\nNOTICE - NEW TRAIN MEAN:', t_mean, 'NEW TRAIN STD:', t_std, '\n')
     if dataset2:
         t_mean, t_std = TRAIN_MEAN_DMGED_MIX, TRAIN_STD_DMGED_MIX
     elif dmged_y1_train_files is not None:
-        t_mean, t_std = TRAIN_MEAN_DMGED, TRAIN_STD_DMGED
+        if low_time_steps:
+            t_mean, t_std = TRAIN_MEAN_DMGED_SMALL, TRAIN_STD_DMGED_SMALL
+        else:
+            t_mean, t_std = TRAIN_MEAN_DMGED, TRAIN_STD_DMGED
     else:
-        t_mean, t_std = TRAIN_MEAN, TRAIN_STD
+        if low_time_steps:
+            t_mean, t_std = TRAIN_MEAN_SMALL, TRAIN_STD_SMALL
+        else:
+            t_mean, t_std = TRAIN_MEAN, TRAIN_STD
 
     # Instantiate optimizer
     optimizer = (tf.keras.optimizers.RMSprop(clipvalue=opt_clip_val, learning_rate=opt_lr) if 
@@ -115,13 +127,15 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
             dmged_piano_artificial_noise=dataset2, data_path=data_path,
             x_files=x_train_files, from_numpy=data_from_numpy, bare_noise=loop_bare_noise,
             tuned_a430hz=tuned_a430hz,
-            piano_basis_vectors=piano_basis_vectors, dmged_y1_files=dmged_y1_train_files)   # new - dmged piano only
+            piano_basis_vectors=piano_basis_vectors, dmged_y1_files=dmged_y1_train_files,
+            low_time_steps=low_time_steps)   # new - dmged piano only
     validation_generator = nn_data_generator(y1_val_files, y2_val_files, num_val,
             batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, min_sig_len=min_sig_len,
             dmged_piano_artificial_noise=dataset2, data_path=data_path,
             x_files=x_val_files, from_numpy=data_from_numpy, bare_noise=loop_bare_noise,
             tuned_a430hz=tuned_a430hz,
-            piano_basis_vectors=piano_basis_vectors, dmged_y1_files=dmged_y1_val_files)     # new - dmged piano only
+            piano_basis_vectors=piano_basis_vectors, dmged_y1_files=dmged_y1_val_files,
+            low_time_steps=low_time_steps)     # new - dmged piano only
 
     train_dataset = tf.data.Dataset.from_generator(
         make_gen_callable(train_generator), 
@@ -144,7 +158,7 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
 
     train_dataset.cache().prefetch(tf.data.experimental.AUTOTUNE)
     val_dataset.cache().prefetch(tf.data.experimental.AUTOTUNE)
-   
+
     print('Making model...')
     model = make_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, loss_const=loss_const,
                             config=config, t_mean=t_mean, t_std=t_std, optimizer=optimizer, 
@@ -423,7 +437,7 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                 gsres_path, early_stop_pat=3, pc_run=False, 
                 gs_id='', restart=False, dataset2=False,
                 tuned_a430hz=False, use_basis_vectors=False,
-                save_model_path=None):  # NEW
+                save_model_path=None, low_time_steps=False):  # NEW
 
     # IMPORTANT to take advantage of what's known in test data to minimize factors
     # Factors: batchsize, epochs, loss_const, optimizers, gradient clipping,
@@ -519,7 +533,7 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                                                     combos, gs_id,
                                                                     send_end, dataset2, None, None,
                                                                     True, tuned_a430hz, use_basis_vectors, 
-                                                                    None, None, False))
+                                                                    None, None, False, low_time_steps))
                             process_train.start()
                                               
                             # Keep polling until child errors or child success (either one guaranteed to happen)
