@@ -275,27 +275,52 @@ class NMFTests(unittest.TestCase):
       with self.subTest():
          self.assertEqual(W2.shape, (m, k - split_index)) 
 
-   # Failed case for mary_activations - not crucial
-   # def test_perfect_product(self):
-   #    mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
-   #    print('Actual Mary Sig:', mary_sig[50:100])
-   #    mary_type = mary_sig.dtype
-   #    mary_spgm, mary_phases = make_spectrogram(mary_sig, PIANO_WDW_SIZE, EPSILON, ova=True)
-   #    print('Real V:', mary_spgm.shape, np.sum(mary_spgm))
-   #    maryW = get_basis_vectors(PIANO_WDW_SIZE, ova=True, mary=True, avg=True).T
-   #    maryH = make_mary_bv_test_activations()
-   #    _, mary_tsteps = maryH.shape
-   #    mary_synth_phases = mary_phases[:mary_tsteps]
-   #    maryV = maryW @ maryH
-   #    print('W:', maryW.shape, np.sum(maryW), 'H:', maryH.shape, np.sum(maryH))
-   #    plot_matrix(maryW, 'mary w', 'k', 'frequency', show=True)
-   #    plot_matrix(maryH, 'mary h', 'timesteps', 'k', show=True)
-   #    plot_matrix(maryV, 'mary v', 'timesteps', 'frequency', show=True)
-   #    maryV = maryV.T   # orient to natural way
-   #    print('V before to sig:', maryV.shape, np.sum(maryV), 'phases:', mary_synth_phases.shape)
-   #    mary_synth_sig = make_synthetic_signal(maryV, mary_synth_phases, PIANO_WDW_SIZE, mary_type, ova=True) 
-   #    print('Synth Mary Sig:', mary_synth_sig[50:100], np.sum(mary_synth_sig))
-   #    wavfile.write(test_path + 'synthetic_mary.wav', mary_sr, mary_synth_sig)
+   def test_perfect_product(self):
+      mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
+      # print('Actual Mary Sig:', mary_sig[50:100], '\nType:', mary_sig.dtype)
+      mary_type = mary_sig.dtype
+      mary_spgm, mary_phases = make_spectrogram(mary_sig, PIANO_WDW_SIZE, EPSILON, ova=True)
+      # print('Real V:', mary_spgm.shape, np.sum(mary_spgm))
+      maryW = get_basis_vectors(PIANO_WDW_SIZE, ova=True, mary=True, avg=True).T
+      maryH = make_mary_bv_test_activations()
+      _, mary_tsteps = maryH.shape
+      mary_synth_phases = mary_phases[:mary_tsteps]
+      maryV = maryW @ maryH
+      # print('W:', maryW.shape, np.sum(maryW), 'H:', maryH.shape, np.sum(maryH))
+      # plot_matrix(maryW, 'mary w', 'k', 'frequency', show=True)
+      # plot_matrix(maryH, 'mary h', 'timesteps', 'k', show=True)
+      # plot_matrix(maryV, 'mary v', 'timesteps', 'frequency', show=True)
+      maryV = maryV.T   # orient to natural way
+      # print('V before to sig:', maryV.shape, np.sum(maryV), 'phases:', mary_synth_phases.shape)
+      mary_synth_sig = make_synthetic_signal(maryV, mary_synth_phases, PIANO_WDW_SIZE, mary_type, ova=True, debug=True) 
+      # print('Synth Mary Sig:', mary_synth_sig[50:100], np.sum(mary_synth_sig))
+      wavfile.write(test_path + 'synthetic_mary.wav', mary_sr, mary_synth_sig)
+
+   def test_mary_bvs_supervised_nmf(self):
+      mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
+      write_path = test_path + 'mary_bvs_nmf.wav'
+      restore_with_nmf(mary_sig, PIANO_WDW_SIZE, write_path, mary_sr, marybv=True, 
+                       noisebv=False)
+
+   def test_mary_all_bvs_supervised_nmf(self):
+      mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
+      write_path = test_path + 'mary_allbvs_nmf.wav'
+      restore_with_nmf(mary_sig, PIANO_WDW_SIZE, write_path, mary_sr, marybv=False, 
+                       noisebv=False)
+
+   # Experimental
+   def test_mary_bvs_supervised_nmf_wnoisebvs(self):
+      mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
+      write_path = test_path + 'mary_bvs_nmf_noisebvs.wav'
+      restore_with_nmf(mary_sig, PIANO_WDW_SIZE, write_path, mary_sr, marybv=True, 
+                       noisebv=True)
+
+   def test_mary_all_bvs_supervised_nmf_wnoisebvs(self):
+      mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
+      write_path = test_path + 'mary_allbvs_nmf_noisebvs.wav'
+      restore_with_nmf(mary_sig, PIANO_WDW_SIZE, write_path, mary_sr, marybv=False, 
+                       noisebv=True)
+
 
 if __name__ == '__main__':
     unittest.main()

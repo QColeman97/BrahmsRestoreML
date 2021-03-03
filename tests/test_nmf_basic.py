@@ -6,7 +6,7 @@ import os
 # Testing global vars
 write_flag = True
 debug_flag = False
-num_noise_bv_test = 5
+num_noise_bv_test = 1
 
 brahms_filepath = os.getcwd() + '/brahms.wav'
 mary_filepath = os.getcwd() + '/brahms_restore_ml/nmf/Mary.wav'

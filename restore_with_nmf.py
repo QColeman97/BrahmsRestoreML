@@ -20,8 +20,9 @@ def main():
     # avgbv_flag = True
     # ova_flag = True
     # learn_iter = 100
+    # audible_range_bv = False # don't include notes in range unreached in score
     score_piano_bv = True
-    a430hz_bv = True
+    a430hz_bv = False      # not confirmed to help
     # marybv_flag = False     # Special case for Mary.wav - basis vectors size optimization test
     # out_filepath = 'brahms_restore_ml/nmf/output/output_restored_wav_v5/'
     # TEMP
@@ -30,13 +31,12 @@ def main():
     # Experimental
     # Ternary flag - 'Piano', 'Noise', or 'None' (If not 'None', noisebv_flag MUST BE TRUE)
     semi_sup_learn = 'None'
-    semi_sup_made_init = False   # Only considered when semi_sup_learn != 'None'
+    semi_sup_made_init = True   # Only considered when semi_sup_learn != 'None'
     l1_penalty = 0 # 10 ** 19 # 10^9 = 1Bill, 12 = trill, 15 = quad, 18 = quin, 19 = max for me
     l1pen_flag = True if (l1_penalty != 0) else False
     # Do not make as big as 1078 (smaller dim) - 88 (piano bv's) = 990
     num_noise_bv = 1 # 50 # 20 # 3 # 10 # 5 # 10000 is when last good # 100000 is when it gets bad, but 1000 sounds bad in tests.py
-    # Don't include notes in range unreached in score
-    audible_range_bv = False
+    dmged_piano_bv = False
 
     # Configure params    
     # Signal - comes as a list, filepath or a length
@@ -74,8 +74,10 @@ def main():
         out_filepath += '_a436hz' # '_a430hz'
     if score_piano_bv:
         out_filepath += '_scorebv'
-    if audible_range_bv:
-        out_filepath += '_arbv'
+    # if audible_range_bv:
+    #     out_filepath += '_arbv'
+    if dmged_piano_bv:
+        out_filepath += '_dmgedpbv'
 
     if semi_sup_learn == 'Piano':
         out_filepath += '_sslrnpiano'
@@ -96,7 +98,8 @@ def main():
     restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, num_noisebv=num_noise_bv, 
                     semisuplearn=semi_sup_learn, semisupmadeinit=semi_sup_made_init,
                     l1_penalty=l1_penalty, debug=debug_flag, a430hz_bv=a430hz_bv,
-                    scorebv=score_piano_bv, audible_range_bv=audible_range_bv)
+                    scorebv=score_piano_bv, # audible_range_bv=audible_range_bv,
+                    dmged_pianobv=dmged_piano_bv)
 
 if __name__ == '__main__':
     main()

@@ -10,6 +10,11 @@ from brahms_restore_ml.audio_data_processing import *
 import unittest
 import numpy as np
 
+mary_441kHz_filepath = os.getcwd() + '/brahms_restore_ml/nmf/Mary_44100Hz_32bitfp_librosa.wav'
+piano_filepath = os.getcwd() + '/brahms_restore_ml/nmf/piano.wav'
+brahms_filepath = os.getcwd() + '/brahms.wav'
+test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_test/output_test_dsp/'
+
 # Testing global vars
 write_flag = True
 debug_flag = False
@@ -126,6 +131,23 @@ class DSPTests(unittest.TestCase):
                         synth_sig[2] > synth_sig[3] and synth_sig[3] > synth_sig[4] and
                         synth_sig[4] < synth_sig[5])
 
-  
+    def test_reconstruct_mary(self):
+        sig_sr, sig = wavfile.read(mary_441kHz_filepath)
+        write_path = test_path + 'mary_reconstructed.wav'
+        reconstruct_audio(sig, PIANO_WDW_SIZE, write_path, sig_sr, ova=True, 
+                          write_file=True, debug=False)
+
+    def test_reconstruct_piano_sample(self):
+        sig_sr, sig = wavfile.read(piano_filepath)
+        write_path = test_path + 'piano_reconstructed.wav'
+        reconstruct_audio(sig, PIANO_WDW_SIZE, write_path, sig_sr, ova=True, 
+                          write_file=True, debug=False)
+
+    def test_reconstruct_brahms(self):
+        sig_sr, sig = wavfile.read(brahms_filepath)
+        write_path = test_path + 'brahms_reconstructed.wav'
+        reconstruct_audio(sig, PIANO_WDW_SIZE, write_path, sig_sr, ova=True, 
+                          write_file=True, debug=False)
+
 if __name__ == '__main__':
     unittest.main()
