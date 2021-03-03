@@ -178,7 +178,8 @@ def main():
     # Note: FROM PO-SEN PAPER - about loss_const
     #   Empirically, the value γ is in the range of 0.05∼0.2 in order
     #   to achieve SIR improvements and maintain SAR and SDR.
-    train_batch_size = 6 if pc_run else 12
+    # train_batch_size = 6 if pc_run else 12
+    train_batch_size = 3 if pc_run else 12  # TEMP - for no dimreduc
     train_loss_const = 0.1
     train_epochs = 10
     train_opt_name, train_opt_clipval, train_opt_lr = 'Adam', 0.9, 0.001

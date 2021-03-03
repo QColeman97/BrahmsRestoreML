@@ -8,6 +8,9 @@ __pycache__/
 /brahms_restore_ml/drnn/tensorflow/
 /brahms_restore_ml/drnn/tf-nightly/
 /brahms_restore_ml/drnn/recent_model/
+/brahms_restore_ml/drnn/recent_model_nobias/
+/brahms_restore_ml/drnn/recent_model_nodimred/
+/brahms_restore_ml/drnn/recent_model_nodimred_nobias/
 /brahms_restore_ml/drnn/recent_model_1of4/
 /brahms_restore_ml/drnn/recent_model_2of4/
 /brahms_restore_ml/drnn/recent_model_3of4/
