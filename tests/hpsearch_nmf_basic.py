@@ -9,31 +9,22 @@ debug_flag = False
 num_noise_bv_test = 1
 
 brahms_filepath = os.getcwd() + '/brahms.wav'
-mary_filepath = os.getcwd() + '/brahms_restore_ml/nmf/Mary.wav'
-test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_test/output_test_basic/'
-
+mary_441kHz_filepath = os.getcwd() + '/brahms_restore_ml/nmf/Mary_44100Hz_32bitfp_librosa.wav'
+test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch/output_hpsearch_basic/'
+# Hp-search
 # This script & output path is for testing & comparing the best results using each respective feature
 
 class BasicRestoreTests(unittest.TestCase):
-    # Brahms for these tests (bad audio)
+    # Brahms for these tests (hp-tuning grid search)
+    # 0 factors
     def test_restore_brahms_bare(self):
-        # print('Testing restore brahms: bare')
-        # print('Real dir:', os.path.dirname(os.path.realpath(__file__)))
-        # print('Brahms path?', os.path.join(os.path.dirname(os.path.realpath(__file__)), 'conf.json'))
-        # print('Curr?', os.getcwd())
-
         out_filepath = test_path + 'restored_brahms_bare.wav' if write_flag else None
         sr, sig = wavfile.read(brahms_filepath)
         synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
                                       ova=False, noisebv=False, avgbv=False,
                                       write_file=write_flag, debug=debug_flag)
-
-        # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
-        # sig_diff = np.sum(np.abs(sig[(nmf.PIANO_WDW_SIZE // 2): -(nmf.PIANO_WDW_SIZE // 2)] -
-        #                          synthetic_sig[(nmf.PIANO_WDW_SIZE // 2): (len(sig) - (nmf.PIANO_WDW_SIZE // 2))]))
-
-        # self.assertEqual(sig_diff, 0)
-
+    
+    # 1 factor
     def test_restore_brahms_ova(self):
         print('Testing restore brahms: ova')
 
@@ -42,12 +33,6 @@ class BasicRestoreTests(unittest.TestCase):
         synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
                                         noisebv=False, avgbv=False,
                                         write_file=write_flag, debug=debug_flag)
-
-        # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
-        # sig_diff = np.sum(np.abs(sig[(nmf.PIANO_WDW_SIZE // 2): -(nmf.PIANO_WDW_SIZE // 2)] -
-        #                          synthetic_sig[(nmf.PIANO_WDW_SIZE // 2): (len(sig) - (nmf.PIANO_WDW_SIZE // 2))]))
-
-        # self.assertEqual(sig_diff, 0)
 
     def test_restore_brahms_avgbv(self):
         print('Testing restore brahms: avg')
@@ -58,12 +43,6 @@ class BasicRestoreTests(unittest.TestCase):
                                         ova=False, noisebv=False,
                                         write_file=write_flag, debug=debug_flag)
 
-        # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
-        # sig_diff = np.sum(np.abs(sig[(nmf.PIANO_WDW_SIZE // 2): -(nmf.PIANO_WDW_SIZE // 2)] -
-        #                          synthetic_sig[(nmf.PIANO_WDW_SIZE // 2): (len(sig) - (nmf.PIANO_WDW_SIZE // 2))]))
-
-        # self.assertEqual(sig_diff, 0)
-
     def test_restore_brahms_noisebv(self):
         print('Testing restore brahms: noise')
 
@@ -72,12 +51,6 @@ class BasicRestoreTests(unittest.TestCase):
         synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
                                         ova=False, avgbv=False,
                                         num_noisebv=num_noise_bv_test, write_file=write_flag, debug=debug_flag)
-
-        # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
-        # sig_diff = np.sum(np.abs(sig[(nmf.PIANO_WDW_SIZE // 2): -(nmf.PIANO_WDW_SIZE // 2)] -
-        #                          synthetic_sig[(nmf.PIANO_WDW_SIZE // 2): (len(sig) - (nmf.PIANO_WDW_SIZE // 2))]))
-
-        # self.assertEqual(sig_diff, 0)
 
     # Two factors
     def test_restore_brahms_ova_avgbv(self):
@@ -89,12 +62,6 @@ class BasicRestoreTests(unittest.TestCase):
                                         noisebv=False,
                                         write_file=write_flag, debug=debug_flag)
 
-        # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
-        # sig_diff = np.sum(np.abs(sig[(nmf.PIANO_WDW_SIZE // 2): -(nmf.PIANO_WDW_SIZE // 2)] -
-        #                          synthetic_sig[(nmf.PIANO_WDW_SIZE // 2): (len(sig) - (nmf.PIANO_WDW_SIZE // 2))]))
-
-        # self.assertEqual(sig_diff, 0)
-
     def test_restore_brahms_ova_noisebv(self):
         print('Testing restore brahms: ova, noise')
 
@@ -104,12 +71,6 @@ class BasicRestoreTests(unittest.TestCase):
                                       avgbv=False, num_noisebv=num_noise_bv_test, 
                                       write_file=write_flag, debug=debug_flag)
 
-        # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
-        # sig_diff = np.sum(np.abs(sig[(nmf.PIANO_WDW_SIZE // 2): -(nmf.PIANO_WDW_SIZE // 2)] -
-        #                          synthetic_sig[(nmf.PIANO_WDW_SIZE // 2): (len(sig) - (nmf.PIANO_WDW_SIZE // 2))]))
-
-        # self.assertEqual(sig_diff, 0)
-
     def test_restore_brahms_avgbv_noisebv(self):
         print('Testing restore brahms: avg, noise')
 
@@ -118,12 +79,6 @@ class BasicRestoreTests(unittest.TestCase):
         synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr,
                                       ova=False, num_noisebv=num_noise_bv_test, 
                                       write_file=write_flag, debug=debug_flag)
-
-        # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
-        # sig_diff = np.sum(np.abs(sig[(nmf.PIANO_WDW_SIZE // 2): -(nmf.PIANO_WDW_SIZE // 2)] -
-        #                          synthetic_sig[(nmf.PIANO_WDW_SIZE // 2): (len(sig) - (nmf.PIANO_WDW_SIZE // 2))]))
-
-        # self.assertEqual(sig_diff, 0)
 
     # Three factors
     def test_restore_brahms_ova_noisebv_avgbv(self):
@@ -135,11 +90,30 @@ class BasicRestoreTests(unittest.TestCase):
                                       num_noisebv=num_noise_bv_test,
                                       write_file=write_flag, debug=debug_flag)
 
-        # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
-        # sig_diff = np.sum(np.abs(sig[(nmf.PIANO_WDW_SIZE // 2): -(nmf.PIANO_WDW_SIZE // 2)] -
-        #                          synthetic_sig[(nmf.PIANO_WDW_SIZE // 2): (len(sig) - (nmf.PIANO_WDW_SIZE // 2))]))
+    # Mary had a little lamb tests
+    def test_mary_bvs_supervised_nmf(self):
+        mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
+        write_path = test_path + 'mary_bvs_nmf.wav'
+        nmf.restore_with_nmf(mary_sig, nmf.PIANO_WDW_SIZE, write_path, mary_sr, marybv=True, 
+                        noisebv=False)
 
-        # self.assertEqual(sig_diff, 0)
+    def test_mary_all_bvs_supervised_nmf(self):
+        mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
+        write_path = test_path + 'mary_allbvs_nmf.wav'
+        nmf.restore_with_nmf(mary_sig, nmf.PIANO_WDW_SIZE, write_path, mary_sr, marybv=False, 
+                        noisebv=False)
+
+    def test_mary_bvs_supervised_nmf_wnoisebvs(self):       # experimental
+        mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
+        write_path = test_path + 'mary_bvs_nmf_noisebvs.wav'
+        nmf.restore_with_nmf(mary_sig, nmf.PIANO_WDW_SIZE, write_path, mary_sr, marybv=True, 
+                        noisebv=True)
+
+    def test_mary_all_bvs_supervised_nmf_wnoisebvs(self):   # experimental
+        mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
+        write_path = test_path + 'mary_allbvs_nmf_noisebvs.wav'
+        nmf.restore_with_nmf(mary_sig, nmf.PIANO_WDW_SIZE, write_path, mary_sr, marybv=False, 
+                        noisebv=True)
 
 
 if __name__ == '__main__':

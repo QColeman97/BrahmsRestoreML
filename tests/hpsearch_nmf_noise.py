@@ -13,9 +13,11 @@ l1_penalty_test = 4096
 learn_iter_test = 100
 
 brahms_filepath = os.getcwd() + '/brahms.wav'
-noise_sup_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_test/output_test_noise/'
-noise_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_test/output_test_noise_learnpiano/'
-noise_learnnoise_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_test/output_test_noise_learnnoise/'
+noise_sup_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch/output_hpsearch_noise/'
+noise_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch/output_hpsearch_noise_learnpiano/'
+noise_learnnoise_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch/output_hpsearch_noise_learnnoise/'
+# Hp-search
+# This script & output path is for testing & comparing the best results using each respective feature
 
 class RestoreNoiseTests(unittest.TestCase):
 

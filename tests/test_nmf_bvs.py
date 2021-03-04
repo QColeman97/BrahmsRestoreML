@@ -18,8 +18,6 @@ num_noise_bv_test = 10
 
 piano_note_filepath = os.getcwd() + '/brahms_restore_ml/nmf/all_notes_ff_wav/Piano.ff.A4.wav'
 test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_test/output_test_bv/'
-# 'brahms_restore_ml/nmf/avged_ova_notes/avged_ova_note_' + str(num) + '.wav'
-# 'brahms_restore_ml/nmf/trimmed_notes/trimmed_note_' + str(num) + '.wav'
 saved_bvs_filepath = os.getcwd() + '/brahms_restore_ml/nmf/np_saves_bv/basis_vectors_ova_avg.npy'
 
 class BasisVectorTests(unittest.TestCase):
@@ -34,20 +32,19 @@ class BasisVectorTests(unittest.TestCase):
       noise_basis_vectors = make_noise_basis_vectors(num_noise_bv, PIANO_WDW_SIZE, ova=True)
       self.assertEqual(noise_basis_vectors.shape, (num_noise_bv, (PIANO_WDW_SIZE//2)+1))
 
-   # Fix 2 tests below - silent audio
    def test_bv_sound(self):
       num_noise = 1
-      write_path = test_path + 'noise_bv.wav'
       noise_bvs = make_noise_basis_vectors(num_noise, PIANO_WDW_SIZE, ova=True, debug=debug_flag,
-                                           precise_noise=True, write_path=write_path)
+                                           precise_noise=True, 
+                                          #  start=6, stop=83,   # tests voice, default 0 - 20
+                                           write_path=test_path)
   
    def test_bv_sound_izotoperx(self):
       num_noise = 1
-      write_path = test_path + 'noise_bv_izotoperx.wav'
       noise_bvs = make_noise_basis_vectors(num_noise, PIANO_WDW_SIZE, ova=True, debug=debug_flag,
-                                           precise_noise=False, write_path=write_path)
+                                           precise_noise=False, write_path=test_path)
    
-   # Success - takes long time
+   # Success - but takes long time
    # def test_make_basis_vectors(self):
    #    bvs = make_basis_vectors(PIANO_WDW_SIZE, saved_bvs_filepath, ova=True, avg=True)
    #    self.assertEqual(bvs.shape, (NUM_PIANO_NOTES, (PIANO_WDW_SIZE//2)+1))

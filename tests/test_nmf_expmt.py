@@ -15,7 +15,7 @@ l1_penalty_test = 4096
 learn_iter_test = 100
 
 brahms_filepath = 'brahms.wav'
-mary_filepath = 'brahms_restore_ml/nmf/Mary.wav'
+# mary_filepath = 'brahms_restore_ml/nmf/Mary.wav'
 test_path = 'brahms_restore_ml/nmf/output/output_test/output_test_other/'
 
 class ExperimentalTests(unittest.TestCase):

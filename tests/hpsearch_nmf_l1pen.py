@@ -15,7 +15,9 @@ learn_iter_test = 100   # 25
 
 brahms_filepath = 'brahms.wav'
 mary_filepath = 'brahms_restore_ml/nmf/Mary.wav'
-penalty_test_path = 'brahms_restore_ml/nmf/output/output_test/output_test_penalty/'
+penalty_test_path = 'brahms_restore_ml/nmf/output/output_hpsearch/output_hpsearch_penalty/'
+# Hp-search
+# This script & output path is for testing & comparing the best results using each respective feature
 
 class RestorePenaltyTests(unittest.TestCase):    
     # L1-PENALTY TESTS

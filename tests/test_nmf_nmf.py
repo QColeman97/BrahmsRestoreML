@@ -24,8 +24,6 @@ class NMFTests(unittest.TestCase):
    # How to make sure learned matrices are touched ie. forming good representations?
    # - just look at them after, and listen to result
 
-   # TODO After tests, the key to doing NMF correctly, is knowing how memory is being used in Numpy
-
    def test_nmf_unsupervised(self):
       m, n, k = 8, 6, 5
       V = np.arange(m * n).reshape(m, n)
@@ -36,6 +34,7 @@ class NMFTests(unittest.TestCase):
          self.assertNotEqual(np.sum(W2), np.sum(W))
       with self.subTest():
          self.assertNotEqual(np.sum(H2), np.sum(H))
+      # TODO? test if V sum = approx V sum
 
    def test_nmf_supervised(self):
       m, n, k = 8, 6, 5
@@ -125,25 +124,7 @@ class NMFTests(unittest.TestCase):
          print('H SUMS lp - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[:split_index]),np.sum(H[:split_index]),'Corres Learned',np.sum(H2[split_index:]),np.sum(H[split_index:]))
          self.assertAlmostEqual(np.sum(H2[:split_index]), np.sum(H[:split_index]), places=0)
 
-   # Moral, don't apply L1-Pen on H that isn't corres. to fixed W (isn't supervised)
-   # # Make sure H sum < unpenalized H sum
-   # def test_nmf_unsupervised_l1penalty(self):
-   #    m, n, k = 8, 6, 5
-   #    V = np.arange(m * n).reshape(m, n)
-   #    W, H = extended_nmf(V, k)
-   #    W2, H2 = extended_nmf(V, k)
-   #    Wpen, Hpen = extended_nmf(V, k, l1_pen=1000)
-   #    W2pen, H2pen = extended_nmf(V, k, l1_pen=1000)
-   #    print('(PEN) H SUMS Unsup:',np.sum(Hpen),np.sum(H))
-   #    with self.subTest():
-   #       self.assertNotEqual(np.sum(W2), np.sum(W))
-   #    with self.subTest():
-   #       self.assertNotEqual(np.sum(H2), np.sum(H))
-   #    with self.subTest():
-   #       self.assertLess(np.sum(Hpen), np.sum(H))
-   #    with self.subTest():
-   #       self.assertLess(np.sum(H2pen), np.sum(H2))
-
+   # L1-Penalty - moral, don't apply L1-Pen on H that isn't corres. to fixed W (isn't supervised)
    # Make sure H sum < unpenalized H sum
    def test_nmf_supervised_l1penalty(self):
       m, n, k = 8, 6, 5
@@ -295,31 +276,6 @@ class NMFTests(unittest.TestCase):
       mary_synth_sig = make_synthetic_signal(maryV, mary_synth_phases, PIANO_WDW_SIZE, mary_type, ova=True, debug=True) 
       # print('Synth Mary Sig:', mary_synth_sig[50:100], np.sum(mary_synth_sig))
       wavfile.write(test_path + 'synthetic_mary.wav', mary_sr, mary_synth_sig)
-
-   def test_mary_bvs_supervised_nmf(self):
-      mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
-      write_path = test_path + 'mary_bvs_nmf.wav'
-      restore_with_nmf(mary_sig, PIANO_WDW_SIZE, write_path, mary_sr, marybv=True, 
-                       noisebv=False)
-
-   def test_mary_all_bvs_supervised_nmf(self):
-      mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
-      write_path = test_path + 'mary_allbvs_nmf.wav'
-      restore_with_nmf(mary_sig, PIANO_WDW_SIZE, write_path, mary_sr, marybv=False, 
-                       noisebv=False)
-
-   # Experimental
-   def test_mary_bvs_supervised_nmf_wnoisebvs(self):
-      mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
-      write_path = test_path + 'mary_bvs_nmf_noisebvs.wav'
-      restore_with_nmf(mary_sig, PIANO_WDW_SIZE, write_path, mary_sr, marybv=True, 
-                       noisebv=True)
-
-   def test_mary_all_bvs_supervised_nmf_wnoisebvs(self):
-      mary_sr, mary_sig = wavfile.read(mary_441kHz_filepath)
-      write_path = test_path + 'mary_allbvs_nmf_noisebvs.wav'
-      restore_with_nmf(mary_sig, PIANO_WDW_SIZE, write_path, mary_sr, marybv=False, 
-                       noisebv=True)
 
 
 if __name__ == '__main__':

@@ -16,7 +16,7 @@ PIANO_WDW_SIZE = 4096
 SPGM_BRAHMS_RATIO = 0.08
 EPSILON = 10 ** (-10)
 
-def plot_signal(sig, orig_type, name, plot_path, show=False):
+def plot_signal(sig, orig_type, name, plot_path=None, show=False):
     # Make plottable mono
     if isinstance(sig[0], np.ndarray):
         sig = np.average(sig, axis=-1).astype(orig_type)
@@ -30,7 +30,8 @@ def plot_signal(sig, orig_type, name, plot_path, show=False):
         name_suffix += ' (16-bit PCM)'
     ax.set(xlabel='time (samples)', ylabel='amplitude',
            title=name + name_suffix)
-    fig.savefig(plot_path)
+    if plot_path is not None:
+        fig.savefig(plot_path)
     if show:
         plt.show()
     return ax.get_aspect()

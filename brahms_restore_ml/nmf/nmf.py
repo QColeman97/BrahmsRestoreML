@@ -116,10 +116,10 @@ def updateW(W, H, V, m):
 # With any supervision W is returned unchanged. No supervision, W is made & returned
 def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=False, incorrect=False, 
         learn_iter=MAX_LEARN_ITER, mutual_update=True, pen_all=False, made_init=False):
-    semisup_learn_limit = round(learn_iter * 0.5)   # if madeinit: heighten/lower to try to (enocurage noise to learn)/(prevent piano from learning) noise
+    semisup_learn_limit = round(learn_iter * 1)   # if madeinit: heighten/lower to try to (enocurage noise to learn)/(prevent piano from learning) noise
     m, n = V.shape
     H = np.random.rand(k, n) + 1
-    print('H VALUES:', H[0, :100])
+    # print('H VALUES:', H[0, :100])
     # ones = np.ones(V.shape)
     if debug:
         print('IN NMF, V shape:', V.shape, 'W shape:', W if (W is None) else W.shape, 'H shape:', H.shape) #, 'ones shape:', ones.shape)
@@ -484,17 +484,16 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
 
         if dmged_pianobv:   # For dmged piano W in learning, masked spectrogram needs to be made from high-qual piano
             hq_piano_basis_vectors = hq_piano_basis_vectors.T
-            # if semisuplearn == 'Noise' and spectrogram.shape[1] > 1000:
             if semisuplearn != 'None' and spectrogram.shape[1] > 1000:
-                # plot_matrix(hq_piano_basis_vectors, 'High-Quality Piano BVs (BEFORE)', 'k', 'frequency', ratio=nmf.BASIS_VECTOR_FULL_RATIO, show=True)
-                # print('W in NMF shape:', basis_vectors.shape, 'HQ Piano W shape:', hq_piano_basis_vectors.shape)
-                # print('Noise & Voice W shape:', basis_vectors[:, :(-1 * num_piano_bvs)].shape, 'HQ Piano W shape:', hq_piano_basis_vectors[:, (-1 * num_piano_bvs):].shape)
+                if debug:
+                    plot_matrix(hq_piano_basis_vectors, 'High-Quality Piano BVs (BEFORE)', 'k', 'frequency', ratio=nmf.BASIS_VECTOR_FULL_RATIO, show=True)
+                    # print('W in NMF shape:', basis_vectors.shape, 'HQ Piano W shape:', hq_piano_basis_vectors.shape)
+                    # print('Noise & Voice W shape:', basis_vectors[:, :(-1 * num_piano_bvs)].shape, 'HQ Piano W shape:', hq_piano_basis_vectors[:, (-1 * num_piano_bvs):].shape)
                 hq_piano_basis_vectors = np.concatenate((basis_vectors[:, :(-1 * num_piano_bvs)], hq_piano_basis_vectors[:, (-1 * num_piano_bvs):]), axis=-1)
-                # plot_matrix(hq_piano_basis_vectors, 'High-Quality Piano BVs (AFTER)', 'k', 'frequency', ratio=nmf.BASIS_VECTOR_FULL_RATIO, show=True)
-                # plot_matrix(activations, 'All Activations', 'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
+                if debug:
+                    plot_matrix(hq_piano_basis_vectors, 'High-Quality Piano BVs (AFTER)', 'k', 'frequency', ratio=nmf.BASIS_VECTOR_FULL_RATIO, show=True)
+                    plot_matrix(activations, 'All Activations', 'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
             spectrogram = hq_piano_basis_vectors @ activations
-        else:
-            plot_matrix(activations, 'All Activations', 'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
 
         if debug:
             plot_matrix(synthetic_piano_spgm, 'Synthetic Piano Spectrogram (BEFORE MASKING)', 'time segments', 'frequency', ratio=SPGM_BRAHMS_RATIO, show=True)

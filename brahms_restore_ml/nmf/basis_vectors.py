@@ -49,16 +49,21 @@ def make_basis_vector(waveform, wf_type, wf_sr, num_str, wdw_size, ova=False, av
 def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, precise_noise=False, eq_thresh=800000,
                              start=0, stop=25, write_path=None):
     real_currdir = os.path.dirname(os.path.realpath(__file__))
-    brahms_sr, brahms_sig = wavfile.read(real_currdir + '/../../brahms.wav')
     if precise_noise:
+        brahms_sr, brahms_sig = wavfile.read(real_currdir + '/../../brahms.wav')
         noise_sig = brahms_sig[(start * wdw_size): (stop * wdw_size)].copy()
         noise_sr = brahms_sr
+        noise_sig_type = noise_sig.dtype
         b_spgm, b_phases = make_spectrogram(brahms_sig, wdw_size, EPSILON, ova=True)
     else:
         noise_sr, noise_sig = wavfile.read(real_currdir + '/../../brahms_noise_izotope_rx.wav')
-    noise_sig_type = noise_sig.dtype
+        noise_sig_type = noise_sig.dtype
     if debug:   # before make_spectrogram ruins sig
         print('Making noise basis vectors. Noise signal:', noise_sig[:10])
+    if write_path is not None:  # before sig ruined by make_spectrogram
+        # optional - write trimmed piano note signals to WAV - check if trim is good
+        wavfile.write(write_path + 'noise' + ('_rx' if not precise_noise else '') + '.wav', 
+                      noise_sr, noise_sig.astype(noise_sig_type))
 
     print('\n----Making Noise Spectrogram--\n')
     spectrogram, phases = make_spectrogram(noise_sig, wdw_size, EPSILON, ova=ova, debug=debug)
@@ -81,9 +86,15 @@ def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, pr
     if write_path is not None:
         # write first noise basis vector magnitude-repeated out to wav file
         bv_spgm = np.array([noise_basis_vectors[0] for _ in range(b_spgm.shape[0] if precise_noise else spectrogram.shape[1])])
+        bv_spgm *= 10000    # basis vectors are very quiet
+        # print('NOISE BV SPGM:', bv_spgm[0][:10], 'next one:', bv_spgm[1][:10])
         # print('\nNOISE BV SPGM SHAPE:', bv_spgm.shape, '\n')
-        bv_sig = make_synthetic_signal(bv_spgm, b_phases if precise_noise else phases, wdw_size, noise_sig_type, ova=ova, debug=False)
-        wavfile.write(write_path, noise_sr, bv_sig)
+        # plot_matrix(bv_spgm, 'Noise Basis Vector Spgm', 'frequency', 'time', ratio=nmf.BASIS_VECTOR_FULL_RATIO, show=True)
+        bv_sig = make_synthetic_signal(bv_spgm, b_phases if precise_noise else phases, wdw_size, noise_sig_type, ova=ova, debug=True)
+        # print('NOISE BV SIG:', bv_sig[1000:1100])
+        # plot_signal(bv_sig, noise_sig_type, 'Noise Basis Vector Sig', show=True)
+        # wavfile.write(write_path, noise_sr, bv_sig)
+        wavfile.write(write_path + ('noise_bv.wav' if precise_noise else 'noise_bv_izotoperx.wav'), noise_sr, bv_sig)
 
     return noise_basis_vectors
 

@@ -12,7 +12,9 @@ learn_iter_test = 100
 
 brahms_filepath = os.getcwd() + '/brahms.wav'
 # mary_filepath = 'brahms_restore_ml/nmf/Mary.wav'
-test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_test/output_test_sslrn/'
+test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch/output_hpsearch_sslrn/'
+# Hp-search
+# This script & output path is for testing & comparing the best results using each respective feature
 
 class SemiSupLearnTests(unittest.TestCase):
     # SEMISUP LEARN TEST #

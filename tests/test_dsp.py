@@ -149,5 +149,12 @@ class DSPTests(unittest.TestCase):
         reconstruct_audio(sig, PIANO_WDW_SIZE, write_path, sig_sr, ova=True, 
                           write_file=True, debug=False)
 
+    # TODO? test if sum reconstructed sig = sum input sig
+        # sig = np.array([((x[0] + x[1]) / 2) for x in sig.astype('float64')])
+        # sig_diff = np.sum(np.abs(sig[(nmf.PIANO_WDW_SIZE // 2): -(nmf.PIANO_WDW_SIZE // 2)] -
+        #                          synthetic_sig[(nmf.PIANO_WDW_SIZE // 2): (len(sig) - (nmf.PIANO_WDW_SIZE // 2))]))
+
+        # self.assertEqual(sig_diff, 0)
+
 if __name__ == '__main__':
     unittest.main()
