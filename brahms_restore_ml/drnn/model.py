@@ -395,8 +395,11 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
 
     # Use pre-configurations (default)
     else:
-        x = SimpleRNN(features, # features // 2, # TEMP - no dim reduc
+        x = SimpleRNN(
+                    features, # TEMP - no dim redu
+                    # features // 2,
                     activation='relu', 
+                    # use_bias=False, # TEMP - debug po-sen
                     return_sequences=True) (input_layer) 
         if use_bv:  # new
             x = SimpleRNN(features, 
@@ -404,11 +407,18 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     return_sequences=True) (x)
             x = Concatenate(axis=-2) ([bv_input, x])    # TODO: bvs before or after music in time?
         else:
-            x = SimpleRNN(features, # features // 2, # TEMP - no dim reduc
+            x = SimpleRNN(
+                features, # TEMP - no dim reduc
+                # features // 2, 
                 activation='relu',
+                # use_bias=False, # TEMP - debug po-sen
                 return_sequences=True) (x)
-        piano_hat = TimeDistributed(Dense(features), name='piano_hat') (x)  # source 1 branch
-        noise_hat = TimeDistributed(Dense(features), name='noise_hat') (x)  # source 2 branch
+        piano_hat = TimeDistributed(Dense(features,
+                    # use_bias=False, # TEMP - debug po-sen
+                    ), name='piano_hat') (x)  # source 1 branch
+        noise_hat = TimeDistributed(Dense(features,
+                    # use_bias=False, # TEMP - debug po-sen
+                    ), name='noise_hat') (x)  # source 2 branch
     piano_pred = TimeFreqMasking(epsilon=epsilon, 
                                 name='piano_pred') ((piano_hat, noise_hat, input_layer))
     noise_pred = TimeFreqMasking(epsilon=epsilon, 
