@@ -54,6 +54,7 @@ __pycache__/
 /brahms_begin_from_trim.wav
 
 /brahms_restore_ml/nmf/all_notes_ff_wav/
+/brahms_restore_ml/nmf/all_notes_ff_wav_dmged/
 /brahms_restore_ml/nmf/all_notes_ff_wav_A=430Hz/
 /brahms_restore_ml/nmf/all_notes_ff_wav_A=436Hz/
 /brahms_restore_ml/nmf/avged_ova_notes/
