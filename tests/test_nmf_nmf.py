@@ -34,7 +34,8 @@ class NMFTests(unittest.TestCase):
          self.assertNotEqual(np.sum(W2), np.sum(W))
       with self.subTest():
          self.assertNotEqual(np.sum(H2), np.sum(H))
-      # TODO? test if V sum = approx V sum
+      with self.subTest():
+         self.assertAlmostEqual(np.sum(V), np.sum(W@H))
 
    def test_nmf_supervised(self):
       m, n, k = 8, 6, 5
@@ -53,7 +54,7 @@ class NMFTests(unittest.TestCase):
       split_index = k // 2
       W = np.ones((m, k)) * Wmade_scale_factor
       V = np.arange(m * n).reshape(m, n)
-      W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise')
+      W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise', made_init=True)
       # Assert fixed didn't change
       with self.subTest():
          np.testing.assert_array_equal(W[:, split_index:], W_after_nmf[:, split_index:])
@@ -91,7 +92,7 @@ class NMFTests(unittest.TestCase):
       split_index = k // 2
       W = np.ones((m, k)) * Wmade_scale_factor
       V = np.arange(m * n).reshape(m, n)
-      W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano')
+      W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano', made_init=True)
       # Assert fixed didn't change
       with self.subTest():
          np.testing.assert_array_equal(W[:, :split_index], W_after_nmf[:, :split_index])
@@ -124,6 +125,41 @@ class NMFTests(unittest.TestCase):
          print('H SUMS lp - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[:split_index]),np.sum(H[:split_index]),'Corres Learned',np.sum(H2[split_index:]),np.sum(H[split_index:]))
          self.assertAlmostEqual(np.sum(H2[:split_index]), np.sum(H[:split_index]), places=0)
 
+   # Confirms semisup made learn for 0 learn iters (no learn) equals sup
+   # def test_nmf_sup_equals_semisup_pianomade_learn0(self):
+   #    m, n, k = 8, 6, 5
+   #    split_index = k // 2
+   #    W = np.ones((m, k)) * Wmade_scale_factor
+   #    V = np.arange(m * n).reshape(m, n)
+   #    W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano', 
+   #                                  made_init=True, madeinit_learn_factor=0)
+   #    # Assert whole didn't change
+   #    with self.subTest():
+   #       self.assertEqual(np.average((np.concatenate((W_after_nmf[:, :split_index], W_after_nmf[:, (-(k - split_index)):]), axis=-1) - W) ** 2), 0)
+   #    # Assert H is near same each time
+   #    with self.subTest():
+   #       _, H2 = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano',
+   #                            made_init=True, madeinit_learn_factor=0)
+   #       self.assertAlmostEqual(np.sum(H2), np.sum(H), places=0)
+
+   # def test_nmf_sup_equals_semisup_noisemade_learn0(self):
+   #    m, n, k = 8, 6, 5
+   #    split_index = k // 2
+   #    W = np.ones((m, k)) * Wmade_scale_factor
+   #    V = np.arange(m * n).reshape(m, n)
+   #    W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise', 
+   #                                  made_init=True, madeinit_learn_factor=0)
+   #    # Assert whole didn't change
+   #    with self.subTest():
+   #       self.assertEqual(np.average((np.concatenate((W_after_nmf[:, :split_index], W_after_nmf[:, (-(k - split_index)):]), axis=-1) - W) ** 2), 0)
+   #    # Assert H is near same each time
+   #    with self.subTest():
+   #       _, H2 = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise',
+   #                            made_init=True, madeinit_learn_factor=0)
+   #       self.assertAlmostEqual(np.sum(H2), np.sum(H), places=0)
+
+
+
    # L1-Penalty - moral, don't apply L1-Pen on H that isn't corres. to fixed W (isn't supervised)
    # Make sure H sum < unpenalized H sum
    def test_nmf_supervised_l1penalty(self):
@@ -138,6 +174,20 @@ class NMFTests(unittest.TestCase):
          np.testing.assert_array_equal(W, W_after_nmf_pen)
       with self.subTest():
          self.assertLess(np.sum(H_penalized), np.sum(H))
+
+   # # Confirmed passing in l1_pen=0 to update didn't hurt
+   # def test_nmf_supervised_zero_l1penalty(self):
+   #    m, n, k = 8, 6, 5
+   #    W = np.ones((m, k)) * Wmade_scale_factor
+   #    V = np.arange(m * n).reshape(m, n)
+   #    W_after_nmf, H = extended_nmf(V, k, W.copy(), dont_pass_pen_in=False)
+   #    W_after_nmf_pass, H_pass = extended_nmf(V, k, W.copy(), dont_pass_pen_in=True)
+   #    with self.subTest():
+   #       np.testing.assert_array_equal(W, W_after_nmf)
+   #    with self.subTest():
+   #       np.testing.assert_array_equal(W, W_after_nmf_pass)
+   #    with self.subTest():
+   #       self.assertAlmostEqual(np.sum(H_pass), np.sum(H))
 
    def test_nmf_semi_supervised_learn_noise_made_l1penalty(self):
       m, n, k = 8, 6, 5
