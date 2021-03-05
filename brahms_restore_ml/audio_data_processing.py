@@ -186,7 +186,7 @@ def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False, hop_size
     spectrogram, pos_phases = np.nan_to_num(spectrogram), np.nan_to_num(pos_phases)
     spectrogram[spectrogram == 0], pos_phases[pos_phases == 0] = epsilon, epsilon
     if debug:
-        plot_matrix(spectrogram, 'Built Spectrogram', 'time segments', 'frequency', ratio=SPGM_BRAHMS_RATIO, show=True)
+        plot_matrix(spectrogram, 'Built Spectrogram', 'frequency', 'time segments', ratio=SPGM_BRAHMS_RATIO, show=True)
 
     return spectrogram, pos_phases
 

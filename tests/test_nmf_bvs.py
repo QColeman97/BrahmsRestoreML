@@ -32,13 +32,15 @@ class BasisVectorTests(unittest.TestCase):
       noise_basis_vectors = make_noise_basis_vectors(num_noise_bv, PIANO_WDW_SIZE, ova=True)
       self.assertEqual(noise_basis_vectors.shape, (num_noise_bv, (PIANO_WDW_SIZE//2)+1))
 
+   # TODO Sanity Checkmark - noise spectrogram looks like a rank-1 approx.
    def test_bv_sound(self):
       num_noise = 1
       noise_bvs = make_noise_basis_vectors(num_noise, PIANO_WDW_SIZE, ova=True, debug=debug_flag,
                                            precise_noise=True, 
                                           #  start=6, stop=83,   # tests voice, default 0 - 20
                                            write_path=test_path)
-  
+   
+   # TODO Sanity Checkmark - noise spectrogram looks like a rank-1 approx.
    def test_bv_sound_izotoperx(self):
       num_noise = 1
       noise_bvs = make_noise_basis_vectors(num_noise, PIANO_WDW_SIZE, ova=True, debug=debug_flag,

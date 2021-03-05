@@ -86,11 +86,12 @@ def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, pr
     if write_path is not None:
         # write first noise basis vector magnitude-repeated out to wav file
         bv_spgm = np.array([noise_basis_vectors[0] for _ in range(b_spgm.shape[0] if precise_noise else spectrogram.shape[1])])
+        print('SHAPE OF', 'FROM BRAHMS' if precise_noise else 'IZOTOPE', 'BV SPGM:', bv_spgm.shape[0])
         bv_spgm *= 10000    # basis vectors are very quiet
         # print('NOISE BV SPGM:', bv_spgm[0][:10], 'next one:', bv_spgm[1][:10])
         # print('\nNOISE BV SPGM SHAPE:', bv_spgm.shape, '\n')
         # plot_matrix(bv_spgm, 'Noise Basis Vector Spgm', 'frequency', 'time', ratio=nmf.BASIS_VECTOR_FULL_RATIO, show=True)
-        bv_sig = make_synthetic_signal(bv_spgm, b_phases if precise_noise else phases, wdw_size, noise_sig_type, ova=ova, debug=True)
+        bv_sig = make_synthetic_signal(bv_spgm, b_phases if precise_noise else phases, wdw_size, noise_sig_type, ova=ova, debug=False)
         # print('NOISE BV SIG:', bv_sig[1000:1100])
         # plot_signal(bv_sig, noise_sig_type, 'Noise Basis Vector Sig', show=True)
         # wavfile.write(write_path, noise_sr, bv_sig)

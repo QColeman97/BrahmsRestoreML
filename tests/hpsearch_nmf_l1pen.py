@@ -9,9 +9,9 @@ import numpy as np
 # Testing global vars
 write_flag = True
 debug_flag = False
-num_noise_bv_test = 10
-l1_penalty_test = 4096  # 100
-learn_iter_test = 100   # 25
+num_noise_bv_test = 2
+# l1_penalty_test = 4096  # 100
+# learn_iter_test = 100   # 25
 
 brahms_filepath = 'brahms.wav'
 mary_filepath = 'brahms_restore_ml/nmf/Mary.wav'
