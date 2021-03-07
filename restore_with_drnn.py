@@ -171,7 +171,7 @@ def main():
     if dmged_piano_only:
         recent_model_path += '_dmgedp'
         output_file_addon += '_dmgedp'
-    gs_write_model = False      # for small grid searches only
+    gs_write_model = False      # for small grid searches only, and for running ALL epochs - no early stop
     loop_bare_noise = True     # to control bare_noise in nn_data_gen, needs curr for low_time_steps
     low_time_steps = True
 
@@ -179,11 +179,11 @@ def main():
     # Note: FROM PO-SEN PAPER - about loss_const
     #   Empirically, the value γ is in the range of 0.05∼0.2 in order
     #   to achieve SIR improvements and maintain SAR and SDR.
-    train_batch_size = 6 if pc_run else 12
+    train_batch_size = 100 if low_time_steps else (6 if pc_run else 12)
     # train_batch_size = 3 if pc_run else 12  # TEMP - for no dimreduc
     train_loss_const = 0.1
     train_epochs = 10
-    train_opt_name, train_opt_clipval, train_opt_lr = 'Adam', 0.9, 0.001
+    train_opt_name, train_opt_clipval, train_opt_lr = 'Adam', 0.5, 0.001
     training_arch_config = None
 
     epsilon, patience, val_split = 10 ** (-10), train_epochs, 0.25
@@ -198,7 +198,8 @@ def main():
     else:
         train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run, 
                                                           use_bv=basis_vector_features,
-                                                          small_gs=gs_write_model)
+                                                          small_gs=gs_write_model,
+                                                          low_tsteps=low_time_steps)
         # print('First arch config optn after return:', arch_config_optns[0])
 
         if data_from_numpy:
@@ -535,8 +536,8 @@ def main():
 
             early_stop_pat = 5
             # Define which files to grab for training. Shuffle regardless.
-            actual_samples = TOTAL_SMPLS
-            sample_indices = list(range(TOTAL_SMPLS))
+            actual_samples = TOTAL_SHORT_SMPLS if low_time_steps else TOTAL_SMPLS
+            sample_indices = list(range(actual_samples))
             random.shuffle(sample_indices)
 
             x_files = np.array([(noise_piano_filepath_prefix + str(i) + '.npy')
@@ -567,7 +568,11 @@ def main():
             # NEW
             # train_seq, train_feat, min_sig_len = get_raw_data_stats(y1_files, y2_files, x_files, 
             #                                                         brahms_filename=brahms_path)
-            train_seq, train_feat, min_sig_len = TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MIN_SIG_LEN
+            if low_time_steps:
+                train_seq, train_feat, min_sig_len = TRAIN_SEQ_LEN_SMALL, TRAIN_FEAT_LEN, MIN_SIG_LEN_SMALL
+            else:
+                train_seq, train_feat, min_sig_len = TRAIN_SEQ_LEN, TRAIN_FEAT_LEN, MIN_SIG_LEN
+
             # broken
             # if basis_vector_features:
             #     train_seq += NUM_SCORE_NOTES

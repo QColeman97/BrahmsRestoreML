@@ -215,7 +215,7 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
         return model
 
 
-def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False):
+def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False, low_tsteps=False):
     # import tensorflow as tf
 
     # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
@@ -229,7 +229,10 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False)
     # batch_size_optns = [1, 3] if pc_run else [4, 8]    # OOM on f35 and on PC, w/ restart script,
     # batch_size_optns = [1, 3] if pc_run else [8, 16]    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
     # batch_size_optns = [4] if pc_run else [8, 16]    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
-    batch_size_optns = [4] if (pc_run and not small_gs) else ([8] if small_gs else [8, 16])    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
+    if low_tsteps:
+        batch_size_optns = [50, 100]
+    else:
+        batch_size_optns = [4] if (pc_run and not small_gs) else ([8] if small_gs else [8, 16])    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
     
     # # MEM BOUND TEST
     # batch_size_optns = [8] # - time
@@ -237,13 +240,16 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False)
 
     # batch_size_optns = [5] if pc_run else [8, 12] 
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
-    epochs_optns = [20, 50, 100, 500] if use_bv or small_gs else [10]
+    epochs_optns = [20, 50, 100, 500] if use_bv or small_gs else ([15] if low_tsteps else [10])
     # loss_const total options 0 - 0.3 by steps of 0.05
     # loss_const_optns = [0.05, 0.2]
     # loss_const_optns = [0.05, 0.1] if pc_run else [0.05]    # first of two HPs dropping, PC GS time constraint
     # loss_const_optns = [0.05, 0.1] if pc_run else [0.05, 0.1]    # Multi-processing fix -> orig numbers
     # loss_const_optns = [0.1] if (pc_run and not small_gs) else ([0.1, 0.15] if small_gs else [0.05, 0.1])    # Multi-processing fix -> orig numbers
-    loss_const_optns = [0.1] if pc_run else [0.05, 0.1]     # Multi-processing fix -> orig numbers
+    if low_tsteps:
+        loss_const_optns = [0.05, 0.15, 0.3]
+    else:
+        loss_const_optns = [0.1] if pc_run else [0.05, 0.1]     # Multi-processing fix -> orig numbers
 
     # Optimizers ... test out Adaptive Learning Rate Optimizers (RMSprop & Adam) Adam ~ RMSprop w/ momentum
     # Balance between gradient clipping and lr for exploding gradient
@@ -303,7 +309,7 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False)
     #                    (10, 0.001, 'RMSprop'),
     #                    (None, 0.0001, 'Adam'), 
     #                    (10, 0.001, 'Adam')]
-    optimizer_optns = [(10, 0.001, 'Adam')]
+    optimizer_optns = [(0.5, 0.001, 'Adam')] if low_tsteps else [(10, 0.001, 'Adam')]
 
     # else:
     #     optimizer_optns = [
@@ -346,7 +352,7 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False)
     # dropout_optns = [(0.25,0.25)]
     # dropout_optns = [(0.0,0.0), (0.25,0.25)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
     # dropout_optns = [(0.0,0.0), (0.5,0.5)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
-    dropout_optns = [(0.0,0.0)] if use_bv or small_gs else [(0.0,0.0), (0.5,0.5)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
+    dropout_optns = [(0.0,0.0)] if use_bv or small_gs or low_tsteps else [(0.0,0.0), (0.5,0.5)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
     # # MEM BOUND TEST
     # scale_optns = [True]
     # scale_optns = [False, True]
@@ -355,7 +361,7 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False)
     # rnn_skip_optns = [True]
     # rnn_skip_optns = [False, True]
     # rnn_skip_optns = [False] if use_bv or small_gs else [False, True]
-    rnn_skip_optns = [False] if use_bv else ([True] if small_gs else [False, True])
+    rnn_skip_optns = [False] if (use_bv or low_tsteps) else ([True] if small_gs else [False, True])
     bias_rnn_optns = [True]     # False
     bias_dense_optns = [True]   # False
     # HP range test - only True
@@ -363,7 +369,7 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False)
     # bidir_optns = [True]
     # bidir_optns = [False, True]
     # bidir_optns =  [False] if use_bv or small_gs else [False, True]
-    bidir_optns =  [False] if use_bv else ([True] if small_gs else [False, True])
+    bidir_optns =  [False] if (use_bv or low_tsteps) else ([True] if small_gs else [False, True])
     # # MEM BOUND TEST
     # bn_optns = [True]  
     bn_optns = [False] if small_gs else [False, True]                    # For Dense only
@@ -384,6 +390,9 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False)
         elif small_gs:
             with open(bare_config_path + 'hp_arch_config_final_no_pc_long.json') as hp_file:
                 bare_config_optns = [json.load(hp_file)['archs'][0]]    # 0th small enough for pc
+        elif low_tsteps:
+            with open(bare_config_path + 'hp_arch_config_final_fulldim.json') as hp_file:
+                bare_config_optns = json.load(hp_file)['archs']
         else:
             with open(bare_config_path + 'hp_arch_config_final.json') as hp_file:
                 bare_config_optns = json.load(hp_file)['archs']
@@ -533,7 +542,7 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                                                     combos, gs_id,
                                                                     send_end, dataset2, None, None,
                                                                     True, tuned_a430hz, use_basis_vectors, 
-                                                                    None, None, False, low_time_steps))
+                                                                    None, None, True, low_time_steps))
                             process_train.start()
                                               
                             # Keep polling until child errors or child success (either one guaranteed to happen)
