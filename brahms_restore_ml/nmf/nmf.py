@@ -139,7 +139,7 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
                 updateH(H[split_index:], W[:, split_index:], V, n, l1_pen=l1_pen, wholeW=W, wholeH=H)   # piano H
 
         # SemiSup - Looks like only use the sections of W & H, & same V & ones, in multiplications for updates to sections of W & H
-        # TODO: test to see if sound difference, learning voice or not
+        # Tested to see if sound difference, learning voice or not, no difference heard
         # elif V.shape[1] > 1000:
         #     # Don't learn from voice part of V - assumes Brahms recording
         #     k_voice = 10
@@ -261,7 +261,7 @@ def make_mary_bv_test_activations(vol_factor=1):
 def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False, noisebv=True, avgbv=True, semisuplearn='None', 
                   semisupmadeinit=False, write_file=True, debug=False, nohanbv=False, prec_noise=True, eqbv=False, incorrect_semisup=False,
                   learn_iter=MAX_LEARN_ITER, num_noisebv=10, noise_start=6, noise_stop=25, l1_penalty=0, write_noise_sig=False,
-                  a430hz_bv=False, scorebv=False, audible_range_bv=False, dmged_pianobv=False):
+                  a430hz_bv=False, scorebv=True, audible_range_bv=False, dmged_pianobv=False, num_pbv_unlocked=None):
     orig_sig_type = sig.dtype
         
     print('\n--Making Piano & Noise Basis Vectors--\n')
@@ -270,7 +270,7 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
                                       precise_noise=prec_noise, eq=eqbv, noise_start=noise_start, noise_stop=noise_stop,
                                       randomize='None' if (semisupmadeinit and semisuplearn != 'None') else semisuplearn, 
                                       a430hz=a430hz_bv, score=scorebv, audible_range=audible_range_bv, 
-                                      dmged_piano=dmged_pianobv)
+                                      dmged_piano=dmged_pianobv, unlocked_piano_count=num_pbv_unlocked)
     if dmged_pianobv:
         # Supervised case, include noise
         hq_piano_basis_vectors = get_basis_vectors(wdw_size, ova=ova, 
@@ -304,11 +304,12 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
         # plot_matrix(spectrogram, 'Brahms Spectrogram', 'frequency', 'time segments', ratio=BASIS_VECTOR_FULL_RATIO, show=True)
         
     print('\nGoing into NMF--Learning Activations--\n') if semisuplearn == 'None' else print('\n--Going into NMF--Learning Activations & Basis Vectors--\n')
-    k = NUM_SCORE_NOTES if scorebv else (NUM_MARY_PIANO_NOTES if marybv else NUM_PIANO_NOTES)
+    k = (num_pbv_unlocked if (num_pbv_unlocked is not None) else 
+        (NUM_SCORE_NOTES if scorebv else (NUM_MARY_PIANO_NOTES if marybv else NUM_PIANO_NOTES)))
     if audible_range_bv:
         k -= ((SCORE_IGNORE_TOP_NOTES + SCORE_IGNORE_BOTTOM_NOTES) if scorebv else (IGNORE_TOP_NOTES + IGNORE_BOTTOM_NOTES))
     num_pianobv = k
-    basis_vectors_save = basis_vectors.T.copy()   # for debugging after NMF
+    # basis_vectors_save = basis_vectors.T.copy()   # for debugging after NMF
     if noisebv:
         k += num_noisebv
     # Transpose W and V from natural orientation to NMF-liking orientation

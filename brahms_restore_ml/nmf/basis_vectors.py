@@ -49,13 +49,13 @@ def make_basis_vector(waveform, wf_type, wf_sr, num_str, wdw_size, ova=False, av
 def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, precise_noise=False, eq_thresh=800000,
                              start=0, stop=25, write_path=None):
     real_currdir = os.path.dirname(os.path.realpath(__file__))
-    if precise_noise:
+    if precise_noise and (num < 20):
         brahms_sr, brahms_sig = wavfile.read(real_currdir + '/../../brahms.wav')
         noise_sig = brahms_sig[(start * wdw_size): (stop * wdw_size)].copy()
         noise_sr = brahms_sr
         noise_sig_type = noise_sig.dtype
         b_spgm, b_phases = make_spectrogram(brahms_sig, wdw_size, EPSILON, ova=True)
-    else:
+    else:   # backup - izotope rx noise
         noise_sr, noise_sig = wavfile.read(real_currdir + '/../../brahms_noise_izotope_rx.wav')
         noise_sig_type = noise_sig.dtype
     if debug:   # before make_spectrogram ruins sig
@@ -162,10 +162,13 @@ def make_basis_vectors(wdw_size, filepath, ova=False, avg=False, mary_flag=False
 # Basis vectors in essence are the "best" dft of a sound w/ constant pitch (distinct freq signature)
 def get_basis_vectors(wdw_size, ova=False, mary=False, noise=False, avg=False, debug=False, precise_noise=False, eq=False, 
                       num_noise=0, noise_start=6, noise_stop=25, randomize='None', a430hz=False, score=False, audible_range=False,
-                      filepath=os.path.dirname(os.path.realpath(__file__)) + '/np_saves_bv/basis_vectors', dmged_piano=False):
+                      filepath=os.path.dirname(os.path.realpath(__file__)) + '/np_saves_bv/basis_vectors', dmged_piano=False,
+                      unlocked_piano_count=None):
     if randomize == 'Piano':
         # Piano basis vectors are random for semisupervised learn piano
-        basis_vectors = np.random.rand(nmf.NUM_SCORE_NOTES if score else nmf.NUM_PIANO_NOTES, (wdw_size//2) + 1) + 1
+        basis_vectors = (np.random.rand(unlocked_piano_count if (unlocked_piano_count is not None) else 
+                                            (nmf.NUM_SCORE_NOTES if score else nmf.NUM_PIANO_NOTES), 
+                                        (wdw_size//2) + 1) + 1)
     else:
         # Save/load basis vectors (w/o noise) to/from numpy files
         # real_currdir = os.path.dirname(os.path.realpath(__file__))
