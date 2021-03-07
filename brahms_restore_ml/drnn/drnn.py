@@ -186,7 +186,7 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
  
     pc_run_str = '' if pc_run else '_noPC'
     # if pc_run and (grid_search_iter is None):
-    if pc_run:  # NEW - TRY TO WRITE MODELS IN SMALL GRID SEARCHES
+    if pc_run and (recent_model_path is not None):  # NEW - TRY TO WRITE MODELS IN SMALL GRID SEARCHES
         #  Can't for imperative models
         model.save(recent_model_path)
 
