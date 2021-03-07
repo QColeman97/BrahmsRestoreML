@@ -37,6 +37,7 @@ __pycache__/
 /brahms_restore_ml/drnn/output_grid_search_PC_bs5_oom/
 /brahms_restore_ml/drnn/output_grid_search_bvs/
 /brahms_restore_ml/drnn/output_grid_search_bvs_2/
+/brahms_restore_ml/drnn/output_grid_search_many_epochs/
 /brahms_restore_ml/drnn/output_grid_search/
 /brahms_restore_ml/drnn/output_restore/
 
