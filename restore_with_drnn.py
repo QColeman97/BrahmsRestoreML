@@ -139,7 +139,7 @@ def main():
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_bvs/'       # bvs     
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_bvs_2/'       # bvs 2   
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model'
-    recent_model_path = 'brahms_restore_ml/drnn/recent_model_1496of3072'    # restore from curr best
+    recent_model_path = 'brahms_restore_ml/drnn/recent_model_149of3072'    # restore from curr best
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_3of4'    # restore from best in small gs
     infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     brahms_path = 'brahms.wav'

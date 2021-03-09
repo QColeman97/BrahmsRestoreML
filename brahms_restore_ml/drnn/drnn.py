@@ -812,12 +812,13 @@ def restore_with_drnn(output_path, recent_model_path,
         bad_spgm = noise_spgm if bad_spgm is None else np.concatenate((bad_spgm, noise_spgm))
         input_split_index += TRAIN_SEQ_LEN
     restored_spgm = restored_spgm[:test_spgm.shape[0]]
+    bad_spgm = bad_spgm[:test_spgm.shape[0]]
     if pc_run:
         # FOR EVAL - SPECTROGRAM PLOTS
         # if not write_noise_sig:
         restore_plot_path = os.getcwd() + '/brahms_restore_ml/drnn/eval_spgm_plots/'
-        # eval_name, plot_name = '149of3072', '2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 8'
-        eval_name, plot_name = '1496of3072', 'Dense+TanH, 3 Bidir-RNNs, Res. Cxn, Scaling, Adam w/ GradClip, BS = 8'
+        eval_name, plot_name = '149of3072', '2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 8'
+        # eval_name, plot_name = '1496of3072', 'Dense+TanH, 3 Bidir-RNNs, Res. Cxn, Scaling, Adam w/ GradClip, BS = 8'
         plot_matrix(restored_spgm[BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS].T, name=plot_name, 
             xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(restore_plot_path + eval_name + '.png'), show=False)
 
@@ -827,6 +828,8 @@ def restore_with_drnn(output_path, recent_model_path,
                 ratio=SPGM_BRAHMS_RATIO)
     synthetic_sig = make_synthetic_signal(restored_spgm, test_phases, wdw_size, 
                                         test_sig_type, ova=True, debug=False)
+    synthetic_noise_sig = make_synthetic_signal(bad_spgm, test_phases, wdw_size, 
+                                        test_sig_type, ova=True, debug=False)
 
     if pc_run:  # FOR EVAL - WAV SAMPLES - not during testing
         eval_smpl_path = os.getcwd() + '/brahms_restore_ml/drnn/eval_wav_smpls/'
@@ -835,6 +838,7 @@ def restore_with_drnn(output_path, recent_model_path,
     
     # print('RESTRED SIG:', synthetic_sig[2000000:2000100])
     wavfile.write(output_path + 'restore' + name_addon + '.wav', test_sr, synthetic_sig)
+    wavfile.write(output_path + 'noise' + name_addon + '.wav', test_sr, synthetic_noise_sig)
 
     # # brahms_spgm, brahms_phases = np.empty((b_slice_sgmts, TRAIN_FEAT_LEN)), np.empty((b_slice_sgmts, TRAIN_FEAT_LEN))
     # # bad_spgm, bad_phases = np.empty((b_slice_sgmts, TRAIN_FEAT_LEN)), np.empty((b_slice_sgmts, TRAIN_FEAT_LEN))
