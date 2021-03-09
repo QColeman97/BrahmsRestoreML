@@ -28,6 +28,8 @@ __pycache__/
 /brahms_restore_ml/drnn/recent_model_149of3072/
 /brahms_restore_ml/drnn/recent_model_1496of3072/
 /brahms_restore_ml/drnn/recent_model_151of3072/
+/brahms_restore_ml/drnn/recent_model_111of144/
+/brahms_restore_ml/drnn/recent_model_111of144_earlystop/
 /brahms_restore_ml/drnn/src/subclass_model_example.py
 /brahms_restore_ml/drnn/src/custom_train_loop_example.py
 /brahms_restore_ml/drnn/src/install_and_run.py
@@ -41,6 +43,7 @@ __pycache__/
 /brahms_restore_ml/drnn/output_grid_search_many_epochs/
 /brahms_restore_ml/drnn/output_grid_search_low_tsteps1/
 /brahms_restore_ml/drnn/output_grid_search_low_tsteps2/
+/brahms_restore_ml/drnn/output_grid_search_low_tsteps_big/
 /brahms_restore_ml/drnn/output_grid_search/
 /brahms_restore_ml/drnn/output_restore/
 /brahms_restore_ml/drnn/eval_wav_smpls/
