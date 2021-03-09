@@ -80,6 +80,8 @@ __pycache__/
 /brahms_restore_ml/nmf/output_test_penalty/
 /brahms_restore_ml/nmf/output_test_writefix_newbv/
 /brahms_restore_ml/nmf/old_test_output/
+/brahms_restore_ml/nmf/eval_wav_smpls/
+
 
 .vscode
 
