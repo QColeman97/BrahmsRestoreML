@@ -54,6 +54,7 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
                 _ = fp.readline()
 
             hp_config = json.loads(fp.readline())
+            # print('FILE ID:', file_id, '\nHP CONFIG:', hp_config)
 
             if combos == 2048:
                 small_bs = 1 if (hp_config['batch_size'] == 1) else 0
@@ -86,7 +87,7 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
             high_loss_const = 1 if (hp_config['gamma'] == 0.3) else 0
             adam = 1 if (hp_config['optimizer'] == 'Adam') else 0
             clip_val_default_lr = 1 if (hp_config['clip value'] == 10) else 0
-            low_clip_val = 1 if (hp_config['clip value'] < 10) else 0
+            low_clip_val = 1 if (hp_config['clip value'] is None or hp_config['clip value'] < 10) else 0
             if combos == 24:
                 vl_hp_combos_df.loc[file_id] = [#small_bs, 
                                                 low_dense, med_dense, high_dense,
@@ -161,10 +162,10 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
 
 
 def main():
-    combos = 72
-    grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps2/'
+    combos = 3072
+    grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'
     do_val_loss = True
-    pc = True
+    pc = False
 
     show_most_varied_hps(combos, grid_search_results_path, do_val_loss, pc)
 

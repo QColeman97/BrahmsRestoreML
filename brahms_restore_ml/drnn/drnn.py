@@ -37,6 +37,7 @@ TOTAL_SMPLS = 61
 TOTAL_SHORT_SMPLS = 902
 TRAIN_SEQ_LEN_BV = TRAIN_SEQ_LEN + NUM_SCORE_NOTES
 TRAIN_SEQ_LEN_BV_SMALL = TRAIN_SEQ_LEN_SMALL + NUM_SCORE_NOTES
+BRAHMS_SILENCE_WDWS = 15
 # NEURAL NETWORK TRAIN, HP-SEARCH & INFER FUNCTIONS
 
 # MODEL TRAIN & EVAL FUNCTION
@@ -812,12 +813,25 @@ def restore_with_drnn(output_path, recent_model_path,
         input_split_index += TRAIN_SEQ_LEN
     restored_spgm = restored_spgm[:test_spgm.shape[0]]
     if pc_run:
+        # FOR EVAL - SPECTROGRAM PLOTS
+        # if not write_noise_sig:
+        restore_plot_path = os.getcwd() + '/brahms_restore_ml/drnn/eval_spgm_plots/'
+        eval_name, plot_name = '149of3072', '2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 8'
+        plot_matrix(restored_spgm[BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS].T, name=plot_name, 
+            xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(restore_plot_path + eval_name + '.png'), show=False)
+
         plot_matrix(restored_spgm, name='clear_output_spgm', xlabel='frequency', ylabel='time segments', 
                 ratio=SPGM_BRAHMS_RATIO)
         plot_matrix(bad_spgm, name='noise_output_spgm', xlabel='frequency', ylabel='time segments', 
                 ratio=SPGM_BRAHMS_RATIO)
     synthetic_sig = make_synthetic_signal(restored_spgm, test_phases, wdw_size, 
                                         test_sig_type, ova=True, debug=False)
+
+    if pc_run:  # FOR EVAL - WAV SAMPLES - not during testing
+        eval_smpl_path = os.getcwd() + '/brahms_restore_ml/drnn/eval_wav_smpls/'
+        eval_start = len(synthetic_sig) // 4
+        wavfile.write(eval_smpl_path + eval_name + '.wav', test_sr, synthetic_sig[eval_start: (eval_start + 500000)])
+    
     # print('RESTRED SIG:', synthetic_sig[2000000:2000100])
     wavfile.write(output_path + 'restore' + name_addon + '.wav', test_sr, synthetic_sig)
 
