@@ -23,12 +23,20 @@ def run_top_gs_result(num, best_config,
     train_batch_size = best_config['batch_size']
     # # Temp test for LSTM -> until can grid search
     # train_batch_size = 3 if train_batch_size < 3 else train_batch_size
-    # TEMP - until F35 back up, make managable for PC, for bv_s grid search results
+    # # TEMP - until F35 back up, make managable for PC, for bv_s grid search results, no dimred & no lowtsteps
     # train_batch_size = 4
-    # TEMP - make what PC can actually handle (3072 run, but definitely 2048), no dimred
-    train_batch_size = 6
+    # # TEMP - make what PC can actually handle (3072 run, but definitely 2048)
+    # train_batch_size = 6
+    if low_time_steps:
+        train_batch_size = 50
     train_loss_const = best_config['gamma']
+    # # EVAL CHANGE
+    # if low_time_steps:
+    #     train_loss_const = 0.3
     train_epochs = best_config['epochs']
+    # # EVAL CHANGE # todo
+    # if low_time_steps:
+    #     train_epochs = 100
     # train_epochs = 15 # TEMP - optimize learning
     # TEMP - exploit high epochs
     if train_epochs > 10:
@@ -55,6 +63,13 @@ def run_top_gs_result(num, best_config,
     training_arch_config['bidir'] = best_config['bidir']
     training_arch_config['rnn_dropout'] = best_config['rnn_dropout']
     training_arch_config['bn'] = best_config['bn']
+    # EVAL CHANGE
+    if use_basis_vectors:
+        training_arch_config['bidir'] = False
+        training_arch_config['rnn_res_cntn'] = False
+    l1_reg = None
+    # EVAL CHANGE
+    l1_reg = 0.001
 
     print('#', num, 'TOP TRAIN ARCH FOR USE:')
     print(training_arch_config)
@@ -78,7 +93,7 @@ def run_top_gs_result(num, best_config,
                         None, None, None, '', None,
                         dmged_piano_artificial_noise_mix, data_path, min_sig_len, True,
                         tuned_a430hz, use_basis_vectors, None, None, 
-                        loop_bare_noise, low_time_steps))
+                        loop_bare_noise, low_time_steps, l1_reg))
     process_train.start()
     process_train.join()
 
@@ -189,7 +204,7 @@ def main():
         output_file_addon += ('_' + [x for x in recent_model_path.split('_')][-1])
     gs_write_model = False      # for small grid searches only, and for running ALL epochs - no early stop
     loop_bare_noise = True     # to control bare_noise in nn_data_gen, needs curr for low_time_steps
-    low_time_steps = False
+    low_time_steps = True
 
     # print('RECENT MODEL PATH:', recent_model_path)
     # print('OUTPUT FILE PATH ADD-ON:', output_file_addon)

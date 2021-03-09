@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import Input, SimpleRNN, Dense, TimeDistributed, Layer, LSTM, Bidirectional, BatchNormalization, Concatenate
 from tensorflow.keras.models import Model
 from ..nmf.nmf import NUM_SCORE_NOTES
-from .drnn import TRAIN_SEQ_LEN
+from .drnn import TRAIN_SEQ_LEN, TRAIN_SEQ_LEN_SMALL
 
 class Standardize(Layer):
     def __init__(self, mean, std, **kwargs):
@@ -31,16 +31,17 @@ class UnStandardize(Layer):
 # TF Masking layer has too compilcated operations for a lambda, and want to serialize model
 class TimeFreqMasking(Layer):
     # Init is for input-independent variables
-    def __init__(self, epsilon, **kwargs):
+    def __init__(self, epsilon, low_time_steps, **kwargs):
         super(TimeFreqMasking, self).__init__(**kwargs)
         self.epsilon = epsilon
+        self.low_time_steps = low_time_steps
 
     # No build method, b/c passing in multiple inputs to layer (no single shape)
 
     def call(self, inputs):
         y_hat_self, y_hat_other, x_mixed = inputs
         mask = tf.abs(y_hat_self) / (tf.abs(y_hat_self) + tf.abs(y_hat_other) + self.epsilon)
-        y_tilde_self = mask[:, :TRAIN_SEQ_LEN, :] * x_mixed
+        y_tilde_self = mask[:, :(TRAIN_SEQ_LEN_SMALL if self.low_time_steps else TRAIN_SEQ_LEN), :] * x_mixed
         return y_tilde_self
     
     # config only contains things in __init__
@@ -84,7 +85,9 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     # GPU mem as func of HP TEST
                     # test=16, 
                     test=0,
-                    use_bv=False):#, 
+                    use_bv=False,
+                    low_tsteps=False,
+                    l1_reg=None):#, 
                     # pc_run=False):
     # new
     if use_bv:
@@ -121,6 +124,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                             use_bias=config['bias_rnn'],
                             dropout=config['rnn_dropout'][0],
                             recurrent_dropout=config['rnn_dropout'][1],
+                            kernel_regularizer=None if (l1_reg is None) else tf.keras.regularizers.l1(l1_reg),
                             return_sequences=True)) (input_layer if (i == 0 and not config['scale']) else x)
                 else:
                     x = SimpleRNN(features if (use_bv and is_last_rnn(num_layers, first_layer_type, rnn_index)) else 
@@ -129,6 +133,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                             use_bias=config['bias_rnn'],
                             dropout=config['rnn_dropout'][0],
                             recurrent_dropout=config['rnn_dropout'][1],
+                            kernel_regularizer=None if (l1_reg is None) else tf.keras.regularizers.l1(l1_reg),
                             return_sequences=True) (input_layer if (i == 0 and not config['scale']) else x)
 
             elif curr_layer_type == 'LSTM':
@@ -139,6 +144,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                             use_bias=config['bias_rnn'],
                             dropout=config['rnn_dropout'][0],
                             recurrent_dropout=config['rnn_dropout'][1],
+                            kernel_regularizer=None if (l1_reg is None) else tf.keras.regularizers.l1(l1_reg),
                             return_sequences=True)) (input_layer if (i == 0 and not config['scale']) else x)
                 else:
                     x = LSTM(features if (use_bv and is_last_rnn(num_layers, first_layer_type, rnn_index)) else 
@@ -147,6 +153,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                             use_bias=config['bias_rnn'],
                             dropout=config['rnn_dropout'][0],
                             recurrent_dropout=config['rnn_dropout'][1],
+                            kernel_regularizer=None if (l1_reg is None) else tf.keras.regularizers.l1(l1_reg),
                             return_sequences=True) (input_layer if (i == 0 and not config['scale']) else x)
             elif curr_layer_type == 'Dense':
                 if i == (num_layers - 1):   # Last layer is fork layer
@@ -158,11 +165,13 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
 
                         piano_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
                                                         activation=layer_config['act'], 
+                                                        kernel_regularizer=None if (l1_reg is None) else tf.keras.regularizers.l1(l1_reg),
                                                         use_bias=config['bias_dense']), 
                                                     name='piano_hat'
                                                 ) (x)
                         noise_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
                                                         activation=layer_config['act'], 
+                                                        kernel_regularizer=None if (l1_reg is None) else tf.keras.regularizers.l1(l1_reg),
                                                         use_bias=config['bias_dense']), 
                                                     name='noise_hat'
                                                 ) (x)
@@ -179,11 +188,13 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
 
                         piano_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
                                                         activation=layer_config['act'], 
+                                                        kernel_regularizer=None if (l1_reg is None) else tf.keras.regularizers.l1(l1_reg),
                                                         use_bias=config['bias_dense']), 
                                                     name='piano_hat'
                                                 ) (x)
                         noise_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
                                                         activation=layer_config['act'], 
+                                                        kernel_regularizer=None if (l1_reg is None) else tf.keras.regularizers.l1(l1_reg),
                                                         use_bias=config['bias_dense']),
                                                     name='noise_hat'
                                                 ) (x)
@@ -202,6 +213,7 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
 
                     x = TimeDistributed(Dense(features // layer_config['nrn_div'],
                                             activation=layer_config['act'], 
+                                            kernel_regularizer=None if (l1_reg is None) else tf.keras.regularizers.l1(l1_reg),
                                             use_bias=config['bias_dense']), 
                                     ) (input_layer if (i == 0 and not config['scale']) else x)
                     if config['bn']:
@@ -420,8 +432,10 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     # use_bias=False, # TEMP - debug po-sen
                     ), name='noise_hat') (x)  # source 2 branch
     piano_pred = TimeFreqMasking(epsilon=epsilon, 
+                                low_time_steps=low_tsteps,
                                 name='piano_pred') ((piano_hat, noise_hat, input_layer))
     noise_pred = TimeFreqMasking(epsilon=epsilon, 
+                                low_time_steps=low_tsteps,
                                 name='noise_pred') ((noise_hat, piano_hat, input_layer))
 
     # model = Model(inputs=input_layer, outputs=[piano_pred, noise_pred])

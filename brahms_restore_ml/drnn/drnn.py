@@ -52,7 +52,7 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
                         ret_queue=None, dataset2=False, data_path=None, min_sig_len=None,
                         data_from_numpy=False, tuned_a430hz=False, use_basis_vectors=False, 
                         dmged_y1_train_files=None, dmged_y1_val_files=None,
-                        loop_bare_noise=False, low_time_steps=False):
+                        loop_bare_noise=False, low_time_steps=False, l1_reg=None):
                         # pad_len=-1):
 
     from .model import make_model
@@ -163,7 +163,7 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     print('Making model...')
     model = make_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, loss_const=loss_const,
                             config=config, t_mean=t_mean, t_std=t_std, optimizer=optimizer, 
-                            use_bv=use_basis_vectors)
+                            use_bv=use_basis_vectors, low_tsteps=low_time_steps, l1_reg=l1_reg)
     print(model.summary())
 
     print('Going into training now...')
@@ -544,7 +544,7 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                                                     combos, gs_id,
                                                                     send_end, dataset2, None, None,
                                                                     True, tuned_a430hz, use_basis_vectors, 
-                                                                    None, None, True, low_time_steps))
+                                                                    None, None, True, low_time_steps, None))
                             process_train.start()
                                               
                             # Keep polling until child errors or child success (either one guaranteed to happen)
@@ -818,7 +818,9 @@ def restore_with_drnn(output_path, recent_model_path,
         # if not write_noise_sig:
         restore_plot_path = os.getcwd() + '/brahms_restore_ml/drnn/eval_spgm_plots/'
         # eval_name, plot_name = '111of144_lowtsteps', '100 timesteps, Gamma = 0.3, Epochs = 100, Adam w/ GradClip, BS = 100'
-        eval_name, plot_name = '149of3072', '2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 8'
+        # todo
+        # eval_name, plot_name = '149of3072_lowtsteps_highepochs', '100 Timesteps, Epochs = 100, 2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 50'
+        eval_name, plot_name = '149of3072_lowtsteps_l1reg', '100 Timesteps, L1 Regularize, 2 RNNs, RMSprop w/ low LR, BS = 50'
         # eval_name, plot_name = '1496of3072', 'Dense+TanH, 3 Bidir-RNNs, Res. Cxn, Scaling, Adam w/ GradClip, BS = 8'
         plot_matrix(restored_spgm[BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS].T, name=plot_name, 
             xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(restore_plot_path + eval_name + '.png'), show=False)
