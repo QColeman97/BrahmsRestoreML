@@ -173,7 +173,7 @@ def main():
         output_file_addon += '_dmgedp'
     gs_write_model = False      # for small grid searches only, and for running ALL epochs - no early stop
     loop_bare_noise = True     # to control bare_noise in nn_data_gen, needs curr for low_time_steps
-    low_time_steps = True
+    low_time_steps = False
 
     # EMPERICALLY DERIVED HPs
     # Note: FROM PO-SEN PAPER - about loss_const
@@ -534,7 +534,7 @@ def main():
                         gs_id = sys.argv[arg_i]
                         print('GRID SEARCH ID:', gs_id, '\n')
 
-            early_stop_pat = 5
+            early_stop_pat = 10 if low_time_steps else 5
             # Define which files to grab for training. Shuffle regardless.
             actual_samples = TOTAL_SHORT_SMPLS if low_time_steps else TOTAL_SMPLS
             sample_indices = list(range(actual_samples))

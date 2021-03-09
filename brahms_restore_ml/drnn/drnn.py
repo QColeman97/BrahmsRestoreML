@@ -230,7 +230,7 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False,
     # batch_size_optns = [1, 3] if pc_run else [8, 16]    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
     # batch_size_optns = [4] if pc_run else [8, 16]    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
     if low_tsteps:
-        batch_size_optns = [50, 100]
+        batch_size_optns = [20, 50, 100]
     else:
         batch_size_optns = [4] if (pc_run and not small_gs) else ([8] if small_gs else [8, 16])    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
     
@@ -240,14 +240,14 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False,
 
     # batch_size_optns = [5] if pc_run else [8, 12] 
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
-    epochs_optns = [20, 50, 100, 500] if use_bv or small_gs else ([15] if low_tsteps else [10])
+    epochs_optns = [20, 50, 100, 500] if (use_bv or small_gs or low_tsteps) else ([15, 50] if low_tsteps else [10])
     # loss_const total options 0 - 0.3 by steps of 0.05
     # loss_const_optns = [0.05, 0.2]
     # loss_const_optns = [0.05, 0.1] if pc_run else [0.05]    # first of two HPs dropping, PC GS time constraint
     # loss_const_optns = [0.05, 0.1] if pc_run else [0.05, 0.1]    # Multi-processing fix -> orig numbers
     # loss_const_optns = [0.1] if (pc_run and not small_gs) else ([0.1, 0.15] if small_gs else [0.05, 0.1])    # Multi-processing fix -> orig numbers
     if low_tsteps:
-        loss_const_optns = [0.05, 0.15, 0.3]
+        loss_const_optns = [0.2, 0.3, 0.4]  # [0.05, 0.15, 0.3]
     else:
         loss_const_optns = [0.1] if pc_run else [0.05, 0.1]     # Multi-processing fix -> orig numbers
 
@@ -309,7 +309,8 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False,
     #                    (10, 0.001, 'RMSprop'),
     #                    (None, 0.0001, 'Adam'), 
     #                    (10, 0.001, 'Adam')]
-    optimizer_optns = [(0.5, 0.001, 'Adam')] if low_tsteps else [(10, 0.001, 'Adam')]
+    # optimizer_optns = [(0.5, 0.001, 'Adam'), (10, 0.001, 'Adam')] if low_tsteps else [(10, 0.001, 'Adam')]
+    optimizer_optns = [(0.5, 0.001, 'Adam'), (1, 0.001, 'Adam')] if low_tsteps else [(10, 0.001, 'Adam')]
 
     # else:
     #     optimizer_optns = [
@@ -372,7 +373,7 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False,
     bidir_optns =  [False] if (use_bv or low_tsteps) else ([True] if small_gs else [False, True])
     # # MEM BOUND TEST
     # bn_optns = [True]  
-    bn_optns = [False] if small_gs else [False, True]                    # For Dense only
+    bn_optns = [False] if small_gs or low_tsteps else [False, True]                    # For Dense only
     # bn_optns = [False] if use_bv else [False, True]               
     # # MEM BOUND TEST
     # rnn_optns = ['RNN']
@@ -392,7 +393,7 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False,
                 bare_config_optns = [json.load(hp_file)['archs'][0]]    # 0th small enough for pc
         elif low_tsteps:
             with open(bare_config_path + 'hp_arch_config_final_fulldim.json') as hp_file:
-                bare_config_optns = json.load(hp_file)['archs']
+                bare_config_optns = [json.load(hp_file)['archs'][0]]    # OOM, w/ gamma=0.3 & bs=100 earlier
         else:
             with open(bare_config_path + 'hp_arch_config_final.json') as hp_file:
                 bare_config_optns = json.load(hp_file)['archs']

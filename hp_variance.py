@@ -21,6 +21,9 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
             'LowDenseLayers', 'MedDenseLayers', 'HighDenseLayers',
             'Scale', 'RnnDropout', 'BN']#, 
             # 'LowLossConst', 'Adam', 'ClipValNormalLR']
+    elif combos == 72:
+        hps = ['SmallBS', 'LowEpochs', 'LowGamma', 'MedGamma', 'HighGamma',
+                'LowClipVal', 'Scale', 'LowRNNLayers']
     elif combos != 2048:
         hps = ['SmallBS',
             'LowRNNLayers',
@@ -54,8 +57,11 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
 
             if combos == 2048:
                 small_bs = 1 if (hp_config['batch_size'] == 1) else 0
+            elif combos == 72:
+                small_bs = 1 if (hp_config['batch_size'] <= 50) else 0
             else:
                 small_bs = 1 if (hp_config['batch_size'] == 8) else 0
+            low_epochs = 1 if (hp_config['epochs'] < 50) else 0
             low_rnn = 1 if (len(hp_config['layers']) < 4 or 
                     (len(hp_config['layers']) == 4 and 
                             hp_config['layers'][0]['type'] == 'Dense')
@@ -72,16 +78,25 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
             bn = 1 if (hp_config['bn']) else 0
             if combos == 192:
                 low_loss_const = 1 if (hp_config['gamma'] == 0.1) else 0
+            elif combos == 72:
+                low_loss_const = 1 if (hp_config['gamma'] <= 0.05) else 0
             else:
                 low_loss_const = 1 if (hp_config['gamma'] == 0.05) else 0
+            med_loss_const = 1 if (hp_config['gamma'] == 0.15) else 0
+            high_loss_const = 1 if (hp_config['gamma'] == 0.3) else 0
             adam = 1 if (hp_config['optimizer'] == 'Adam') else 0
             clip_val_default_lr = 1 if (hp_config['clip value'] == 10) else 0
+            low_clip_val = 1 if (hp_config['clip value'] < 10) else 0
             if combos == 24:
                 vl_hp_combos_df.loc[file_id] = [#small_bs, 
                                                 low_dense, med_dense, high_dense,
                                                 scale,
                                                 rnn_dropout, bn]#, low_loss_const,
                                                 # adam, clip_val_default_lr] 
+            elif combos == 72:
+                vl_hp_combos_df.loc[file_id] = [
+                    small_bs, low_epochs, low_loss_const, med_loss_const, high_loss_const,
+                    low_clip_val, scale, low_rnn]
             elif combos == 2048:
                 vl_hp_combos_df.loc[file_id] = [small_bs, low_rnn,
                                                 dense_first,
@@ -146,10 +161,10 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
 
 
 def main():
-    combos = 3072
-    grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'
+    combos = 72
+    grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps2/'
     do_val_loss = True
-    pc = False
+    pc = True
 
     show_most_varied_hps(combos, grid_search_results_path, do_val_loss, pc)
 
