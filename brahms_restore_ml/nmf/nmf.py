@@ -56,6 +56,7 @@ MARY_SR_HZ = 16000
 PIANO_WDW_SIZE = 4096 # 32768 # 16384 # 8192 # 4096 # 2048
 DEBUG_WDW_SIZE = 4
 # Resolution (Windows per second) = STD_SR_HZ / PIANO_WDW_SIZE
+BRAHMS_TSTEPS = 1272
 
 MARY_START_INDEX, MARY_STOP_INDEX = 39, 44  # Mary notes = E4, D4, C4
 BEST_PIANO_BV_SGMT = 5
@@ -75,6 +76,7 @@ BASIS_VECTOR_MARY_RATIO = 0.001
 ACTIVATION_RATIO = 8.0
 SPGM_BRAHMS_RATIO = 0.08
 SPGM_MARY_RATIO = 0.008
+BRAHMS_SILENCE_WDWS = 15
 
 
 # Functions
@@ -327,7 +329,7 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
 
         # FOR L1-penalty - show the average # non-zero activations per timestep
         max_notes, avg = None, 0 
-        rand_activation = random.randint(0, piano_activations.shape[1])
+        rand_activation = random.randint(0, piano_activations.shape[1] - 1)
         for i in range(piano_activations.shape[1]):
             # avg += np.count_nonzero(activations[:, i])
             # Callobrated at 0.1 for supervised l1-pen=75,000,000 - barely any notes heard (0.3 per timestep)
@@ -357,12 +359,19 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
 
         if debug:
             plot_matrix(synthetic_piano_spgm, 'Synthetic Piano Spectrogram (BEFORE MASKING)', 'time segments', 'frequency', ratio=SPGM_BRAHMS_RATIO, show=True)
-        # Apply filter tf soft mask (no difference seen from before)
-        synthetic_spgm = basis_vectors @ activations
-        piano_mask = synthetic_piano_spgm / synthetic_spgm
-        synthetic_piano_spgm = piano_mask * spectrogram     # piano source
-        noise_mask = synthetic_noise_spgm / synthetic_spgm
-        synthetic_noise_spgm = noise_mask * spectrogram     # noise source
+        # In order to incorporate hq piano basis vectors (manipulate the spectrogram) - get rid of tf-masking??
+        # # Apply filter tf soft mask (no difference seen from before)
+        # synthetic_spgm = basis_vectors @ activations
+        # piano_mask = synthetic_piano_spgm / synthetic_spgm
+        # synthetic_piano_spgm = piano_mask * spectrogram     # piano source
+        # noise_mask = synthetic_noise_spgm / synthetic_spgm
+        # synthetic_noise_spgm = noise_mask * spectrogram     # noise source
+
+        # LOG RESTORED SPECTROGRAM PLOTS
+        restore_plot_path = os.getcwd() + '/brahms_restore_ml/nmf/eval_spgm_plots/'
+        eval_name, plot_name = 'sup_2nbv_dmgp', 'Supervised NMF, 2 Noise BVs, Damaged Pianos BVs'
+        plot_matrix(synthetic_piano_spgm[:, BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS], name=plot_name, 
+            xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(restore_plot_path + eval_name + '.png'), show=False)
 
         # Include noise within result to battle any normalizing wavfile.write might do
         synthetic_spgm = np.concatenate((synthetic_piano_spgm, synthetic_noise_spgm), axis=-1)
@@ -394,8 +403,13 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
         # # Sun update for L1-Pen: write whole file in case wavfile.write does normalizing
         # # synthetic_sig = synthetic_sig[orig_sig_len:]
         # synthetic_sig = synthetic_sig[:orig_sig_len]
-        
+
         if write_file:
+            eval_smpl_path = os.getcwd() + '/brahms_restore_ml/nmf/eval_wav_smpls/'
+            piano_synthetic_sig = synthetic_sig[:orig_sig_len]
+            eval_start = len(piano_synthetic_sig) // 4
+            wavfile.write(eval_smpl_path + eval_name + '.wav', sig_sr, piano_synthetic_sig[eval_start: (eval_start + 500000)])
+
             # Make synthetic WAV file - Important: signal elems to types of original signal (uint8 for brahms) or else MUCH LOUDER
             # wavfile.write(out_filepath, sig_sr, synthetic_sig.astype(orig_sig_type))
             wavfile.write(out_filepath, sig_sr, synthetic_sig)

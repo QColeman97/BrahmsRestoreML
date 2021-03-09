@@ -583,10 +583,19 @@ class RestoreNoiseTests(unittest.TestCase):
                                       semisuplearn='Noise', semisupmadeinit=False, write_file=write_flag, debug=debug_flag, 
                                       num_noisebv=num_noise, noise_stop=25, write_noise_sig=True, prec_noise=True)
 
-    def test_restore_brahms_sslrn_randinit_noisebvnum_lnoise_noise19wdws50(self):
+    def test_restore_brahms_sslrn_randinit_noisebvnum_lnoise_noise50_izotope(self):
         num_noise = 50
         if write_flag:
-            out_filepath = noise_learnnoise_test_path + 'sslrn_randinit_noisebv' + str(num_noise) + '_19wdws.wav'
+            out_filepath = noise_learnnoise_test_path + 'sslrn_randinit_noisebv' + str(num_noise) + '_izotope.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_with_nmf(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Noise', semisupmadeinit=False, write_file=write_flag, debug=debug_flag, 
+                                      num_noisebv=num_noise, noise_stop=25, write_noise_sig=True, prec_noise=True)
+
+    def test_restore_brahms_sslrn_randinit_noisebvnum_lnoise_noise100_izotope(self):
+        num_noise = 100
+        if write_flag:
+            out_filepath = noise_learnnoise_test_path + 'sslrn_randinit_noisebv' + str(num_noise) + '_izotope.wav'
         sr, sig = wavfile.read(brahms_filepath)
         synthetic_sig = restore_with_nmf(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
                                       semisuplearn='Noise', semisupmadeinit=False, write_file=write_flag, debug=debug_flag, 
@@ -739,6 +748,15 @@ class RestoreNoiseTests(unittest.TestCase):
 
     def test_restore_brahms_sslrn_madeinit_noisebvnum_lnoise_noise50_izotope(self):
         num_noise = 50
+        if write_flag:
+            out_filepath = noise_learnnoise_test_path + 'sslrn_madeinit_noisebv' + str(num_noise) + '_izotope.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_with_nmf(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
+                                      num_noisebv=num_noise, write_noise_sig=True)
+
+    def test_restore_brahms_sslrn_madeinit_noisebvnum_lnoise_noise100_izotope(self):
+        num_noise = 100
         if write_flag:
             out_filepath = noise_learnnoise_test_path + 'sslrn_madeinit_noisebv' + str(num_noise) + '_izotope.wav'
         sr, sig = wavfile.read(brahms_filepath)

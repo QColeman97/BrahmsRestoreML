@@ -10,7 +10,9 @@ num_noise_bv_test = 1
 
 brahms_filepath = os.getcwd() + '/brahms.wav'
 mary_441kHz_filepath = os.getcwd() + '/brahms_restore_ml/nmf/Mary_44100Hz_32bitfp_librosa.wav'
-test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch/output_hpsearch_basic/'
+# test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch/output_hpsearch_basic/'
+# No masking - change
+test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch_nomask/basic/'
 # Hp-search
 # This script & output path is for testing & comparing the best results using each respective feature
 

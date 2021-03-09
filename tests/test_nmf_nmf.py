@@ -176,6 +176,7 @@ class NMFTests(unittest.TestCase):
          self.assertLess(np.sum(H_penalized), np.sum(H))
 
    # # Confirmed passing in l1_pen=0 to update didn't hurt
+   #   acts same w/ one H update & 2 H updates
    # def test_nmf_supervised_zero_l1penalty(self):
    #    m, n, k = 8, 6, 5
    #    W = np.ones((m, k)) * Wmade_scale_factor

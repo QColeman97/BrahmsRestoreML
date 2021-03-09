@@ -217,9 +217,9 @@ class RestorePenaltyTests(unittest.TestCase):
     # #     self.assertGreater(nonpen_h_sum, pen_h_sum)
 
 
-    # # Varying L1-Penalty Tests #
-    # # Penalize the Piano Activations, Noise Activations, or All Activations #
-    # # Piano Activations 
+    # Varying L1-Penalty Tests #
+    # Penalize the Piano Activations, Noise Activations, or All Activations #
+    # Piano Activations 
     # def test_restore_brahms_pianoh_l1pen1(self):
     #     pen = 1
     #     sr, sig = wavfile.read(brahms_filepath)
@@ -384,16 +384,16 @@ class RestorePenaltyTests(unittest.TestCase):
     # #                                   semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
     # #                                   num_noisebv=num_noise_bv_test, l1_penalty=pen)
 
-    # # def test_restore_brahms_pianoh_l1pen16384(self):
-    # #     pen = 16384
-    # #     sr, sig = wavfile.read(brahms_filepath)
-    # #     orig_sig_type = sig.dtype
-    # #     if write_flag:
-    # #         out_filepath = penalty_test_path + 'restored_brahms_ph' + str(pen) + 'l1pen.wav'
+    # def test_restore_brahms_pianoh_l1pen16384(self):
+    #     pen = 16384
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     orig_sig_type = sig.dtype
+    #     if write_flag:
+    #         out_filepath = penalty_test_path + 'restored_brahms_ph' + str(pen) + 'l1pen.wav'
 
-    # #     synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-    # #                                   semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
-    # #                                   num_noisebv=num_noise_bv_test, l1_penalty=pen)
+    #     synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+    #                                   semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
+    #                                   num_noisebv=num_noise_bv_test, l1_penalty=pen)
 
     # # def test_restore_brahms_pianoh_l1pen32678(self):
     # #     pen = 32768
@@ -406,17 +406,17 @@ class RestorePenaltyTests(unittest.TestCase):
     # #                                   semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
     # #                                   num_noisebv=num_noise_bv_test, l1_penalty=pen)
 
-    # # def test_restore_brahms_pianoh_l1pen65536(self):
-    # #     pen = 65536
-    # #     sr, sig = wavfile.read(brahms_filepath)
-    # #     orig_sig_type = sig.dtype
-    # #     if write_flag:
-    # #         out_filepath = penalty_test_path + 'restored_brahms_ph' + str(pen) + 'l1pen.wav'
+    def test_restore_brahms_pianoh_l1pen65536(self):
+        pen = 65536
+        sr, sig = wavfile.read(brahms_filepath)
+        orig_sig_type = sig.dtype
+        if write_flag:
+            out_filepath = penalty_test_path + 'restored_brahms_ph' + str(pen) + 'l1pen.wav'
 
-    # #     print('Piano H Penalty ' + str(pen) + ':')
-    # #     synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-    # #                                   semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
-    # #                                   num_noisebv=num_noise_bv_test, l1_penalty=pen)
+        print('Piano H Penalty ' + str(pen) + ':')
+        synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
+                                      num_noisebv=num_noise_bv_test, l1_penalty=pen)
     
     # def test_restore_brahms_pianoh_l1pen131072(self):
     #     pen = 131072
@@ -442,17 +442,18 @@ class RestorePenaltyTests(unittest.TestCase):
     # #                                   semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
     # #                                   num_noisebv=num_noise_bv_test, l1_penalty=pen)
 
-    # # def test_restore_brahms_pianoh_l1pen524288(self):
-    # #     pen = 524288
-    # #     sr, sig = wavfile.read(brahms_filepath)
-    # #     orig_sig_type = sig.dtype
-    # #     if write_flag:
-    # #         out_filepath = penalty_test_path + 'restored_brahms_ph' + str(pen) + 'l1pen.wav'
+    # # OPTIMUM POINT HERE? NO
+    # def test_restore_brahms_pianoh_l1pen524288(self):
+    #     pen = 524288
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     orig_sig_type = sig.dtype
+    #     if write_flag:
+    #         out_filepath = penalty_test_path + 'restored_brahms_ph' + str(pen) + 'l1pen.wav'
 
-    # #     print('Piano H Penalty ' + str(pen) + ':')
-    # #     synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-    # #                                   semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
-    # #                                   num_noisebv=num_noise_bv_test, l1_penalty=pen)
+    #     print('Piano H Penalty ' + str(pen) + ':')
+    #     synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+    #                                   semisuplearn='Noise', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
+    #                                   num_noisebv=num_noise_bv_test, l1_penalty=pen)
 
     # # def test_restore_brahms_pianoh_l1pen1048576(self):
     # #     pen = 1048576
@@ -528,7 +529,7 @@ class RestorePenaltyTests(unittest.TestCase):
 
     # # UPPER BOUND FOUND HERE - 67108864
     # def test_restore_brahms_pianoh_l1pen67108864(self):
-    #     pen = 500000 # 67108864
+    #     pen = 67108864
     #     sr, sig = wavfile.read(brahms_filepath)
     #     orig_sig_type = sig.dtype
     #     if write_flag:
@@ -1274,21 +1275,21 @@ class RestorePenaltyTests(unittest.TestCase):
     # #                                   semisuplearn='None', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
     # #                                   num_noisebv=num_noise_bv_test, l1_penalty=pen)
 
-    # UPPER BOUND FOUND HERE
-    def test_restore_brahms_allh_l1pen1000000000(self):
-        pen = 1000000000
-        # pen = 0
-        sr, sig = wavfile.read(brahms_filepath)
-        orig_sig_type = sig.dtype
-        if write_flag:
-            out_filepath = penalty_test_path + 'restored_brahms_ah' + str(pen) + 'l1pen.wav'
-            # out_filepath = penalty_test_path + 'ZERONOTPASSED_restored_brahms_ah' + str(pen) + 'l1pen.wav'
+    # # UPPER BOUND FOUND HERE
+    # def test_restore_brahms_allh_l1pen1000000000(self):
+    #     pen = 1000000000
+    #     # pen = 0
+    #     sr, sig = wavfile.read(brahms_filepath)
+    #     orig_sig_type = sig.dtype
+    #     if write_flag:
+    #         out_filepath = penalty_test_path + 'restored_brahms_ah' + str(pen) + 'l1pen.wav'
+    #         # out_filepath = penalty_test_path + 'ZERONOTPASSED_restored_brahms_ah' + str(pen) + 'l1pen.wav'
 
-        print('All H Penalty ' + str(pen) + ':')
-        synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-                                      semisuplearn='None', semisupmadeinit=False, write_file=write_flag, debug=debug_flag, 
-                                      num_noisebv=num_noise_bv_test, l1_penalty=pen) #,
-                                    #   write_noise_sig=True)
+    #     print('All H Penalty ' + str(pen) + ':')
+    #     synthetic_sig = nmf.restore_with_nmf(sig, nmf.PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+    #                                   semisuplearn='None', semisupmadeinit=False, write_file=write_flag, debug=debug_flag, 
+    #                                   num_noisebv=num_noise_bv_test, l1_penalty=pen) #,
+    #                                 #   write_noise_sig=True)
 
     # # Find optimum l1-pen for sup 
     # def test_restore_brahms_allh_l1pen10000000(self):
