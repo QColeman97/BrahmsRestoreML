@@ -186,7 +186,9 @@ def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False, hop_size
     spectrogram, pos_phases = np.nan_to_num(spectrogram), np.nan_to_num(pos_phases)
     spectrogram[spectrogram == 0], pos_phases[pos_phases == 0] = epsilon, epsilon
     if debug:
-        plot_matrix(spectrogram, 'Built Spectrogram', 'frequency', 'time segments', ratio=SPGM_BRAHMS_RATIO, show=True)
+        # plot_matrix(spectrogram, 'Built Spectrogram', 'frequency', 'time segments', ratio=SPGM_BRAHMS_RATIO, show=True)
+        # TEMP - make pretty looking
+        plot_matrix(spectrogram.T, 'Built Spectrogram', 'frequency', 'time segments', ratio=SPGM_BRAHMS_RATIO, show=True)
 
     return spectrogram, pos_phases
 
@@ -364,7 +366,7 @@ def write_partial_sig(sig, wdw_size, start_index, end_index, out_filepath, sig_s
 def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=False, write_file=False, debug=False):
     orig_sig_type = sig.dtype
     debug_plot_path = os.getcwd() + '/brahms_restore_ml/nmf/plot_pics/'
-    plot_signal(sig, orig_sig_type, name='Piano Recording Signal', plot_path=(debug_plot_path + 'piano_waveform.png'))
+    plot_signal(sig, orig_sig_type, name='Piano Recording Signal', plot_path=(debug_plot_path + 'piano_waveform.png'), show=True)
 
     print('\n--Making Signal Spectrogram--\n')
     if segment:
@@ -376,12 +378,18 @@ def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=Fa
         print('\n--Making Signal Spectrogram--\n')
         spectrogram, phases = make_spectrogram(sig, wdw_size, EPSILON, ova=ova, debug=debug)
 
-    plot_matrix(spectrogram.T, name='Piano Recording Spectrogram', 
-                xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(debug_plot_path + 'piano_spectrogram.png'))
+    plot_matrix(spectrogram[15:-15].T, name='Original Recording', 
+                xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(debug_plot_path + 'piano_spectrogram.png'), show=False)
+    # plot_matrix(spectrogram.T, name='Piano Recording Spectrogram', 
+    #             xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(debug_plot_path + 'piano_spectrogram.png'), show=True)
     
     print('\n--Making Synthetic Signal--\n')
     synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, orig_sig_type, ova=ova, debug=debug)
     if write_file:
+        eval_smpl_path = os.getcwd() + '/brahms_restore_ml/nmf/eval_wav_smpls/'
+        eval_start = len(synthetic_sig) // 4
+        wavfile.write(eval_smpl_path + 'orig_smpl.wav', sig_sr, synthetic_sig[eval_start: (eval_start + 500000)])
+
         wavfile.write(out_filepath, sig_sr, synthetic_sig)
 
     return synthetic_sig
