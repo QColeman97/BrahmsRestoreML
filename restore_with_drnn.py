@@ -24,7 +24,7 @@ def run_top_gs_result(num, best_config,
     # # Temp test for LSTM -> until can grid search
     # train_batch_size = 3 if train_batch_size < 3 else train_batch_size
     # TEMP - until F35 back up, make managable for PC, for bv_s grid search results
-    train_batch_size = 4
+    # train_batch_size = 4
     # # TEMP - make what PC can actually handle (3072 run, but definitely 2048)
     # train_batch_size = 6
     train_loss_const = best_config['gamma']
@@ -132,29 +132,30 @@ def main():
     # wdw_size = PIANO_WDW_SIZE
     data_path = 'brahms_restore_ml/drnn/drnn_data/'
     arch_config_path = 'brahms_restore_ml/drnn/config/'
-    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # for use w/ grid search mode    
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # for use w/ grid search mode    
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_pc_wb/'     # PC
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'    # F35
-    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results   
+    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results   
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_bvs/'       # bvs     
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_bvs_2/'       # bvs 2   
-    recent_model_path = 'brahms_restore_ml/drnn/recent_model'
+    # recent_model_path = 'brahms_restore_ml/drnn/recent_model'
+    recent_model_path = 'brahms_restore_ml/drnn/recent_model_149of3072'    # restore from curr best
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_3of4'    # restore from best in small gs
     infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     brahms_path = 'brahms.wav'
 
     # To run best model configs, data_from_numpy == True & mode == train
-    do_curr_best, curr_best_combos, curr_best_done_on_pc = False, '12', True
+    do_curr_best, curr_best_combos, curr_best_done_on_pc = True, '3072', False
     # # F35 LSTM
     # top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
-    # # F35 WB
-    # top_result_nums = [1568] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
+    # F35 WB
+    top_result_nums = [1496] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
     # # PC WB
     # top_result_nums = [997, 1184, 1312, 1310, 1311, 1736]
     # # BVS Architectures
     # top_result_nums = [6] # 13, 20, 6, 10, 23]
-    # BVS Architectures #2
-    top_result_nums = [10]
+    # # BVS Architectures #2
+    # top_result_nums = [10]
     top_result_paths = [gs_output_path + 'result_' + str(x) + '_of_' + curr_best_combos +
                         ('.txt' if curr_best_done_on_pc else '_noPC.txt') for x in top_result_nums]
     # NEW
@@ -171,9 +172,17 @@ def main():
     if dmged_piano_only:
         recent_model_path += '_dmgedp'
         output_file_addon += '_dmgedp'
+    if do_curr_best and (len(top_result_nums) == 1) and (mode == 't'):
+        recent_model_path += ('_' + str(top_result_nums[0]) + 'of' + str(curr_best_combos))
+    if do_curr_best and (len(top_result_nums) == 1) and (mode == 'r'):
+        # recent_model_path must have result in name
+        output_file_addon += ('_' + [x for x in recent_model_path.split('_')][-1])
     gs_write_model = False      # for small grid searches only, and for running ALL epochs - no early stop
     loop_bare_noise = True     # to control bare_noise in nn_data_gen, needs curr for low_time_steps
     low_time_steps = False
+
+    # print('RECENT MODEL PATH:', recent_model_path)
+    # print('OUTPUT FILE PATH ADD-ON:', output_file_addon)
 
     # EMPERICALLY DERIVED HPs
     # Note: FROM PO-SEN PAPER - about loss_const
