@@ -756,7 +756,7 @@ def restore_with_drnn(output_path, recent_model_path,
                        test_filepath=None, test_sig=None, test_sr=None, 
                        wdw_size=PIANO_WDW_SIZE, epsilon=EPSILON,
                        pc_run=False, name_addon='', tuned_a430hz=False,
-                       use_basis_vectors=False):
+                       use_basis_vectors=False, low_tsteps=False):
     import tensorflow as tf
 
     infer_model = tf.keras.models.load_model(recent_model_path, compile=False)
@@ -789,7 +789,7 @@ def restore_with_drnn(output_path, recent_model_path,
     restored_spgm, bad_spgm = None, None
     input_split_index = 0
     while input_split_index < test_spgm.shape[0]:
-        model_input_spgm = test_spgm[input_split_index: (input_split_index+TRAIN_SEQ_LEN)]
+        model_input_spgm = test_spgm[input_split_index: (input_split_index+(TRAIN_SEQ_LEN_SMALL if low_tsteps else TRAIN_SEQ_LEN))]
         # if use_basis_vectors:
         #     model_input_spgm = np.concatenate((piano_basis_vectors, model_input_spgm))
         
@@ -810,13 +810,14 @@ def restore_with_drnn(output_path, recent_model_path,
 
         restored_spgm = clear_spgm if restored_spgm is None else np.concatenate((restored_spgm, clear_spgm))
         bad_spgm = noise_spgm if bad_spgm is None else np.concatenate((bad_spgm, noise_spgm))
-        input_split_index += TRAIN_SEQ_LEN
+        input_split_index += (TRAIN_SEQ_LEN_SMALL if low_tsteps else TRAIN_SEQ_LEN)
     restored_spgm = restored_spgm[:test_spgm.shape[0]]
     bad_spgm = bad_spgm[:test_spgm.shape[0]]
     if pc_run:
         # FOR EVAL - SPECTROGRAM PLOTS
         # if not write_noise_sig:
         restore_plot_path = os.getcwd() + '/brahms_restore_ml/drnn/eval_spgm_plots/'
+        # eval_name, plot_name = '111of144_lowtsteps', '100 timesteps, Gamma = 0.3, Epochs = 100, Adam w/ GradClip, BS = 100'
         eval_name, plot_name = '149of3072', '2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 8'
         # eval_name, plot_name = '1496of3072', 'Dense+TanH, 3 Bidir-RNNs, Res. Cxn, Scaling, Adam w/ GradClip, BS = 8'
         plot_matrix(restored_spgm[BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS].T, name=plot_name, 

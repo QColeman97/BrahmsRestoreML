@@ -4,9 +4,14 @@ import numpy as np
 
 def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=False):
     top_gs_result_vl_files, top_gs_result_l_files = [], []
-    with open('brahms_restore_ml/drnn/top_gs_results_vl_' + str(combos) + '.txt') as fp:
-        for line in fp:
-            top_gs_result_vl_files.append(int(line.split(',')[0]))
+    if combos == 144: # low_tseps_big
+        with open('brahms_restore_ml/drnn/top_gs_results_vl_' + str(combos) + '_gamma0.3.txt') as fp:
+            for line in fp:
+                top_gs_result_vl_files.append(int(line.split(',')[0]))
+    else:
+        with open('brahms_restore_ml/drnn/top_gs_results_vl_' + str(combos) + '.txt') as fp:
+            for line in fp:
+                top_gs_result_vl_files.append(int(line.split(',')[0]))
     with open('brahms_restore_ml/drnn/top_gs_results_l_' + str(combos) + '.txt') as fp:
         for line in fp:
             top_gs_result_l_files.append(int(line.split(',')[0]))
@@ -24,6 +29,10 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
     elif combos == 72:
         hps = ['SmallBS', 'LowEpochs', 'LowGamma', 'MedGamma', 'HighGamma',
                 'LowClipVal', 'Scale', 'LowRNNLayers']
+    elif combos == 144:
+        hps = ['SmallBS', 'MedBS', 'LargeBS',
+               'LowEpochs', 'MedEpochs', 'HighEpochs', 'VeryHighEpochs',
+                'LowClipVal', 'Scale']
     elif combos != 2048:
         hps = ['SmallBS',
             'LowRNNLayers',
@@ -60,9 +69,18 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
                 small_bs = 1 if (hp_config['batch_size'] == 1) else 0
             elif combos == 72:
                 small_bs = 1 if (hp_config['batch_size'] <= 50) else 0
+            elif combos == 144:
+                small_bs = 1 if (hp_config['batch_size'] == 20) else 0
+                med_bs = 1 if (hp_config['batch_size'] == 50) else 0
+                large_bs = 1 if (hp_config['batch_size'] == 100) else 0
             else:
                 small_bs = 1 if (hp_config['batch_size'] == 8) else 0
             low_epochs = 1 if (hp_config['epochs'] < 50) else 0
+            if combos == 144:
+                low_epochs = 1 if (hp_config['epochs'] == 20) else 0
+                med_epochs = 1 if (hp_config['epochs'] == 50) else 0
+                high_epochs = 1 if (hp_config['epochs'] == 100) else 0
+                very_high_epochs = 1 if (hp_config['epochs'] == 500) else 0
             low_rnn = 1 if (len(hp_config['layers']) < 4 or 
                     (len(hp_config['layers']) == 4 and 
                             hp_config['layers'][0]['type'] == 'Dense')
@@ -88,6 +106,8 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
             adam = 1 if (hp_config['optimizer'] == 'Adam') else 0
             clip_val_default_lr = 1 if (hp_config['clip value'] == 10) else 0
             low_clip_val = 1 if (hp_config['clip value'] is None or hp_config['clip value'] < 10) else 0
+            if combos == 144:
+                low_clip_val = 1 if (hp_config['clip value'] is None or hp_config['clip value'] < 1) else 0
             if combos == 24:
                 vl_hp_combos_df.loc[file_id] = [#small_bs, 
                                                 low_dense, med_dense, high_dense,
@@ -98,6 +118,10 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
                 vl_hp_combos_df.loc[file_id] = [
                     small_bs, low_epochs, low_loss_const, med_loss_const, high_loss_const,
                     low_clip_val, scale, low_rnn]
+            elif combos == 144:
+                vl_hp_combos_df.loc[file_id] = [small_bs, med_bs, large_bs,
+                    low_epochs, med_epochs, high_epochs, very_high_epochs,
+                    low_clip_val, scale]
             elif combos == 2048:
                 vl_hp_combos_df.loc[file_id] = [small_bs, low_rnn,
                                                 dense_first,
@@ -162,10 +186,10 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
 
 
 def main():
-    combos = 3072
-    grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'
+    combos = 144
+    grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps_big/'
     do_val_loss = True
-    pc = False
+    pc = True
 
     show_most_varied_hps(combos, grid_search_results_path, do_val_loss, pc)
 

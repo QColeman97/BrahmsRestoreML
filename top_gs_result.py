@@ -69,10 +69,10 @@ def files_close_to_min(within, min_val, results_path, num_iters, val_loss=False,
         if len(curr_vl_str) == 0:
             continue
 
-        # # TEMP - filter among gamma
-        # hp_config = json.loads(result_file.readline())
-        # if hp_config['gamma'] != 0.05:
-        #     continue
+        # TEMP - filter among gamma
+        hp_config = json.loads(result_file.readline())
+        if hp_config['gamma'] != 0.4:
+            continue
 
         if val_loss:
             curr_val_loss = float(curr_vl_str)
@@ -153,7 +153,8 @@ def main():
     # PC wb (rnn) - 2048 combos
     # PC bvs (rnn) - 24 combos
     # PC low tsteps 2 - 72 combos
-    num_gs_iters = 72
+    # PC low tsteps big - 144 combos
+    num_gs_iters = 144
     pc = True
 
     if num_gs_iters == 3072:
@@ -172,6 +173,11 @@ def main():
         grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps2/'
         within_vl, within_l = 10.0, 0.6   # gamma = 0.3
         # within_vl, within_l = 100000.0, 100000.0    # gamma = 0.05, 0.15
+    elif num_gs_iters == 144:
+        grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps_big/'
+        # within_vl, within_l = 2.1, 0.6   # gamma = 0.2
+        # within_vl, within_l = 1.2, 0.6   # gamma = 0.3
+        # within_vl, within_l = 0.2, 0.6   # gamma = 0.4
     else:
         grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search/'
         within_vl, within_l = 0.1, 0.1

@@ -25,11 +25,14 @@ def run_top_gs_result(num, best_config,
     # train_batch_size = 3 if train_batch_size < 3 else train_batch_size
     # TEMP - until F35 back up, make managable for PC, for bv_s grid search results
     # train_batch_size = 4
-    # # TEMP - make what PC can actually handle (3072 run, but definitely 2048)
-    # train_batch_size = 6
+    # TEMP - make what PC can actually handle (3072 run, but definitely 2048), no dimred
+    train_batch_size = 6
     train_loss_const = best_config['gamma']
     train_epochs = best_config['epochs']
     # train_epochs = 15 # TEMP - optimize learning
+    # TEMP - exploit high epochs
+    if train_epochs > 10:
+        patience = 20
     train_opt_name = best_config['optimizer']
     train_opt_clipval = None if (best_config['clip value'] == -1) else best_config['clip value']
     train_opt_lr = best_config['learning rate']
@@ -40,6 +43,11 @@ def run_top_gs_result(num, best_config,
     # for i in range(len(best_config['layers'])):
     #     if best_config['layers'][i]['type'] == 'RNN':
     #         training_arch_config['layers'][i]['type'] = 'LSTM'
+    # TEMP - Don't allow dimred in RNNS/LSTMS, b/c not in lit
+    for i in range(len(best_config['layers'])):
+        if (best_config['layers'][i]['nrn_div'] != 1) and (best_config['layers'][i]['type'] == 'RNN' or 
+                                                           best_config['layers'][i]['type'] == 'LSTM'):
+            training_arch_config['layers'][i]['nrn_div'] = 1
     training_arch_config['scale'] = best_config['scale']
     training_arch_config['rnn_res_cntn'] = best_config['rnn_res_cntn']
     training_arch_config['bias_rnn'] = best_config['bias_rnn']
@@ -92,7 +100,7 @@ def run_top_gs_result(num, best_config,
                         # training_arch_config, 
                         # train_mean, train_std, 
                         PIANO_WDW_SIZE, EPSILON,
-                        pc_run, '_'+num+'of'+combos_str, tuned_a430hz, use_basis_vectors))
+                        pc_run, '_'+num+'of'+combos_str, tuned_a430hz, use_basis_vectors, low_time_steps))
     # TEMP - old
     # process_infer = multiprocessing.Process(target=restore_with_drnn, args=(infer_output_path, recent_model_path, wdw_size, epsilon,
     #                     train_loss_const, train_opt_name, train_opt_clipval, train_opt_lr, brahms_path, None, None,
@@ -136,10 +144,10 @@ def main():
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_pc_wb/'     # PC
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'    # F35
     gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results   
-    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_bvs/'       # bvs     
-    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_bvs_2/'       # bvs 2   
-    # recent_model_path = 'brahms_restore_ml/drnn/recent_model'
-    recent_model_path = 'brahms_restore_ml/drnn/recent_model_149of3072'    # restore from curr best
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps_big/'       # low tsteps   
+    recent_model_path = 'brahms_restore_ml/drnn/recent_model'
+    # recent_model_path = 'brahms_restore_ml/drnn/recent_model_149of3072'    # restore from curr best
+    # recent_model_path = 'brahms_restore_ml/drnn/recent_model_111of144_earlystop'    # restore from curr best
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_3of4'    # restore from best in small gs
     infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     brahms_path = 'brahms.wav'
@@ -149,13 +157,15 @@ def main():
     # # F35 LSTM
     # top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
     # F35 WB
-    top_result_nums = [1496] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
+    top_result_nums = [149] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
     # # PC WB
     # top_result_nums = [997, 1184, 1312, 1310, 1311, 1736]
     # # BVS Architectures
     # top_result_nums = [6] # 13, 20, 6, 10, 23]
     # # BVS Architectures #2
     # top_result_nums = [10]
+    # # low timesteps
+    # top_result_nums = [111] # [111, 76, 142]
     top_result_paths = [gs_output_path + 'result_' + str(x) + '_of_' + curr_best_combos +
                         ('.txt' if curr_best_done_on_pc else '_noPC.txt') for x in top_result_nums]
     # NEW
@@ -203,7 +213,8 @@ def main():
                           train_opt_name, train_opt_clipval, train_opt_lr,
                           MIN_SIG_LEN, test_filepath=brahms_path, pc_run=pc_run,
                           name_addon=output_file_addon, tuned_a430hz=tuned_a430hz,
-                          use_basis_vectors=basis_vector_features)
+                          use_basis_vectors=basis_vector_features, 
+                          low_tsteps=low_time_steps)
     else:
         train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run, 
                                                           use_bv=basis_vector_features,
@@ -358,7 +369,10 @@ def main():
             #     train_batch_size = batch_size_per_replica * mirrored_strategy.num_replicas_in_sync
 
             print('Train Input Stats:')
-            print('N Feat:', train_feat, 'Seq Len:', train_seq, 'Batch Size:', train_batch_size)
+            if do_curr_best:
+                print('N Feat:', train_feat, 'Seq Len:', train_seq)
+            else:
+                print('N Feat:', train_feat, 'Seq Len:', train_seq, 'Batch Size:', train_batch_size)
 
             # print('ORDER CHECK: y1_train_files:', y1_train_files[:10])
 
@@ -518,7 +532,8 @@ def main():
                                     # config=training_arch_config, t_mean=train_mean, t_std=train_std, 
                                     pc_run=pc_run, name_addon=output_file_addon,
                                     tuned_a430hz=tuned_a430hz,
-                                    use_basis_vectors=basis_vector_features)
+                                    use_basis_vectors=basis_vector_features,
+                                    low_tsteps=low_time_steps)
                 else:
                     restore_with_drnn(infer_output_path, recent_model_path, # wdw_size, epsilon,
                                     # train_loss_const, 
@@ -528,7 +543,8 @@ def main():
                                     # config=training_arch_config, t_mean=train_mean, t_std=train_std, 
                                     pc_run=pc_run, name_addon=output_file_addon,
                                     tuned_a430hz=tuned_a430hz,
-                                    use_basis_vectors=basis_vector_features)
+                                    use_basis_vectors=basis_vector_features,
+                                    low_tsteps=low_time_steps)
 
         # GRID SEARCH
         elif mode == 'g':
