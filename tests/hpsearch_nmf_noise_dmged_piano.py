@@ -10,9 +10,12 @@ write_flag = True
 debug_flag = False
 
 brahms_filepath = os.getcwd() + '/brahms.wav'
-sup_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch/dmged_piano_num_noise_fixed/'
-learn_noise_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch/dmged_piano_num_noise_learn_noise/'
-learn_piano_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch/dmged_piano_num_noise_learn_piano/'
+# sup_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch/dmged_piano_num_noise_fixed/'
+# learn_noise_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch/dmged_piano_num_noise_learn_noise/'
+# learn_piano_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch/dmged_piano_num_noise_learn_piano/'
+sup_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch_nomask/dmged_piano_num_noise_fixed/'
+learn_noise_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch_nomask/dmged_piano_num_noise_learn_noise/'
+learn_piano_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output_hpsearch_nomask/dmged_piano_num_noise_learn_piano/'
 # Hp-search
 # This script & output path is for testing & comparing the best results using each respective feature
 
@@ -148,7 +151,7 @@ class RestoreNoiseTests(unittest.TestCase):
                                       num_noisebv=num_noise, write_noise_sig=True, dmged_pianobv=True)
 
     # SEMI-SUP LEARN PIANO - MADEINIT AS DMGED
-    def test_restore_brahms_sslrn_madeinit_noisebvnum_lnoise_noise19wdws1(self):
+    def test_restore_brahms_sslrn_madeinit_noisebvnum_lpiano_noise19wdws1(self):
         num_noise = 1
         if write_flag:
             out_filepath = learn_piano_test_path + 'sslrn_madeinit_noisebv' + str(num_noise) + '_19wdws.wav'
@@ -157,7 +160,7 @@ class RestoreNoiseTests(unittest.TestCase):
                                       semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
                                       num_noisebv=num_noise, noise_stop=25, write_noise_sig=True, dmged_pianobv=True, prec_noise=True)
 
-    def test_restore_brahms_sslrn_madeinit_noisebvnum_lnoise_noise19wdws2(self):
+    def test_restore_brahms_sslrn_madeinit_noisebvnum_lpiano_noise19wdws2(self):
         num_noise = 2
         if write_flag:
             out_filepath = learn_piano_test_path + 'sslrn_madeinit_noisebv' + str(num_noise) + '_19wdws.wav'
@@ -166,7 +169,7 @@ class RestoreNoiseTests(unittest.TestCase):
                                       semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
                                       num_noisebv=num_noise, noise_stop=25, write_noise_sig=True, dmged_pianobv=True, prec_noise=True)
 
-    def test_restore_brahms_sslrn_madeinit_noisebvnum_lnoise_noise19wdws3(self):
+    def test_restore_brahms_sslrn_madeinit_noisebvnum_lpiano_noise19wdws3(self):
         num_noise = 3
         if write_flag:
             out_filepath = learn_piano_test_path + 'sslrn_madeinit_noisebv' + str(num_noise) + '_19wdws.wav'
@@ -175,7 +178,7 @@ class RestoreNoiseTests(unittest.TestCase):
                                       semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
                                       num_noisebv=num_noise, noise_stop=25, write_noise_sig=True, dmged_pianobv=True, prec_noise=True)
                                       
-    def test_restore_brahms_sslrn_madeinit_noisebvnum_lnoise_noise19wdws5(self):
+    def test_restore_brahms_sslrn_madeinit_noisebvnum_lpiano_noise19wdws5(self):
         num_noise = 5
         if write_flag:
             out_filepath = learn_piano_test_path + 'sslrn_madeinit_noisebv' + str(num_noise) + '_19wdws.wav'
@@ -184,7 +187,7 @@ class RestoreNoiseTests(unittest.TestCase):
                                       semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
                                       num_noisebv=num_noise, noise_stop=25, write_noise_sig=True, dmged_pianobv=True, prec_noise=True)
                                       
-    def test_restore_brahms_sslrn_madeinit_noisebvnum_lnoise_noise19wdws10(self):
+    def test_restore_brahms_sslrn_madeinit_noisebvnum_lpiano_noise19wdws10(self):
         num_noise = 10
         if write_flag:
             out_filepath = learn_piano_test_path + 'sslrn_madeinit_noisebv' + str(num_noise) + '_19wdws.wav'
@@ -193,7 +196,7 @@ class RestoreNoiseTests(unittest.TestCase):
                                       semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
                                       num_noisebv=num_noise, noise_stop=25, write_noise_sig=True, dmged_pianobv=True, prec_noise=True)
 
-    def test_restore_brahms_sslrn_madeinit_noisebvnum_lnoise_noise50_izotope(self):
+    def test_restore_brahms_sslrn_madeinit_noisebvnum_lpiano_noise50_izotope(self):
         num_noise = 50
         if write_flag:
             out_filepath = learn_piano_test_path + 'sslrn_madeinit_noisebv' + str(num_noise) + '_izotope.wav'
@@ -202,7 +205,7 @@ class RestoreNoiseTests(unittest.TestCase):
                                       semisuplearn='Piano', semisupmadeinit=True, write_file=write_flag, debug=debug_flag, 
                                       num_noisebv=num_noise, write_noise_sig=True, dmged_pianobv=True)
 
-    def test_restore_brahms_sslrn_madeinit_noisebvnum_lnoise_noise100_izotope(self):
+    def test_restore_brahms_sslrn_madeinit_noisebvnum_lpiano_noise100_izotope(self):
         num_noise = 100
         if write_flag:
             out_filepath = learn_piano_test_path + 'sslrn_madeinit_noisebv' + str(num_noise) + '_izotope.wav'

@@ -141,7 +141,7 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
                 updateH(H[split_index:], W[:, split_index:], V, n, l1_pen=l1_pen, wholeW=W, wholeH=H)   # piano H
 
         # SemiSup - Looks like only use the sections of W & H, & same V & ones, in multiplications for updates to sections of W & H
-        # Tested to see if sound difference, learning voice or not, no difference heard
+        # # Tested to see if sound difference, learning voice or not, no difference heard
         # elif V.shape[1] > 1000:
         #     # Don't learn from voice part of V - assumes Brahms recording
         #     k_voice = 10
@@ -274,9 +274,16 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
                                       a430hz=a430hz_bv, score=scorebv, audible_range=audible_range_bv, 
                                       dmged_piano=dmged_pianobv, unlocked_piano_count=num_pbv_unlocked)
     if dmged_pianobv:
-        # Supervised case, include noise
+        # # Supervised case, include noise
+        # hq_piano_basis_vectors = get_basis_vectors(wdw_size, ova=ova, 
+        #                                            noise=noisebv,
+        #                                            avg=avgbv, debug=debug, 
+        #                                            num_noise=num_noisebv, randomize='None' if (semisupmadeinit and semisuplearn != 'None') else semisuplearn,
+        #                                            a430hz=a430hz_bv, score=scorebv,
+        #                                            audible_range=audible_range_bv)
+        # No more masking -> only piano now
         hq_piano_basis_vectors = get_basis_vectors(wdw_size, ova=ova, 
-                                                   noise=noisebv,
+                                                   noise=False, # change
                                                    avg=avgbv, debug=debug, 
                                                    num_noise=num_noisebv, randomize='None' if (semisupmadeinit and semisuplearn != 'None') else semisuplearn,
                                                    a430hz=a430hz_bv, score=scorebv,
@@ -351,27 +358,35 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
                     plot_matrix(hq_piano_basis_vectors, 'High-Quality Piano BVs (BEFORE)', 'k', 'frequency', ratio=nmf.BASIS_VECTOR_FULL_RATIO, show=True)
                     # print('W in NMF shape:', basis_vectors.shape, 'HQ Piano W shape:', hq_piano_basis_vectors.shape)
                     # print('Noise & Voice W shape:', basis_vectors[:, :(-1 * num_pianobv)].shape, 'HQ Piano W shape:', hq_piano_basis_vectors[:, (-1 * num_pianobv):].shape)
-                hq_piano_basis_vectors = np.concatenate((basis_vectors[:, :(-1 * num_pianobv)], hq_piano_basis_vectors[:, (-1 * num_pianobv):]), axis=-1)
+                # hq_piano_basis_vectors = np.concatenate((basis_vectors[:, :(-1 * num_pianobv)], hq_piano_basis_vectors[:, (-1 * num_pianobv):]), axis=-1)
+                # no more masking -> only retrieve non-noise part = voice (if applicable) + piano
+                    print('HQ PIANO BVs - SHAPE OF VOICE PART:', basis_vectors[:, num_noisebv:(-1 * num_pianobv)].shape)
+                hq_piano_basis_vectors = np.concatenate((basis_vectors[:, num_noisebv:(-1 * num_pianobv)], hq_piano_basis_vectors[:, (-1 * num_pianobv):]), axis=-1)
                 if debug:
                     plot_matrix(hq_piano_basis_vectors, 'High-Quality Piano BVs (AFTER)', 'k', 'frequency', ratio=nmf.BASIS_VECTOR_FULL_RATIO, show=True)
                     plot_matrix(activations, 'All Activations', 'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
-            spectrogram = hq_piano_basis_vectors @ activations
+            # spectrogram = hq_piano_basis_vectors @ activations
+            # no more masking -> overwrite synthetic piano spgm w/ hq piano
+            synthetic_piano_spgm = hq_piano_basis_vectors @ piano_activations
 
         if debug:
             plot_matrix(synthetic_piano_spgm, 'Synthetic Piano Spectrogram (BEFORE MASKING)', 'time segments', 'frequency', ratio=SPGM_BRAHMS_RATIO, show=True)
-        # In order to incorporate hq piano basis vectors (manipulate the spectrogram) - get rid of tf-masking??
+        # # In order to incorporate hq piano basis vectors (manipulate the spectrogram) - get rid of tf-masking??
         # # Apply filter tf soft mask (no difference seen from before)
         # synthetic_spgm = basis_vectors @ activations
         # piano_mask = synthetic_piano_spgm / synthetic_spgm
-        # synthetic_piano_spgm = piano_mask * spectrogram     # piano source
+        # synthetic_piano_spgm = piano_mask * spectrogram
+        # # synthetic_piano_spgm = piano_mask * synthetic_piano_spgm    # mask piano source # doesn't make sense
         # noise_mask = synthetic_noise_spgm / synthetic_spgm
-        # synthetic_noise_spgm = noise_mask * spectrogram     # noise source
+        # synthetic_noise_spgm = noise_mask * spectrogram
+        # # synthetic_noise_spgm = noise_mask * synthetic_noise_spgm    # mask noise source # doesn't make sense     
 
-        # LOG RESTORED SPECTROGRAM PLOTS
-        restore_plot_path = os.getcwd() + '/brahms_restore_ml/nmf/eval_spgm_plots/'
-        eval_name, plot_name = 'sup_2nbv_dmgp', 'Supervised NMF, 2 Noise BVs, Damaged Pianos BVs'
-        plot_matrix(synthetic_piano_spgm[:, BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS], name=plot_name, 
-            xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(restore_plot_path + eval_name + '.png'), show=False)
+        # FOR EVAL - SPECTROGRAM PLOTS - not during testing
+        if not write_noise_sig:
+            restore_plot_path = os.getcwd() + '/brahms_restore_ml/nmf/eval_spgm_plots/'
+            eval_name, plot_name = 'semisup_lnoise_2nbv_l1pen131072', 'Learn Noise (RandInit.) Semi-Sup, L1-Penalty=131,072, 2 NBVs'
+            plot_matrix(synthetic_piano_spgm[:, BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS], name=plot_name, 
+                xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(restore_plot_path + eval_name + '.png'), show=False)
 
         # Include noise within result to battle any normalizing wavfile.write might do
         synthetic_spgm = np.concatenate((synthetic_piano_spgm, synthetic_noise_spgm), axis=-1)
@@ -405,16 +420,16 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
         # synthetic_sig = synthetic_sig[:orig_sig_len]
 
         if write_file:
-            eval_smpl_path = os.getcwd() + '/brahms_restore_ml/nmf/eval_wav_smpls/'
-            piano_synthetic_sig = synthetic_sig[:orig_sig_len]
-            eval_start = len(piano_synthetic_sig) // 4
-            wavfile.write(eval_smpl_path + eval_name + '.wav', sig_sr, piano_synthetic_sig[eval_start: (eval_start + 500000)])
-
             # Make synthetic WAV file - Important: signal elems to types of original signal (uint8 for brahms) or else MUCH LOUDER
             # wavfile.write(out_filepath, sig_sr, synthetic_sig.astype(orig_sig_type))
             wavfile.write(out_filepath, sig_sr, synthetic_sig)
             if write_noise_sig:
                 wavfile.write(out_filepath[:-4] + 'noisepart.wav', sig_sr, noise_synthetic_sig)
+            else:   # FOR EVAL - WAV SAMPLES - not during testing
+                eval_smpl_path = os.getcwd() + '/brahms_restore_ml/nmf/eval_wav_smpls/'
+                piano_synthetic_sig = synthetic_sig[:orig_sig_len]
+                eval_start = len(piano_synthetic_sig) // 4
+                wavfile.write(eval_smpl_path + eval_name + '.wav', sig_sr, piano_synthetic_sig[eval_start: (eval_start + 500000)])
 
         # return synthetic_sig, noise_synethetic_sig
     else:

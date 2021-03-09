@@ -29,13 +29,13 @@ def main():
 
     # Experimental
     # Ternary flag - 'Piano', 'Noise', or 'None' (If not 'None', noisebv_flag MUST BE TRUE)
-    semi_sup_learn = 'None'
-    semi_sup_made_init = True   # Only considered when semi_sup_learn != 'None'
-    l1_penalty = 0 # 60000 # 10 ** 19 # 10^9 = 1Bill, 12 = trill, 15 = quad, 18 = quin, 19 = max for me
+    semi_sup_learn = 'Noise'
+    semi_sup_made_init = False   # Only considered when semi_sup_learn != 'None'
+    l1_penalty = 131072 # 131072 or 65536 # 10 ** 19 # 10^9 = 1Bill, 12 = trill, 15 = quad, 18 = quin, 19 = max for me
     l1pen_flag = True if (l1_penalty != 0) else False
     # Do not make as big as 1078 (smaller dim) - 88 (piano bv's) = 990
     num_noise_bv = 2 # 50 # 20 # 3 # 10 # 5 # 10000 is when last good # 100000 is when it gets bad, but 1000 sounds bad in tests.py
-    dmged_piano_bv = True
+    dmged_piano_bv = False
     num_piano_bv_unlocked = None # to be used only w/ semi-sup learn piano rand-init, default: None
 
     # Configure params    
