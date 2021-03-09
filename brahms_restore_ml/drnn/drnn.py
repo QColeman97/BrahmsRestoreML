@@ -816,7 +816,8 @@ def restore_with_drnn(output_path, recent_model_path,
         # FOR EVAL - SPECTROGRAM PLOTS
         # if not write_noise_sig:
         restore_plot_path = os.getcwd() + '/brahms_restore_ml/drnn/eval_spgm_plots/'
-        eval_name, plot_name = '149of3072', '2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 8'
+        # eval_name, plot_name = '149of3072', '2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 8'
+        eval_name, plot_name = '1496of3072', 'Dense+TanH, 3 Bidir-RNNs, Res. Cxn, Scaling, Adam w/ GradClip, BS = 8'
         plot_matrix(restored_spgm[BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS].T, name=plot_name, 
             xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(restore_plot_path + eval_name + '.png'), show=False)
 

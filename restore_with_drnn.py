@@ -139,7 +139,7 @@ def main():
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_bvs/'       # bvs     
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_bvs_2/'       # bvs 2   
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model'
-    recent_model_path = 'brahms_restore_ml/drnn/recent_model_149of3072'    # restore from curr best
+    recent_model_path = 'brahms_restore_ml/drnn/recent_model_1496of3072'    # restore from curr best
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_3of4'    # restore from best in small gs
     infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     brahms_path = 'brahms.wav'
@@ -176,7 +176,6 @@ def main():
         recent_model_path += ('_' + str(top_result_nums[0]) + 'of' + str(curr_best_combos))
     if do_curr_best and (len(top_result_nums) == 1) and (mode == 'r'):
         # recent_model_path must have result in name
-        # nums = [x for x in recent_model_path.split('_') if x[0].isdigit()]
         output_file_addon += ('_' + [x for x in recent_model_path.split('_')][-1])
     gs_write_model = False      # for small grid searches only, and for running ALL epochs - no early stop
     loop_bare_noise = True     # to control bare_noise in nn_data_gen, needs curr for low_time_steps
