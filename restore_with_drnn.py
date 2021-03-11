@@ -39,7 +39,7 @@ def run_top_gs_result(num_str, best_config,
     train_epochs = best_config['epochs']
     # # EVAL CHANGE - change back
     if low_time_steps:
-        train_epochs = 30 # 10 # 100
+        train_epochs = 150 # 10 # 100
     # train_epochs = 15 # TEMP - optimize learning
     # TEMP - exploit high epochs
     if train_epochs > 10:
@@ -66,9 +66,12 @@ def run_top_gs_result(num_str, best_config,
     training_arch_config['bidir'] = best_config['bidir']
     training_arch_config['rnn_dropout'] = best_config['rnn_dropout']
     training_arch_config['bn'] = best_config['bn']
-    if use_basis_vectors:
-        training_arch_config['bidir'] = False
-        training_arch_config['rnn_res_cntn'] = False
+    # EVAL CHANGES
+    training_arch_config['bidir'] = False
+    training_arch_config['rnn_res_cntn'] = False
+    # if use_basis_vectors:
+    #     training_arch_config['bidir'] = False
+    #     training_arch_config['rnn_res_cntn'] = False
     l1_reg = None
     # # EVAL CHANGE
     # l1_reg = 0.001
@@ -173,7 +176,8 @@ def main():
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_111of144_earlystop'    # restore from curr best
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_3of4'    # restore from best in small gs
     # infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
-    infer_output_path = 'brahms_restore_ml/drnn/output_restore_gs3072_loopnoise/'    # eval, do_curr_best, 3072 combos, looped noise
+    # infer_output_path = 'brahms_restore_ml/drnn/output_restore_gs3072_loopnoise/'    # eval, do_curr_best, 3072 combos, looped noise
+    infer_output_path = 'brahms_restore_ml/drnn/output_restore_151of3072_eval/'    # eval, tweaks curr_best
     brahms_path = 'brahms.wav'
 
     # To run best model configs, data_from_numpy == True & mode == train
@@ -181,8 +185,8 @@ def main():
     # # F35 LSTM
     # top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
     # F35 WB
-    # top_result_nums = [149] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
-    top_result_nums = [1488, 1568, 149, 1496, 1680, 86, 151, 152] 
+    top_result_nums = [151] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
+    # top_result_nums = [1488, 1568, 149, 1496, 1680, 86, 151, 152] 
     # # PC WB
     # top_result_nums = [997, 1184, 1312, 1310, 1311, 1736]
     # # BVS Architectures
