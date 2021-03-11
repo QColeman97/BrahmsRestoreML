@@ -28,10 +28,18 @@ from ..nmf.nmf import NUM_SCORE_NOTES
 # MAX_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 3784581, 1847, 2049
 MIN_SIG_LEN, TRAIN_SEQ_LEN, TRAIN_FEAT_LEN = 2302826, 1124, 2049
 MIN_SIG_LEN_SMALL, TRAIN_SEQ_LEN_SMALL = 206848, 100
+
 TRAIN_MEAN_DMGED_MIX, TRAIN_STD_DMGED_MIX = 3788.6515897900226, 17932.36734269604   # not used
-TRAIN_MEAN_DMGED_SMALL, TRAIN_STD_DMGED_SMALL = 1481.607495587682, 4809.489432258252
+
+TRAIN_MEAN_DMGED_LOOPED_SMALL, TRAIN_STD_DMGED_LOOPED_SMALL = 1481.607495587682, 4809.489432258252
+TRAIN_MEAN_LOOPED_SMALL, TRAIN_STD_LOOPED_SMALL = 1752.0957767840464, 6397.035010013225
+TRAIN_MEAN_DMGED_ART_SMALL, TRAIN_STD_DMGED_ART_SMALL = 2406.979071414285, 7504.693124791444
+TRAIN_MEAN_ART_SMALL, TRAIN_STD_ART_SMALL = 2763.0685964168047, 9225.772050454807
+# TRAIN_MEAN_DMGED_SMALL, TRAIN_STD_DMGED_SMALL = 1481.607495587682, 4809.489432258252
+TRAIN_MEAN_DMGED_SMALL, TRAIN_STD_DMGED_SMALL = 2366.113455041511, 7237.021338304313
 TRAIN_MEAN_DMGED, TRAIN_STD_DMGED = 1322.7727055593953, 3369.599673108199
-TRAIN_MEAN_SMALL, TRAIN_STD_SMALL = 1752.0957767840464, 6397.035010013225
+# TRAIN_MEAN_SMALL, TRAIN_STD_SMALL = 1752.0957767840464, 6397.035010013225
+TRAIN_MEAN_SMALL, TRAIN_STD_SMALL = 2718.2836152331015, 8888.089624843824
 TRAIN_MEAN, TRAIN_STD = 1728.2116672701493, 6450.4985228518635
 TOTAL_SMPLS = 61
 TOTAL_SHORT_SMPLS = 902
@@ -52,7 +60,8 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
                         ret_queue=None, dataset2=False, data_path=None, min_sig_len=None,
                         data_from_numpy=False, tuned_a430hz=False, use_basis_vectors=False, 
                         dmged_y1_train_files=None, dmged_y1_val_files=None,
-                        loop_bare_noise=False, low_time_steps=False, l1_reg=None):
+                        loop_bare_noise=False, low_time_steps=False, l1_reg=None,
+                        artificial_noise=False):
                         # pad_len=-1):
 
     from .model import make_model
@@ -90,17 +99,31 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     print('Eager execution enabled? (default)', tf.executing_eagerly())
 
     # # Get feature stats if needed - don't use from_numpy
-    # dmged_y1_filenames = np.concatenate((dmged_y1_train_files, dmged_y1_val_files)) if dmged_y1_train_files is not None else None
+    # dmged_y1_filenames = np.concatenate((dmged_y1_val_files, dmged_y1_train_files)) if dmged_y1_train_files is not None else None
     # t_mean, t_std = get_features_stats(np.concatenate((y1_val_files, y1_train_files)), 
     #                                    np.concatenate((y2_val_files, y2_train_files)),
     #                                    num_train + num_val, n_seq, n_feat, min_sig_len, dataset2=dataset2, 
     #                                    data_path=data_path, x_filenames=np.concatenate((x_val_files, x_train_files)), 
     #                                    from_numpy=data_from_numpy, tuned_a430hz=tuned_a430hz, 
     #                                    dmged_y1_filenames=dmged_y1_filenames,
-    #                                    loop_bare_noise=loop_bare_noise, low_time_steps=low_time_steps)
+    #                                    loop_bare_noise=loop_bare_noise, low_time_steps=low_time_steps,
+    #                                    art_noise=artificial_noise)
     # print('\nNOTICE - NEW TRAIN MEAN:', t_mean, 'NEW TRAIN STD:', t_std, '\n')
     if dataset2:
         t_mean, t_std = TRAIN_MEAN_DMGED_MIX, TRAIN_STD_DMGED_MIX
+    elif (dmged_y1_train_files is not None) and artificial_noise:
+        if low_time_steps:
+            t_mean, t_std = TRAIN_MEAN_DMGED_ART_SMALL, TRAIN_STD_DMGED_ART_SMALL
+    elif (dmged_y1_train_files is not None) and loop_bare_noise:
+        if low_time_steps:
+            t_mean, t_std = TRAIN_MEAN_DMGED_LOOPED_SMALL, TRAIN_STD_DMGED_LOOPED_SMALL
+    elif artificial_noise:
+        if low_time_steps:
+            t_mean, t_std = TRAIN_MEAN_ART_SMALL, TRAIN_STD_ART_SMALL
+    elif loop_bare_noise:
+        if low_time_steps:
+            t_mean, t_std = TRAIN_MEAN_LOOPED_SMALL, TRAIN_STD_LOOPED_SMALL
+    # Time-stretch-shrink noise cases below
     elif dmged_y1_train_files is not None:
         if low_time_steps:
             t_mean, t_std = TRAIN_MEAN_DMGED_SMALL, TRAIN_STD_DMGED_SMALL
@@ -129,14 +152,14 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
             x_files=x_train_files, from_numpy=data_from_numpy, bare_noise=loop_bare_noise,
             tuned_a430hz=tuned_a430hz,
             piano_basis_vectors=piano_basis_vectors, dmged_y1_files=dmged_y1_train_files,
-            low_time_steps=low_time_steps)   # new - dmged piano only
+            low_time_steps=low_time_steps, art_noise=artificial_noise)   # new - dmged piano only
     validation_generator = nn_data_generator(y1_val_files, y2_val_files, num_val,
             batch_size=batch_size, num_seq=n_seq, num_feat=n_feat, min_sig_len=min_sig_len,
             dmged_piano_artificial_noise=dataset2, data_path=data_path,
             x_files=x_val_files, from_numpy=data_from_numpy, bare_noise=loop_bare_noise,
             tuned_a430hz=tuned_a430hz,
             piano_basis_vectors=piano_basis_vectors, dmged_y1_files=dmged_y1_val_files,
-            low_time_steps=low_time_steps)     # new - dmged piano only
+            low_time_steps=low_time_steps, art_noise=artificial_noise)     # new - dmged piano only
 
     train_dataset = tf.data.Dataset.from_generator(
         make_gen_callable(train_generator), 
@@ -191,7 +214,8 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
         #  Can't for imperative models
         model.save(recent_model_path)
 
-        if (grid_search_iter is not None) and recent_model_path.endswith(str(combos)):
+        # if (grid_search_iter is not None) and recent_model_path.endswith(str(combos)):
+        if (grid_search_iter is not None) and (combos is not None):
             pc_run_str += ('_' + str(grid_search_iter) + 'of' + str(combos))
 
         # print('History Dictionary Keys:', hist.history.keys())
@@ -544,7 +568,7 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                                                     combos, gs_id,
                                                                     send_end, dataset2, None, None,
                                                                     True, tuned_a430hz, use_basis_vectors, 
-                                                                    None, None, True, low_time_steps, None))
+                                                                    None, None, True, low_time_steps, None, False))
                             process_train.start()
                                               
                             # Keep polling until child errors or child success (either one guaranteed to happen)
@@ -819,8 +843,8 @@ def restore_with_drnn(output_path, recent_model_path,
         restore_plot_path = os.getcwd() + '/brahms_restore_ml/drnn/eval_spgm_plots/'
         # eval_name, plot_name = '111of144_lowtsteps', '100 timesteps, Gamma = 0.3, Epochs = 100, Adam w/ GradClip, BS = 100'
         # todo
-        # eval_name, plot_name = '149of3072_lowtsteps_highepochs', '100 Timesteps, Epochs = 100, 2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 50'
-        eval_name, plot_name = '149of3072_lowtsteps_l1reg', '100 Timesteps, L1 Regularize, 2 RNNs, RMSprop w/ low LR, BS = 50'
+        eval_name, plot_name = '149of3072_lowtsteps_highepochs', '100 Timesteps, Epochs = 100, 2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 50'
+        # eval_name, plot_name = '149of3072_lowtsteps_l1reg', '100 Timesteps, L1 Regularize, 2 RNNs, RMSprop w/ low LR, BS = 50'
         # eval_name, plot_name = '1496of3072', 'Dense+TanH, 3 Bidir-RNNs, Res. Cxn, Scaling, Adam w/ GradClip, BS = 8'
         plot_matrix(restored_spgm[BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS].T, name=plot_name, 
             xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(restore_plot_path + eval_name + '.png'), show=False)
