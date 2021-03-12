@@ -163,7 +163,7 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     print('Making model...')
     model = make_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, loss_const=loss_const,
                             config=config, t_mean=t_mean, t_std=t_std, optimizer=optimizer, 
-                            use_bv=use_basis_vectors, low_tsteps=low_time_steps, l1_reg=l1_reg)
+                            use_bv=use_basis_vectors, l1_reg=l1_reg)
     print(model.summary())
 
     print('Going into training now...')
