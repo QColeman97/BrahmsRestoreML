@@ -46,6 +46,8 @@ __pycache__/
 /brahms_restore_ml/drnn/output_grid_search_low_tsteps_one/
 /brahms_restore_ml/drnn/output_grid_search_low_tsteps_two/
 /brahms_restore_ml/drnn/output_grid_search_low_tsteps_big/
+/brahms_restore_ml/drnn/output_grid_search_dmgpiano/
+/brahms_restore_ml/drnn/output_grid_search_dmgpiano_ignorenoiseloss/
 /brahms_restore_ml/drnn/output_grid_search/
 /brahms_restore_ml/drnn/output_restore_gs3072_loopnoise/
 /brahms_restore_ml/drnn/output_restore_151of3072_eval/
