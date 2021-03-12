@@ -31,17 +31,17 @@ class UnStandardize(Layer):
 # TF Masking layer has too compilcated operations for a lambda, and want to serialize model
 class TimeFreqMasking(Layer):
     # Init is for input-independent variables
-    def __init__(self, epsilon, low_time_steps, **kwargs):
+    def __init__(self, epsilon, seq_len, **kwargs):
         super(TimeFreqMasking, self).__init__(**kwargs)
         self.epsilon = epsilon
-        self.low_time_steps = low_time_steps
+        self.seq_len = seq_len
 
     # No build method, b/c passing in multiple inputs to layer (no single shape)
 
     def call(self, inputs):
         y_hat_self, y_hat_other, x_mixed = inputs
         mask = tf.abs(y_hat_self) / (tf.abs(y_hat_self) + tf.abs(y_hat_other) + self.epsilon)
-        y_tilde_self = mask[:, :(TRAIN_SEQ_LEN_SMALL if self.low_time_steps else TRAIN_SEQ_LEN), :] * x_mixed
+        y_tilde_self = mask[:, :self.seq_len, :] * x_mixed
         return y_tilde_self
     
     # config only contains things in __init__
@@ -101,7 +101,6 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     # test=16, 
                     test=0,
                     use_bv=False,
-                    low_tsteps=False,
                     l1_reg=None,
                     ignore_noise_loss=False):#, 
                     # pc_run=False):
@@ -448,10 +447,12 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     # use_bias=False, # TEMP - debug po-sen
                     ), name='noise_hat') (x)  # source 2 branch
     piano_pred = TimeFreqMasking(epsilon=epsilon, 
-                                low_time_steps=low_tsteps,
+                                seq_len=sequences,  # (TRAIN_SEQ_LEN_SMALL if self.low_time_steps else TRAIN_SEQ_LEN),
+                                # low_time_steps=low_tsteps,
                                 name='piano_pred') ((piano_hat, noise_hat, input_layer))
     noise_pred = TimeFreqMasking(epsilon=epsilon, 
-                                low_time_steps=low_tsteps,
+                                seq_len=sequences,
+                                # low_time_steps=low_tsteps,
                                 name='noise_pred') ((noise_hat, piano_hat, input_layer))
 
     # model = Model(inputs=input_layer, outputs=[piano_pred, noise_pred])
