@@ -186,10 +186,10 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
 
 
 def main():
-    combos = 144
-    grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps_big/'
+    combos = 3072
+    grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'
     do_val_loss = True
-    pc = True
+    pc = False
 
     show_most_varied_hps(combos, grid_search_results_path, do_val_loss, pc)
 
