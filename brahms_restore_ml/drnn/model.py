@@ -68,6 +68,21 @@ def discrim_loss(y_true, y_pred):
         tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2) -
         (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2))
     )
+
+def discrim_loss_ignore_noise(y_true, y_pred):
+    # print('YTRUE TENSOR:', y_true.shape, 'YPRED TENSOR:', y_pred.shape)
+    piano_true, noise_true = tf.split(y_true, num_or_size_splits=2, axis=-1)
+    loss_const = y_pred[-1, :, :][0][0]
+    piano_pred, noise_pred = tf.split(y_pred[:-1, :, :], num_or_size_splits=2, axis=0)
+
+    # L2 Norm & MSE practically same - use MSE
+    last_dim = piano_pred.shape[1] * piano_pred.shape[2]
+    return (
+        # tf.math.reduce_mean(tf.reshape(noise_pred - noise_true, shape=(-1, last_dim)) ** 2) - 
+        (loss_const * tf.math.reduce_mean(tf.reshape(noise_pred - piano_true, shape=(-1, last_dim)) ** 2)) +
+        tf.math.reduce_mean(tf.reshape(piano_pred - piano_true, shape=(-1, last_dim)) ** 2) -
+        (loss_const * tf.math.reduce_mean(tf.reshape(piano_pred - noise_true, shape=(-1, last_dim)) ** 2))
+    )
     
 
 def is_last_rnn(num_layers, first_layer_type, rnn_index):
@@ -87,7 +102,8 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     test=0,
                     use_bv=False,
                     low_tsteps=False,
-                    l1_reg=None):#, 
+                    l1_reg=None,
+                    ignore_noise_loss=False):#, 
                     # pc_run=False):
     # new
     if use_bv:
@@ -518,7 +534,8 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
         #                                     tf.broadcast_to(tf.constant(loss_const), [1, sequences, features])
         #                                     ])
         # model = Model(inputs=input_layer, outputs=preds_and_gamma)
-        model.compile(optimizer=optimizer, loss=discrim_loss)
+        # model.compile(optimizer=optimizer, loss=discrim_loss)
+        model.compile(optimizer=optimizer, loss=discrim_loss_ignore_noise if ignore_noise_loss else discrim_loss)
 
     return model
 

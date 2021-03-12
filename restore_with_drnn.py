@@ -20,7 +20,7 @@ def run_top_gs_result(num_str, best_config,
                       brahms_path, combos_str, data_path=None, min_sig_len=None,
                       tuned_a430hz=False, use_basis_vectors=False,
                       loop_bare_noise=False, low_time_steps=False,
-                      artificial_noise=False):
+                      artificial_noise=False, ignore_noise_loss=False):
     train_batch_size = best_config['batch_size']
     # # Temp test for LSTM -> until can grid search
     # train_batch_size = 3 if train_batch_size < 3 else train_batch_size
@@ -29,7 +29,7 @@ def run_top_gs_result(num_str, best_config,
     # # TEMP - make what PC can actually handle (3072 run, but definitely 2048)
     # train_batch_size = 6
     if low_time_steps:
-        train_batch_size = 20   # 50 # 50 sometimes caused OOM
+        train_batch_size = 50   # 50 # 50 sometimes caused OOM
     else:
         train_batch_size = 4    # no dimred & no lowtsteps
     train_loss_const = best_config['gamma']
@@ -67,11 +67,9 @@ def run_top_gs_result(num_str, best_config,
     training_arch_config['rnn_dropout'] = best_config['rnn_dropout']
     training_arch_config['bn'] = best_config['bn']
     # EVAL CHANGES
+    # if use_basis_vectors:
     training_arch_config['bidir'] = False
     training_arch_config['rnn_res_cntn'] = False
-    # if use_basis_vectors:
-    #     training_arch_config['bidir'] = False
-    #     training_arch_config['rnn_res_cntn'] = False
     l1_reg = None
     # # EVAL CHANGE
     # l1_reg = 0.001
@@ -98,7 +96,8 @@ def run_top_gs_result(num_str, best_config,
                         int(num_str), None, int(combos_str), '', None,
                         dmged_piano_artificial_noise_mix, data_path, min_sig_len, True,
                         tuned_a430hz, use_basis_vectors, None, None, 
-                        loop_bare_noise, low_time_steps, l1_reg, artificial_noise))
+                        loop_bare_noise, low_time_steps, l1_reg, artificial_noise,
+                        ignore_noise_loss))
     process_train.start()
     process_train.join()
 
@@ -156,7 +155,7 @@ def main():
     # Differentiate PC GS from F35 GS
     # dmged_piano_artificial_noise_mix = True if pc_run else False
     dmged_piano_artificial_noise_mix = False    # TEMP while F35 down
-    dmged_piano_only = False    # Promising w/ BVs
+    dmged_piano_only = True    # Promising w/ BVs
     # TRAIN DATA NOISE PARAMS
     loop_bare_noise = True     # to control bare_noise in nn_data_gen, needs curr for low_time_steps
     artificial_noise = False
@@ -165,10 +164,10 @@ def main():
     # wdw_size = PIANO_WDW_SIZE
     data_path = 'brahms_restore_ml/drnn/drnn_data/'
     arch_config_path = 'brahms_restore_ml/drnn/config/'
-    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # for use w/ grid search mode    
+    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # for use w/ grid search mode    
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_pc_wb/'     # PC
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'    # F35
-    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results  
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results  
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps_two/'       # low tsteps   2 
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps_big/'       # low tsteps   3
     recent_model_path = 'brahms_restore_ml/drnn/recent_model'
@@ -177,11 +176,12 @@ def main():
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_3of4'    # restore from best in small gs
     # infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     # infer_output_path = 'brahms_restore_ml/drnn/output_restore_gs3072_loopnoise/'    # eval, do_curr_best, 3072 combos, looped noise
-    infer_output_path = 'brahms_restore_ml/drnn/output_restore_151of3072_eval/'    # eval, tweaks curr_best
+    # infer_output_path = 'brahms_restore_ml/drnn/output_restore_151of3072_eval/'    # eval, tweaks curr_best
+    infer_output_path = 'brahms_restore_ml/drnn/output_restore_pbv_eval/'    # eval, tweaks curr_best
     brahms_path = 'brahms.wav'
 
     # To run best model configs, data_from_numpy == True & mode == train
-    do_curr_best, curr_best_combos, curr_best_done_on_pc = True, '3072', False
+    do_curr_best, curr_best_combos, curr_best_done_on_pc = False, '3072', False
     # # F35 LSTM
     # top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
     # F35 WB
@@ -203,7 +203,7 @@ def main():
     output_file_addon = ''
     data_from_numpy = True
     tuned_a430hz = False # may not be helpful, as of now does A=436Hz by default
-    basis_vector_features = False
+    basis_vector_features = True
     if tuned_a430hz:
         recent_model_path += '_a436hz' # tune_temp '_a430hz'
         output_file_addon += '_a436hz' # tune_temp '_a430hz'
@@ -223,6 +223,9 @@ def main():
         output_file_addon += ('_' + [x for x in recent_model_path.split('_')][-1])
     gs_write_model = False      # for small grid searches only, and for running ALL epochs - no early stop
     low_time_steps = True       # now default
+
+    # experiment
+    ignore_noise_loss = False
 
     # print('RECENT MODEL PATH:', recent_model_path)
     # print('OUTPUT FILE PATH ADD-ON:', output_file_addon)
@@ -252,7 +255,8 @@ def main():
         train_configs, arch_config_optns = get_hp_configs(arch_config_path, pc_run=pc_run, 
                                                           use_bv=basis_vector_features,
                                                           small_gs=gs_write_model,
-                                                          low_tsteps=low_time_steps)
+                                                          low_tsteps=low_time_steps,
+                                                          dmged_piano=dmged_piano_only)
         # print('First arch config optn after return:', arch_config_optns[0])
 
         if data_from_numpy:
@@ -472,7 +476,8 @@ def main():
                                     use_basis_vectors=basis_vector_features,
                                     loop_bare_noise=loop_bare_noise,
                                     low_time_steps=low_time_steps, 
-                                    artificial_noise=artificial_noise)
+                                    artificial_noise=artificial_noise,
+                                    ignore_noise_loss=ignore_noise_loss)
             else:
                 # REPL TEST - arch config, all config, optiizer config
                 if random_hps:
@@ -596,7 +601,8 @@ def main():
                                         dmged_y1_val_files=dmged_y1_val_files,
                                         loop_bare_noise=loop_bare_noise,
                                         low_time_steps=low_time_steps,
-                                        artificial_noise=artificial_noise)
+                                        artificial_noise=artificial_noise,
+                                        ignore_noise_loss=ignore_noise_loss)
                 if sample:
                     restore_with_drnn(infer_output_path, recent_model_path, # wdw_size, epsilon, 
                                     # train_loss_const,
