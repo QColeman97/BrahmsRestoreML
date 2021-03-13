@@ -35,11 +35,11 @@ def run_top_gs_result(num_str, best_config,
     train_loss_const = best_config['gamma']
     # EVAL CHANGE
     if low_time_steps:
-        train_loss_const = 0.15 # 0.3    # bad for looped noise & normal piano data
+        train_loss_const = 0.3 # 0.15 # 0.3    # bad for looped noise & normal piano data
     train_epochs = best_config['epochs']
     # # EVAL CHANGE - change back
     if low_time_steps:
-        train_epochs = 150 # 10 # 100
+        train_epochs = 15 # 150 # 10 # 100
     # train_epochs = 15 # TEMP - optimize learning
     # TEMP - exploit high epochs
     if train_epochs > 10:
@@ -71,8 +71,8 @@ def run_top_gs_result(num_str, best_config,
     training_arch_config['bidir'] = False
     training_arch_config['rnn_res_cntn'] = False
     l1_reg = None
-    # # EVAL CHANGE
-    # l1_reg = 0.001
+    # EVAL CHANGE
+    l1_reg = 0.1 # 0.001
 
     print('#', num_str, 'TOP TRAIN ARCH FOR USE:')
     print(training_arch_config)
@@ -155,7 +155,7 @@ def main():
     # Differentiate PC GS from F35 GS
     # dmged_piano_artificial_noise_mix = True if pc_run else False
     dmged_piano_artificial_noise_mix = False    # TEMP while F35 down
-    dmged_piano_only = True    # Promising w/ BVs
+    dmged_piano_only = False    # Promising w/ BVs
     # TRAIN DATA NOISE PARAMS
     loop_bare_noise = True     # to control bare_noise in nn_data_gen, needs curr for low_time_steps
     artificial_noise = False
@@ -164,20 +164,21 @@ def main():
     # wdw_size = PIANO_WDW_SIZE
     data_path = 'brahms_restore_ml/drnn/drnn_data/'
     arch_config_path = 'brahms_restore_ml/drnn/config/'
-    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # for use w/ grid search mode    
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # for use w/ grid search mode    
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_pc_wb/'     # PC
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'    # F35
-    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results  
+    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results  
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps_two/'       # low tsteps   2 
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps_big/'       # low tsteps   3
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_dmgpiano_bvs/'       # dmgpiano (bvs optional)
     recent_model_path = 'brahms_restore_ml/drnn/recent_model'
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_149of3072'    # restore from curr best
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_111of144_earlystop'    # restore from curr best
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_3of4'    # restore from best in small gs
-    # infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
+    infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     # infer_output_path = 'brahms_restore_ml/drnn/output_restore_gs3072_loopnoise/'    # eval, do_curr_best, 3072 combos, looped noise
     # infer_output_path = 'brahms_restore_ml/drnn/output_restore_151of3072_eval/'    # eval, tweaks curr_best
-    infer_output_path = 'brahms_restore_ml/drnn/output_restore_pbv_eval/'    # eval, tweaks curr_best
+    # infer_output_path = 'brahms_restore_ml/drnn/output_restore_pbv_eval/'    # eval, tweaks curr_best
     brahms_path = 'brahms.wav'
 
     # To run best model configs, data_from_numpy == True & mode == train
@@ -186,7 +187,7 @@ def main():
     # top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
     # F35 WB
     top_result_nums = [151] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
-    # top_result_nums = [1488, 1568, 149, 1496, 1680, 86, 151, 152] 
+    # # top_result_nums = [1488, 1568, 149, 1496, 1680, 86, 151, 152] 
     # # PC WB
     # top_result_nums = [997, 1184, 1312, 1310, 1311, 1736]
     # # BVS Architectures
@@ -197,13 +198,17 @@ def main():
     # top_result_nums = [34, 23] # [26,  # gamma order: 0.05, 0.15, 0.3
     # # low timesteps 3 (big)
     # top_result_nums = [103, 111, 5] # gamma order: 0.2, 0.3, 0.4 # [111] # [111, 76, 142]
+    # # Dmg piano data
+    # top_result_nums = [1,2,3]
+    # # Dmg piano w/ BVs data
+    # top_result_nums = [3,6,9]
     top_result_paths = [gs_output_path + 'result_' + str(x) + '_of_' + curr_best_combos +
                         ('.txt' if curr_best_done_on_pc else '_noPC.txt') for x in top_result_nums]
     # NEW
     output_file_addon = ''
-    data_from_numpy = True
+    data_from_numpy = False
     tuned_a430hz = False # may not be helpful, as of now does A=436Hz by default
-    basis_vector_features = True
+    basis_vector_features = False
     if tuned_a430hz:
         recent_model_path += '_a436hz' # tune_temp '_a430hz'
         output_file_addon += '_a436hz' # tune_temp '_a430hz'

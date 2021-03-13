@@ -175,8 +175,10 @@ def preprocess_signals(piano_sig, noise_sig, min_sig_len, mix_sig=None,
             # print('PIANO MAX VAL:', np.amax(np.abs(piano_sig)), 'NOISE MAX VAL:', np.amax(np.abs(noise_sig)))
         # Key - mixed signal should be on amplitude level of its sources
         # print('Mix sig abs sum:', np.sum(np.abs(mix_sig)), 'avg src sum:', avg_src_sum)
-        mix_srcs_ratio = (avg_src_sum / np.sum(np.abs(mix_sig)))
-        mix_sig *= mix_srcs_ratio
+        
+        # # This is a fix, b/c data is not normalized for tf masking
+        # mix_srcs_ratio = (avg_src_sum / np.sum(np.abs(mix_sig)))
+        # mix_sig *= mix_srcs_ratio
         # TEMP
         wavfile.write(data_path + 'noise' + str(num) + '.wav', STD_SR_HZ, noise_sig.astype('int16'))
         wavfile.write(data_path + 'piano' + str(num) + '.wav', STD_SR_HZ, piano_sig.astype('int16'))

@@ -54,6 +54,14 @@ class TimeFreqMasking(Layer):
         return cls(**config)
 
 
+def sun_metric(y_true, y_pred):
+    piano_true, noise_true = tf.split(y_true, num_or_size_splits=2, axis=-1)
+    # loss_const = y_pred[-1, :, :][0][0]
+    piano_pred, noise_pred = tf.split(y_pred[:-1, :, :], num_or_size_splits=2, axis=0)
+
+    return ((tf.math.reduce_sum(tf.math.abs(piano_true - piano_pred)) / tf.math.reduce_sum(piano_true)) +
+            (tf.math.reduce_sum(tf.math.abs(noise_true - noise_pred)) / tf.math.reduce_sum(noise_true)))
+
 def discrim_loss(y_true, y_pred):
     # print('YTRUE TENSOR:', y_true.shape, 'YPRED TENSOR:', y_pred.shape)
     piano_true, noise_true = tf.split(y_true, num_or_size_splits=2, axis=-1)
@@ -536,7 +544,8 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
         #                                     ])
         # model = Model(inputs=input_layer, outputs=preds_and_gamma)
         # model.compile(optimizer=optimizer, loss=discrim_loss)
-        model.compile(optimizer=optimizer, loss=discrim_loss_ignore_noise if ignore_noise_loss else discrim_loss)
+        model.compile(optimizer=optimizer, loss=discrim_loss_ignore_noise if ignore_noise_loss else discrim_loss,
+                      metrics=[sun_metric])
 
     return model
 

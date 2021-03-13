@@ -26,10 +26,9 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
             'LowDenseLayers', 'MedDenseLayers', 'HighDenseLayers']#, new, only care about layers
             # 'Scale', 'RnnDropout', 'BN']#, 
             # 'LowLossConst', 'Adam', 'ClipValNormalLR']
-    # if combos == 12:
-    #     hps = [
-    #         'LowDenseLayers', 'MedDenseLayers', 'HighDenseLayers']#,
-    #         # 'LowEpochs', 'BN'] # don't care about epochs or bn
+    elif combos == 9:
+        hps = ['LowDenseLayers', 'MedDenseLayers', 'HighDenseLayers',
+            'LowGamma', 'MedGamma', 'HighGamma']
     elif combos == 72:
         hps = ['SmallBS', 'LowEpochs', 'LowGamma', 'MedGamma', 'HighGamma',
                 'LowClipVal', 'Scale', 'LowRNNLayers']
@@ -90,7 +89,7 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
                             hp_config['layers'][0]['type'] == 'Dense')
                     ) else 0
             dense_first = 1 if (hp_config['layers'][0]['type'] == 'Dense') else 0
-            if combos == 24 or combos == 12:
+            if combos == 24 or combos == 12 or combos == 9:
                 low_dense = 1 if (len(hp_config['layers']) == 3) else 0
                 med_dense = 1 if (len(hp_config['layers']) == 4) else 0
                 high_dense = 1 if (len(hp_config['layers']) == 5) else 0
@@ -103,10 +102,14 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
                 low_loss_const = 1 if (hp_config['gamma'] == 0.1) else 0
             elif combos == 72:
                 low_loss_const = 1 if (hp_config['gamma'] <= 0.05) else 0
+            elif combos == 9:
+                low_loss_const = 1 if (hp_config['gamma'] == 0.1) else 0
+                med_loss_const = 1 if (hp_config['gamma'] == 0.2) else 0
+                high_loss_const = 1 if (hp_config['gamma'] == 0.3) else 0
             else:
                 low_loss_const = 1 if (hp_config['gamma'] == 0.05) else 0
-            med_loss_const = 1 if (hp_config['gamma'] == 0.15) else 0
-            high_loss_const = 1 if (hp_config['gamma'] == 0.3) else 0
+                med_loss_const = 1 if (hp_config['gamma'] == 0.15) else 0
+                high_loss_const = 1 if (hp_config['gamma'] == 0.3) else 0
             adam = 1 if (hp_config['optimizer'] == 'Adam') else 0
             clip_val_default_lr = 1 if (hp_config['clip value'] == 10) else 0
             low_clip_val = 1 if (hp_config['clip value'] is None or hp_config['clip value'] < 10) else 0
@@ -119,6 +122,9 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
                                                 # scale,
                                                 # rnn_dropout, bn]#, low_loss_const,
                                                 # adam, clip_val_default_lr] 
+            elif combos == 9:
+                vl_hp_combos_df.loc[file_id] = [low_dense, med_dense, high_dense,
+                                                low_loss_const, med_loss_const, high_loss_const]
             elif combos == 12:
                 vl_hp_combos_df.loc[file_id] = [low_dense, med_dense, high_dense]
             elif combos == 72:
@@ -193,8 +199,8 @@ def show_most_varied_hps(combos, grid_search_results_path, val_loss=False, pc=Fa
 
 
 def main():
-    combos = 24
-    grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_bvs/'
+    combos = 9
+    grid_search_results_path = 'brahms_restore_ml/drnn/output_grid_search_dmgpiano_bvs/'
     do_val_loss = True
     pc = True
 
