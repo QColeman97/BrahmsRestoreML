@@ -855,9 +855,12 @@ def restore_with_drnn(output_path, recent_model_path,
         # FOR EVAL - SPECTROGRAM PLOTS
         # if not write_noise_sig:
         restore_plot_path = os.getcwd() + '/brahms_restore_ml/drnn/eval_spgm_plots/'
+        # Eval name detection - gamma
+        eval_param_str = name_addon.split('_')[-1]
+        eval_name, plot_name = ('151of3072_g=0.1_snoise_dmgp_pbv' + eval_param_str), ('2 RNNs, DmgP-StretchN-Data, PianoInc, ' + eval_param_str + ', Gamma = 0.1')
+        # eval_name, plot_name = ('151of3072_' + 'g=' + eval_param_str), ('2 RNNs, Adam w/ low LR, Gamma = ' + eval_param_str)
         # eval_name, plot_name = '111of144_lowtsteps', '100 timesteps, Gamma = 0.3, Epochs = 100, Adam w/ GradClip, BS = 100'
-        # todo
-        eval_name, plot_name = '149of3072_lowtsteps_highepochs', '100 Timesteps, Epochs = 100, 2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 50'
+        # eval_name, plot_name = '149of3072_lowtsteps_highepochs', '100 Timesteps, Epochs = 100, 2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 50'
         # eval_name, plot_name = '149of3072_lowtsteps_l1reg', '100 Timesteps, L1 Regularize, 2 RNNs, RMSprop w/ low LR, BS = 50'
         # eval_name, plot_name = '1496of3072', 'Dense+TanH, 3 Bidir-RNNs, Res. Cxn, Scaling, Adam w/ GradClip, BS = 8'
         plot_matrix(restored_spgm[BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS].T, name=plot_name, 

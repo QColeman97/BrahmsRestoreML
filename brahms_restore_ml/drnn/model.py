@@ -187,13 +187,13 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                             x = Concatenate(axis=-2) ([stdized_bv_input, x])
 
                         piano_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                                        activation=layer_config['act'], 
+                                                        activation='relu',
                                                         kernel_regularizer=None if (l1_reg is None) else tf.keras.regularizers.l1(l1_reg),
                                                         use_bias=config['bias_dense']), 
                                                     name='piano_hat'
                                                 ) (x)
                         noise_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                                        activation=layer_config['act'], 
+                                                        activation='relu',
                                                         kernel_regularizer=None if (l1_reg is None) else tf.keras.regularizers.l1(l1_reg),
                                                         use_bias=config['bias_dense']), 
                                                     name='noise_hat'
@@ -210,13 +210,13 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                             x = Concatenate(axis=-2) ([bv_input, x])
 
                         piano_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                                        activation=layer_config['act'], 
+                                                        activation='relu',
                                                         kernel_regularizer=None if (l1_reg is None) else tf.keras.regularizers.l1(l1_reg),
                                                         use_bias=config['bias_dense']), 
                                                     name='piano_hat'
                                                 ) (x)
                         noise_hat = TimeDistributed(Dense(features // layer_config['nrn_div'],
-                                                        activation=layer_config['act'], 
+                                                        activation='relu',
                                                         kernel_regularizer=None if (l1_reg is None) else tf.keras.regularizers.l1(l1_reg),
                                                         use_bias=config['bias_dense']),
                                                     name='noise_hat'
@@ -449,9 +449,11 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                 # use_bias=False, # TEMP - debug po-sen
                 return_sequences=True) (x)
         piano_hat = TimeDistributed(Dense(features,
+                    activation='relu',
                     # use_bias=False, # TEMP - debug po-sen
                     ), name='piano_hat') (x)  # source 1 branch
         noise_hat = TimeDistributed(Dense(features,
+                    activation='relu',
                     # use_bias=False, # TEMP - debug po-sen
                     ), name='noise_hat') (x)  # source 2 branch
     piano_pred = TimeFreqMasking(epsilon=epsilon, 
@@ -544,8 +546,8 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
         #                                     ])
         # model = Model(inputs=input_layer, outputs=preds_and_gamma)
         # model.compile(optimizer=optimizer, loss=discrim_loss)
-        model.compile(optimizer=optimizer, loss=discrim_loss_ignore_noise if ignore_noise_loss else discrim_loss,
-                      metrics=[sun_metric])
+        model.compile(optimizer=optimizer, loss=discrim_loss_ignore_noise if ignore_noise_loss else discrim_loss)#,
+                    #   metrics=[sun_metric])   # temp test
 
     return model
 

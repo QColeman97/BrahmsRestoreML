@@ -20,7 +20,8 @@ def run_top_gs_result(num_str, best_config,
                       brahms_path, combos_str, data_path=None, min_sig_len=None,
                       tuned_a430hz=False, use_basis_vectors=False,
                       loop_bare_noise=False, low_time_steps=False,
-                      artificial_noise=False, ignore_noise_loss=False):
+                      artificial_noise=False, ignore_noise_loss=False,
+                      name_suffix=''):
     train_batch_size = best_config['batch_size']
     # # Temp test for LSTM -> until can grid search
     # train_batch_size = 3 if train_batch_size < 3 else train_batch_size
@@ -33,13 +34,13 @@ def run_top_gs_result(num_str, best_config,
     else:
         train_batch_size = 4    # no dimred & no lowtsteps
     train_loss_const = best_config['gamma']
-    # EVAL CHANGE
+    # EVAL CHANGE - for BVS dense layers gs - 0.3 meaningless
     if low_time_steps:
-        train_loss_const = 0.3 # 0.15 # 0.3    # bad for looped noise & normal piano data
+        train_loss_const = 0.1 # 0.15 # 0.3    # bad for looped noise & normal piano data
     train_epochs = best_config['epochs']
     # # EVAL CHANGE - change back
     if low_time_steps:
-        train_epochs = 15 # 150 # 10 # 100
+        train_epochs = 40 # 150 # 10 # 100
     # train_epochs = 15 # TEMP - optimize learning
     # TEMP - exploit high epochs
     if train_epochs > 10:
@@ -71,8 +72,8 @@ def run_top_gs_result(num_str, best_config,
     training_arch_config['bidir'] = False
     training_arch_config['rnn_res_cntn'] = False
     l1_reg = None
-    # EVAL CHANGE
-    l1_reg = 0.1 # 0.001
+    # # EVAL CHANGE
+    # l1_reg = 0.1 # 0.001
 
     print('#', num_str, 'TOP TRAIN ARCH FOR USE:')
     print(training_arch_config)
@@ -80,8 +81,12 @@ def run_top_gs_result(num_str, best_config,
     print('Batch size:', train_batch_size, 'Epochs:', train_epochs,
             'Loss constant:', train_loss_const, 'Optimizer:', best_config['optimizer'], 
             'Clip value:', best_config['clip value'], 'Learning rate:', best_config['learning rate'])
+
+    name = '_' + num_str + 'of' + combos_str + '_' + name_suffix
+
     # Shouldn't need multiproccessing, limited number
     # Temp test for LSTM -> until can grid search
+    send_end, recv_end = multiprocessing.Pipe()
     process_train = multiprocessing.Process(target=evaluate_source_sep, args=(
                         x_train_files, y1_train_files, y2_train_files,
                         x_val_files, y1_val_files, y2_val_files,
@@ -93,14 +98,34 @@ def run_top_gs_result(num_str, best_config,
                         patience, epsilon, training_arch_config, 
                         recent_model_path, pc_run,
                         # train_mean, train_std, 
-                        int(num_str), None, int(combos_str), '', None,
+                        int(num_str), None, int(combos_str), '', send_end,
                         dmged_piano_artificial_noise_mix, data_path, min_sig_len, True,
                         tuned_a430hz, use_basis_vectors, None, None, 
                         loop_bare_noise, low_time_steps, l1_reg, artificial_noise,
                         ignore_noise_loss))
-    process_train.start()
+    process_train.start()  
+    # Keep polling until child errors or child success (either one guaranteed to happen)
+    losses, val_losses = None, None
+    while process_train.is_alive():
+        time.sleep(60)
+        if recv_end.poll():
+            losses, val_losses = recv_end.recv()
+            break
+    if losses == None or val_losses == None:
+        print('\nERROR happened in child and it died')
+        exit(1)
     process_train.join()
 
+    epoch_r = range(1, len(losses)+1)
+    plt.plot(epoch_r, val_losses, 'b', label = 'Validation Loss')
+    plt.plot(epoch_r, losses, 'bo', label = 'Training Loss')
+    plt.title('Training & Validation Loss')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.savefig('brahms_restore_ml/drnn/train_val_loss_chart' + name + '.png')
+
+    send_end, recv_end = None, None     # strange behavior fix?
     # evaluate_source_sep(x_train_files, y1_train_files, y2_train_files, 
     #                     x_val_files, y1_val_files, y2_val_files,
     #                     num_train, num_val,
@@ -119,7 +144,7 @@ def run_top_gs_result(num_str, best_config,
                         # training_arch_config, 
                         # train_mean, train_std, 
                         PIANO_WDW_SIZE, EPSILON,
-                        pc_run, '_'+num_str+'of'+combos_str, tuned_a430hz, use_basis_vectors, low_time_steps))
+                        pc_run, name, tuned_a430hz, use_basis_vectors, low_time_steps))
     # TEMP - old
     # process_infer = multiprocessing.Process(target=restore_with_drnn, args=(infer_output_path, recent_model_path, wdw_size, epsilon,
     #                     train_loss_const, train_opt_name, train_opt_clipval, train_opt_lr, brahms_path, None, None,
@@ -155,9 +180,9 @@ def main():
     # Differentiate PC GS from F35 GS
     # dmged_piano_artificial_noise_mix = True if pc_run else False
     dmged_piano_artificial_noise_mix = False    # TEMP while F35 down
-    dmged_piano_only = False    # Promising w/ BVs
+    dmged_piano_only = True    # Promising w/ BVs
     # TRAIN DATA NOISE PARAMS
-    loop_bare_noise = True     # to control bare_noise in nn_data_gen, needs curr for low_time_steps
+    loop_bare_noise = False     # to control bare_noise in nn_data_gen, needs curr for low_time_steps
     artificial_noise = False
 
     test_on_synthetic = False
@@ -167,27 +192,27 @@ def main():
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # for use w/ grid search mode    
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_pc_wb/'     # PC
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'    # F35
-    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results  
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results  
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps_two/'       # low tsteps   2 
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps_big/'       # low tsteps   3
-    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_dmgpiano_bvs/'       # dmgpiano (bvs optional)
+    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_dmgpiano_bvs/'       # dmgpiano (bvs optional)
     recent_model_path = 'brahms_restore_ml/drnn/recent_model'
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_149of3072'    # restore from curr best
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_111of144_earlystop'    # restore from curr best
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_3of4'    # restore from best in small gs
-    infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
+    # infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     # infer_output_path = 'brahms_restore_ml/drnn/output_restore_gs3072_loopnoise/'    # eval, do_curr_best, 3072 combos, looped noise
     # infer_output_path = 'brahms_restore_ml/drnn/output_restore_151of3072_eval/'    # eval, tweaks curr_best
-    # infer_output_path = 'brahms_restore_ml/drnn/output_restore_pbv_eval/'    # eval, tweaks curr_best
+    infer_output_path = 'brahms_restore_ml/drnn/output_restore_pbv_eval/'    # eval, tweaks curr_best
     brahms_path = 'brahms.wav'
 
     # To run best model configs, data_from_numpy == True & mode == train
-    do_curr_best, curr_best_combos, curr_best_done_on_pc = False, '3072', False
+    do_curr_best, curr_best_combos, curr_best_done_on_pc = False, '9', True
     # # F35 LSTM
     # top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
     # F35 WB
-    top_result_nums = [151] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
-    # # top_result_nums = [1488, 1568, 149, 1496, 1680, 86, 151, 152] 
+    # top_result_nums = [151] # [151, 151, 151, 151, 151] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
+    # # # top_result_nums = [1488, 1568, 149, 1496, 1680, 86, 151, 152] 
     # # PC WB
     # top_result_nums = [997, 1184, 1312, 1310, 1311, 1736]
     # # BVS Architectures
@@ -200,15 +225,15 @@ def main():
     # top_result_nums = [103, 111, 5] # gamma order: 0.2, 0.3, 0.4 # [111] # [111, 76, 142]
     # # Dmg piano data
     # top_result_nums = [1,2,3]
-    # # Dmg piano w/ BVs data
-    # top_result_nums = [3,6,9]
+    # Dmg piano w/ BVs data
+    top_result_nums = [3,6,9]
     top_result_paths = [gs_output_path + 'result_' + str(x) + '_of_' + curr_best_combos +
                         ('.txt' if curr_best_done_on_pc else '_noPC.txt') for x in top_result_nums]
     # NEW
     output_file_addon = ''
-    data_from_numpy = True
+    data_from_numpy = False
     tuned_a430hz = False # may not be helpful, as of now does A=436Hz by default
-    basis_vector_features = False
+    basis_vector_features = True
     if tuned_a430hz:
         recent_model_path += '_a436hz' # tune_temp '_a430hz'
         output_file_addon += '_a436hz' # tune_temp '_a430hz'
@@ -221,6 +246,9 @@ def main():
     if artificial_noise:
         recent_model_path += '_artn'
         output_file_addon += '_artn'
+    elif not loop_bare_noise:
+        recent_model_path += '_stretchn'
+        output_file_addon += '_stretchn'
     if do_curr_best and (len(top_result_nums) == 1) and (mode == 't'):
         recent_model_path += ('_' + str(top_result_nums[0]) + 'of' + str(curr_best_combos))
     if do_curr_best and (len(top_result_nums) == 1) and (mode == 'r'):
@@ -317,18 +345,18 @@ def main():
                 (data_path + 'dmged_piano_wav_a=430hz/psource')))
                 # print('Damaged piano filepath prefix:', dmged_piano_filepath_prefix)
             
-            if loop_bare_noise and dmged_piano_only:
-                print('\nTRAINING WITH DATASET 4 (DMGED PIANO, NORMAL NOISE)')
-            elif artificial_noise and dmged_piano_only:
-                print('\nTRAINING WITH DATASET 6 (DMGED PIANO, ARTIFICIAL NOISE)')
-            elif dmged_piano_only:
-                print('\nTRAINING WITH DATASET 5 (DMGED PIANO, TIME SHRINK/STRETCH NOISE)')
-            elif artificial_noise:
-                print('\nTRAINING WITH DATASET 3 (NORMAL PIANO, ARTIFICIAL NOISE)')
-            elif loop_bare_noise:
-                print('\nTRAINING WITH DATASET 1 (NORMAL PIANO, NORMAL NOISE)')
-            else:
-                print('\nTRAINING WITH DATASET', '2 (ARTIFICIAL DMG)' if dmged_piano_artificial_noise_mix else '2 (NORMAL PIANO, TIME SHRINK/STRETCH NOISE)')
+        if loop_bare_noise and dmged_piano_only:
+            print('\nTRAINING WITH DATASET 4 (DMGED PIANO, NORMAL NOISE)')
+        elif artificial_noise and dmged_piano_only:
+            print('\nTRAINING WITH DATASET 6 (DMGED PIANO, ARTIFICIAL NOISE)')
+        elif dmged_piano_only:
+            print('\nTRAINING WITH DATASET 5 (DMGED PIANO, TIME SHRINK/STRETCH NOISE)')
+        elif artificial_noise:
+            print('\nTRAINING WITH DATASET 3 (NORMAL PIANO, ARTIFICIAL NOISE)')
+        elif loop_bare_noise:
+            print('\nTRAINING WITH DATASET 1 (NORMAL PIANO, NORMAL NOISE)')
+        else:
+            print('\nTRAINING WITH DATASET', '2 (ARTIFICIAL DMG)' if dmged_piano_artificial_noise_mix else '2 (NORMAL PIANO, TIME SHRINK/STRETCH NOISE)')
 
         # if data_from_numpy:   
         #     print('Mix filepath prefix:', noise_piano_filepath_prefix)
@@ -458,7 +486,7 @@ def main():
             # print('ORDER CHECK: y1_train_files:', y1_train_files[:10])
 
             if do_curr_best:
-                for top_result_path in top_result_paths:
+                for i, top_result_path in enumerate(top_result_paths):
                     # TEMP - For damaged data - b/c "_noPC" is missing in txt file
                     # num = top_result_path.split('_')[-3] if dmged_piano_artificial_noise_mix else top_result_path.split('_')[-4]
                     num = top_result_path.split('_')[-3] if curr_best_done_on_pc else top_result_path.split('_')[-4]
@@ -466,6 +494,23 @@ def main():
                     for _ in range(4):
                         _ = gs_result_file.readline()
                     best_config = json.loads(gs_result_file.readline())
+
+                    # EVAL EDITS
+                    name_suffix = 'g=0.1_dmgp_pbv'
+                    if i == 0:
+                        # best_config['gamma'] = 0.1
+                        name_suffix += '_1Dense'
+                    elif i == 1:
+                        # best_config['gamma'] = 0.2
+                        name_suffix += '_2Dense'
+                    # elif i == 2:
+                    #     best_config['gamma'] = 0.3
+                    # elif i == 3:
+                    #     best_config['gamma'] = 0.4
+                    else:
+                        name_suffix += '_3Dense'
+                        # best_config['gamma'] = 0.5
+                    # name_suffix = str(best_config['gamma'])
                     # Temp test for LSTM -> until can grid search
                     # # TEMP - until F35 back up, make managable for PC
                     # if (len(best_config['layers']) < 4) or (len(best_config['layers']) == 4 and best_config['layers'][0]['type'] == 'Dense'):
@@ -482,7 +527,8 @@ def main():
                                     loop_bare_noise=loop_bare_noise,
                                     low_time_steps=low_time_steps, 
                                     artificial_noise=artificial_noise,
-                                    ignore_noise_loss=ignore_noise_loss)
+                                    ignore_noise_loss=ignore_noise_loss,
+                                    name_suffix=name_suffix)
             else:
                 # REPL TEST - arch config, all config, optiizer config
                 if random_hps:
