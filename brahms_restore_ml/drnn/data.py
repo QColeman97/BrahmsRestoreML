@@ -153,7 +153,7 @@ def preprocess_signals(piano_sig, noise_sig, min_sig_len, mix_sig=None,
         # Mix & vary SNR
         src_percent_1 = random.randrange(int(src_amp_low*100), int(src_amp_high*100)) / 100
         # New fix - get piano on level of recording's piano by ear
-        piano_sig *= 2
+        piano_sig *= 1.5
         # New fix - only change SNR of noise_sig, piano_sig remains constant - b/c power sounds same as brahms.wav piano
         # src_percent_2 = 1 / src_percent_1
         # # print('src 1 percent:', src_percent_1, 'src 2 percent:', src_percent_2)
@@ -169,8 +169,11 @@ def preprocess_signals(piano_sig, noise_sig, min_sig_len, mix_sig=None,
         #         dmged_piano_sig *= src_percent_2
         noise_sig *= src_percent_1
         if dmged_piano_sig is not None:
+            # New fix - get piano on level of recording's piano by ear
+            dmged_piano_sig *= 2
             # avg_src_sum = (np.sum(np.abs(dmged_piano_sig)) + np.sum(np.abs(noise_sig))) / 2
             mix_sig = dmged_piano_sig + noise_sig
+            print('DMG PIANO MAX VAL:', np.amax(np.abs(dmged_piano_sig)), 'NOISE MAX VAL:', np.amax(np.abs(noise_sig)))
         else:
             # avg_src_sum = (np.sum(np.abs(piano_sig)) + np.sum(np.abs(noise_sig))) / 2
             mix_sig = piano_sig + noise_sig
@@ -221,7 +224,7 @@ def signal_to_nn_features(signal, use_bv=False, wdw_size=PIANO_WDW_SIZE, epsilon
 # Changed                     x_files ignored
 def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_feat,
                         min_sig_len, dmged_piano_artificial_noise=False,
-                        src_amp_low=3, src_amp_high=6, # TEMP - experiment w/ others
+                        src_amp_low=3, src_amp_high=4, # TEMP - experiment w/ others
                         # src_amp_low=0.75, src_amp_high=1.15, 
                         data_path=None, x_files=None, from_numpy=False, bare_noise=False,    # new
                         tuned_a430hz=False, piano_basis_vectors=None, dmged_y1_files=None,

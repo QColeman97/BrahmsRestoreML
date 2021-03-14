@@ -206,7 +206,7 @@ def main():
                         ('.txt' if curr_best_done_on_pc else '_noPC.txt') for x in top_result_nums]
     # NEW
     output_file_addon = ''
-    data_from_numpy = False
+    data_from_numpy = True
     tuned_a430hz = False # may not be helpful, as of now does A=436Hz by default
     basis_vector_features = False
     if tuned_a430hz:
