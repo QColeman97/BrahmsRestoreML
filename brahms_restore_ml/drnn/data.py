@@ -152,27 +152,30 @@ def preprocess_signals(piano_sig, noise_sig, min_sig_len, mix_sig=None,
                 piano_sig, noise_sig = sliced[0], sliced[1] 
         # Mix & vary SNR
         src_percent_1 = random.randrange(int(src_amp_low*100), int(src_amp_high*100)) / 100
-        src_percent_2 = 1 / src_percent_1
-        # print('src 1 percent:', src_percent_1, 'src 2 percent:', src_percent_2)
-        piano_src_is_1 = bool(random.getrandbits(1))
-        if piano_src_is_1:
-            piano_sig *= src_percent_1
-            if dmged_piano_sig is not None:
-                dmged_piano_sig *= src_percent_1
-            noise_sig *= src_percent_2
-        else:
-            piano_sig *= src_percent_2
-            if dmged_piano_sig is not None:
-                dmged_piano_sig *= src_percent_2
-            noise_sig *= src_percent_1
+        # New fix - get piano on level of recording's piano by ear
+        piano_sig *= 2
+        # New fix - only change SNR of noise_sig, piano_sig remains constant - b/c power sounds same as brahms.wav piano
+        # src_percent_2 = 1 / src_percent_1
+        # # print('src 1 percent:', src_percent_1, 'src 2 percent:', src_percent_2)
+        # piano_src_is_1 = bool(random.getrandbits(1))
+        # if piano_src_is_1:
+        #     piano_sig *= src_percent_1
+        #     if dmged_piano_sig is not None:
+        #         dmged_piano_sig *= src_percent_1
+        #     noise_sig *= src_percent_2
+        # else:
+        #     piano_sig *= src_percent_2
+        #     if dmged_piano_sig is not None:
+        #         dmged_piano_sig *= src_percent_2
+        noise_sig *= src_percent_1
         if dmged_piano_sig is not None:
-            avg_src_sum = (np.sum(np.abs(dmged_piano_sig)) + np.sum(np.abs(noise_sig))) / 2
+            # avg_src_sum = (np.sum(np.abs(dmged_piano_sig)) + np.sum(np.abs(noise_sig))) / 2
             mix_sig = dmged_piano_sig + noise_sig
         else:
-            avg_src_sum = (np.sum(np.abs(piano_sig)) + np.sum(np.abs(noise_sig))) / 2
+            # avg_src_sum = (np.sum(np.abs(piano_sig)) + np.sum(np.abs(noise_sig))) / 2
             mix_sig = piano_sig + noise_sig
             # PRINT OUT MAGS OF SIGS IN MIX
-            # print('PIANO MAX VAL:', np.amax(np.abs(piano_sig)), 'NOISE MAX VAL:', np.amax(np.abs(noise_sig)))
+            print('PIANO MAX VAL:', np.amax(np.abs(piano_sig)), 'NOISE MAX VAL:', np.amax(np.abs(noise_sig)))
         # Key - mixed signal should be on amplitude level of its sources
         # print('Mix sig abs sum:', np.sum(np.abs(mix_sig)), 'avg src sum:', avg_src_sum)
         
@@ -218,11 +221,12 @@ def signal_to_nn_features(signal, use_bv=False, wdw_size=PIANO_WDW_SIZE, epsilon
 # Changed                     x_files ignored
 def nn_data_generator(y1_files, y2_files, num_samples, batch_size, num_seq, num_feat,
                         min_sig_len, dmged_piano_artificial_noise=False,
-                        # src_amp_low=0.75, src_amp_high=1.15, # TEMP - experiment w/ others
-                        src_amp_low=1, src_amp_high=1.15, 
+                        src_amp_low=3, src_amp_high=6, # TEMP - experiment w/ others
+                        # src_amp_low=0.75, src_amp_high=1.15, 
                         data_path=None, x_files=None, from_numpy=False, bare_noise=False,    # new
                         tuned_a430hz=False, piano_basis_vectors=None, dmged_y1_files=None,
                         low_time_steps=False, art_noise=False): # new
+    # src_amp_low & src_amp_high values made in params
     # if use_bv:
     #     piano_basis_vectors = get_basis_vectors(PIANO_WDW_SIZE, ova=True, avg=True, debug=False, a430hz=True, 
     #         score=True, filepath=os.path.dirname(os.path.realpath(__file__)) + '/../nmf/np_saves_bv/basis_vectors')
@@ -384,7 +388,7 @@ def get_features_stats(y1_filenames, y2_filenames, num_samples, train_seq, train
               data_path=None, x_filenames=None, from_numpy=False, 
               tuned_a430hz=False, dmged_y1_filenames=None, loop_bare_noise=False,
               low_time_steps=False, art_noise=False):
-
+    # src_amp_low & src_amp_high values made in params
     generator = nn_data_generator(y1_filenames, y2_filenames, num_samples,
             batch_size=1, num_seq=train_seq, num_feat=train_feat,
             min_sig_len=min_sig_len, dmged_piano_artificial_noise=dataset2, 
