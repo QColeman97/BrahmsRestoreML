@@ -53,11 +53,16 @@ __pycache__/
 /brahms_restore_ml/drnn/output_grid_search_dmgpiano_ignorenoiseloss/
 /brahms_restore_ml/drnn/output_grid_search/
 /brahms_restore_ml/drnn/output_grid_search_dmgpiano_bvs/
+/brahms_restore_ml/drnn/old_output_restore_gs3072_loopnoise/
+/brahms_restore_ml/drnn/old_output_restore_151of3072_eval/
+/brahms_restore_ml/drnn/old_output_restore_stretchshrinknoise/
+/brahms_restore_ml/drnn/old_output_restore_pbv_eval/
 /brahms_restore_ml/drnn/output_restore_gs3072_loopnoise/
 /brahms_restore_ml/drnn/output_restore_151of3072_eval/
 /brahms_restore_ml/drnn/output_restore_stretchshrinknoise/
 /brahms_restore_ml/drnn/output_restore_pbv_eval/
 /brahms_restore_ml/drnn/output_restore/
+/brahms_restore_ml/drnn/old_eval_wav_smpls/
 /brahms_restore_ml/drnn/eval_wav_smpls/
 
 .vs
