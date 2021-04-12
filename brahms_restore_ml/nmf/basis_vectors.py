@@ -49,7 +49,7 @@ def make_basis_vector(waveform, wf_type, wf_sr, num_str, wdw_size, ova=False, av
 def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, precise_noise=False, eq_thresh=800000,
                              start=0, stop=25, write_path=None):
     real_currdir = os.path.dirname(os.path.realpath(__file__))
-    if precise_noise and (num < 20):
+    if (precise_noise and (num < 20)) or (num < 20):    # precise_noise get rid off
         brahms_sr, brahms_sig = wavfile.read(real_currdir + '/../../brahms.wav')
         noise_sig = brahms_sig[(start * wdw_size): (stop * wdw_size)].copy()
         noise_sr = brahms_sr
@@ -87,6 +87,7 @@ def make_noise_basis_vectors(num, wdw_size, ova=False, eq=False, debug=False, pr
         # write first noise basis vector magnitude-repeated out to wav file
         bv_spgm = np.array([noise_basis_vectors[0] for _ in range(b_spgm.shape[0] if precise_noise else spectrogram.shape[1])])
         print('SHAPE OF', 'FROM BRAHMS' if precise_noise else 'IZOTOPE', 'BV SPGM:', bv_spgm.shape[0])
+        plot_matrix(bv_spgm, 'Noise Basis Vector (Rank-1 Approx) Spgm', 'frequency', 'time', ratio=nmf.BASIS_VECTOR_FULL_RATIO, show=True)
         bv_spgm *= 10000    # basis vectors are very quiet
         # print('NOISE BV SPGM:', bv_spgm[0][:10], 'next one:', bv_spgm[1][:10])
         # print('\nNOISE BV SPGM SHAPE:', bv_spgm.shape, '\n')

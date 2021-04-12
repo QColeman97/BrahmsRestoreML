@@ -117,9 +117,9 @@ def updateW(W, H, V, m, wholeW=None, wholeH=None):
 
 # With any supervision W is returned unchanged. No supervision, W is made & returned
 def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=False, incorrect=False, 
-        learn_iter=MAX_LEARN_ITER, made_init=False, madeinit_learn_factor=1):
+        learn_iter=MAX_LEARN_ITER, made_init=False, madeinit_learn_factor=1): # temp useless param
     # Expmt - if madeinit: heighten/lower to try to (enocurage noise to learn)/(prevent piano from learning) noise
-    madeinit_learn_limit = round(learn_iter * madeinit_learn_factor)
+    # madeinit_learn_limit = round(learn_iter * madeinit_learn_factor)
     m, n = V.shape
     H = np.random.rand(k, n) + 1
     if debug:
@@ -187,16 +187,20 @@ def extended_nmf(V, k, W=None, sslrn='None', split_index=0, l1_pen=0, debug=Fals
                 for i in range(learn_iter):
                     updateH(H[:split_index], W[:, :split_index], V, n, l1_pen=l1_pen, wholeW=W, wholeH=H)
                     updateH(H[split_index:], W[:, split_index:], V, n, wholeW=W, wholeH=H)     # only penalize H corresponding to fixed
-                    # TEMP - to find difference among semi-sup made-init (too much learn overwrites?)
-                    if not made_init or (made_init and i < madeinit_learn_limit):
-                        updateW(W[:, split_index:], H[split_index:], V, m, wholeW=W, wholeH=H)
+                    # # TEMP - to find difference among semi-sup made-init (too much learn overwrites?)
+                    # if not made_init or (made_init and i < madeinit_learn_limit):
+                    #     updateW(W[:, split_index:], H[split_index:], V, m, wholeW=W, wholeH=H)
+                    updateW(W[:, split_index:], H[split_index:], V, m, wholeW=W, wholeH=H)
             else:   # learn noise
                 for i in range(learn_iter):
                     updateH(H[split_index:], W[:, split_index:], V, n, l1_pen=l1_pen, wholeW=W, wholeH=H)
                     updateH(H[:split_index], W[:, :split_index], V, n, wholeW=W, wholeH=H)
                     # TEMP - to find difference among semi-sup made-init (too much learn overwrites?)
-                    if not made_init or (made_init and i < madeinit_learn_limit):
-                        updateW(W[:, :split_index], H[:split_index], V, m, wholeW=W, wholeH=H)
+                    # if not made_init or (made_init and i < madeinit_learn_limit):
+                    updateW(W[:, :split_index], H[:split_index], V, m, wholeW=W, wholeH=H)  
+                    # # TEMP force 1 update
+                    # if i == 0:
+                    #     updateW(W[:, :split_index], H[:split_index], V, m, wholeW=W, wholeH=H)
     else:
         W = np.random.rand(m, k) + 1
         if debug:
@@ -225,10 +229,10 @@ def source_split_matrices(activations, basis_vectors, num_noisebv, debug=False):
         print('De-noised Piano Activations (first):', piano_activations.shape, piano_activations[0])
         print('Sep. Noise Basis Vectors (first):', noise_basis_vectors.shape, noise_basis_vectors[:][0])
         print('Sep. Noise Activations (first):', noise_activations.shape, noise_activations[0])
-        plot_matrix(piano_basis_vectors, 'De-noised Piano Basis Vectors', 'k', 'frequency', ratio=BASIS_VECTOR_FULL_RATIO, show=True)
-        plot_matrix(piano_activations, 'De-noised Piano Activations', 'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
-        plot_matrix(noise_basis_vectors, 'Sep. Noise Basis Vectors', 'k', 'frequency', ratio=BASIS_VECTOR_FULL_RATIO, show=True)
-        plot_matrix(noise_activations, 'Sep. Noise Activations', 'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
+        plot_matrix(piano_basis_vectors, 'Piano Basis Vectors', 'k', 'frequency', ratio=BASIS_VECTOR_FULL_RATIO, show=True)
+        plot_matrix(piano_activations, 'Piano Activations', 'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
+        plot_matrix(noise_basis_vectors, 'Noise Basis Vectors', 'k', 'frequency', ratio=BASIS_VECTOR_FULL_RATIO, show=True)
+        plot_matrix(noise_activations, 'Noise Activations', 'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
     return noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors
 
 
@@ -236,21 +240,40 @@ def make_mary_bv_test_activations(vol_factor=1):
     activations = []
     actvn_amount = 5
     note_len = 48
+    zero_val = 0 # EPSILON
     # nl_factor = 20
     for j in range(5):
         # 8 divisions of 6 timesteps
         comp = []
         if j == 0: # lowest note
-            comp = [actvn_amount * vol_factor if ((2*6) <= i < (3*6)) else EPSILON for i in range(note_len)]
+            comp = [actvn_amount * vol_factor if ((2*6) <= i < (3*6)) else zero_val for i in range(note_len)]
         elif j == 2:
-            comp = [actvn_amount * vol_factor if (((1*6) <= i < (2*6)) or ((3*6) <= i < (4*6))) else EPSILON for i in range(note_len)]
+            comp = [actvn_amount * vol_factor if (((1*6) <= i < (2*6)) or ((3*6) <= i < (4*6))) else zero_val for i in range(note_len)]
         elif j == 4:
-            comp = [actvn_amount * vol_factor if ((0 <= i < (1*6)) or ((4*6) <= i < (7*6))) else EPSILON for i in range(note_len)]
+            comp = [actvn_amount * vol_factor if ((0 <= i < (1*6)) or ((4*6) <= i < (7*6))) else zero_val for i in range(note_len)]
         else:
-            comp = [EPSILON for i in range(note_len)]
+            comp = [zero_val for i in range(note_len)]
         activations.append(comp)
     return np.array(activations)
 
+
+def pick_top_acts(H, top=2, score_range=False):
+    k, n = H.shape
+    topH = np.zeros((k, n))
+
+    if score_range:
+        # zero out out-of-range activations
+        # H[:SCORE_IGNORE_BOTTOM_NOTES, :] = np.zeros((SCORE_IGNORE_BOTTOM_NOTES, n))
+        # H[-SCORE_IGNORE_TOP_NOTES:, :] = np.zeros((SCORE_IGNORE_TOP_NOTES, n))
+        # zero out bottom-of-range activations
+        H[:2, :] = np.zeros((2, n))
+    for i in range(n):      # iterate thru all columns (tsteps)
+        Hcol = H[:, i]
+        top_indices = np.argpartition(Hcol, -top)[-top:].tolist()
+        for j in range(k):  # iterate thru all actvns in col
+            if j in top_indices:
+                topH[j, i] = Hcol[j]
+    return topH
 
 # - Don't change params, will mess up tests that could help narrow down extreme noise cutout NMF bug
 # - Data Rules
@@ -263,7 +286,8 @@ def make_mary_bv_test_activations(vol_factor=1):
 def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False, noisebv=True, avgbv=True, semisuplearn='None', 
                   semisupmadeinit=False, write_file=True, debug=False, nohanbv=False, prec_noise=True, eqbv=False, incorrect_semisup=False,
                   learn_iter=MAX_LEARN_ITER, num_noisebv=10, noise_start=6, noise_stop=25, l1_penalty=0, write_noise_sig=False,
-                  a430hz_bv=False, scorebv=True, audible_range_bv=False, dmged_pianobv=False, num_pbv_unlocked=None):
+                  a430hz_bv=False, scorebv=True, audible_range_bv=False, dmged_pianobv=False, num_pbv_unlocked=None, 
+                  top_acts=None, top_acts_score=False):
     orig_sig_type = sig.dtype
         
     print('\n--Making Piano & Noise Basis Vectors--\n')
@@ -331,10 +355,16 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
     if noisebv:
         noise_activations, noise_basis_vectors, piano_activations, piano_basis_vectors = source_split_matrices(activations, basis_vectors, num_noisebv, debug=debug)
         print('\n--Making Synthetic Brahms Spectrogram (Source-Separating)--\n')
+        if top_acts is not None:
+            piano_activations = pick_top_acts(piano_activations, top=top_acts, score_range=top_acts_score)
+            plot_matrix(piano_activations, 
+                str(top_acts) + ' Highest-Value Piano Activations' + ('(Except Bottom Notes)' if top_acts_score else ''), 
+                'time segments', 'k', ratio=ACTIVATION_RATIO, show=True)
+
         synthetic_piano_spgm = piano_basis_vectors @ piano_activations
         synthetic_noise_spgm = noise_basis_vectors @ noise_activations
 
-        # FOR L1-penalty - show the average # non-zero activations per timestep
+        # FOR L1-penalty - show the average # non-zero activations per timestep - piano
         max_notes, avg = None, 0 
         rand_activation = random.randint(0, piano_activations.shape[1] - 1)
         for i in range(piano_activations.shape[1]):
@@ -350,6 +380,23 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
         print('\nAVERAGE # NON-ZERO PIANO ACTIVATIONS PER TIMESTEP:', avg)
         print('MAX NON-ZERO PIANO ACTIVATIONs IN A TIMESTEP:', max_notes)
         print('PIANO ACTIVATIONS AT A TIME STEP:', piano_activations[:, rand_activation], '\n')
+
+        # # FOR L1-penalty - show the average # non-zero activations per timestep - noise
+        # max_notes, avg = None, 0 
+        # rand_activation = random.randint(0, noise_activations.shape[1] - 1)
+        # for i in range(noise_activations.shape[1]):
+        #     # avg += np.count_nonzero(activations[:, i])
+        #     # Callobrated at 0.1 for supervised l1-pen=75,000,000 - barely any notes heard (0.3 per timestep)
+        #     # Callobrated at 0.15 for semi-supervised-learn-noise
+        #     notes_per_thresh = 0 # 0.2
+        #     t_step_num_notes = len([0 for j in range(noise_activations.shape[0]) if piano_activations[:, i][j] > notes_per_thresh])
+        #     avg += t_step_num_notes
+        #     if max_notes is None or (t_step_num_notes > max_notes):
+        #         max_notes = t_step_num_notes
+        # avg = avg / piano_activations.shape[1]
+        # print('\nAVERAGE # NON-ZERO PIANO ACTIVATIONS PER TIMESTEP:', avg)
+        # print('MAX NON-ZERO PIANO ACTIVATIONs IN A TIMESTEP:', max_notes)
+        # print('PIANO ACTIVATIONS AT A TIME STEP:', piano_activations[:, rand_activation], '\n')
 
         if dmged_pianobv:   # For dmged piano W in learning, masked spectrogram needs to be made from high-qual piano
             hq_piano_basis_vectors = hq_piano_basis_vectors.T
@@ -369,8 +416,8 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
             # no more masking -> overwrite synthetic piano spgm w/ hq piano
             synthetic_piano_spgm = hq_piano_basis_vectors @ piano_activations
 
-        if debug:
-            plot_matrix(synthetic_piano_spgm, 'Synthetic Piano Spectrogram (BEFORE MASKING)', 'time segments', 'frequency', ratio=SPGM_BRAHMS_RATIO, show=True)
+        # if debug:
+        #     plot_matrix(synthetic_piano_spgm, 'Synthetic Piano Spectrogram (BEFORE MASKING)', 'time segments', 'frequency', ratio=SPGM_BRAHMS_RATIO, show=True)
         # # In order to incorporate hq piano basis vectors (manipulate the spectrogram) - get rid of tf-masking??
         # # Apply filter tf soft mask (no difference seen from before)
         # synthetic_spgm = basis_vectors @ activations
@@ -381,12 +428,12 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
         # synthetic_noise_spgm = noise_mask * spectrogram
         # # synthetic_noise_spgm = noise_mask * synthetic_noise_spgm    # mask noise source # doesn't make sense     
 
-        # FOR EVAL - SPECTROGRAM PLOTS - not during testing
-        if not write_noise_sig:
-            restore_plot_path = os.getcwd() + '/brahms_restore_ml/nmf/eval_spgm_plots/'
-            eval_name, plot_name = 'semisup_lnoise_2nbv_l1pen131072', 'Learn Noise (RandInit.) Semi-Sup, L1-Penalty=131,072, 2 NBVs'
-            plot_matrix(synthetic_piano_spgm[:, BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS], name=plot_name, 
-                xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(restore_plot_path + eval_name + '.png'), show=False)
+        # # FOR EVAL - SPECTROGRAM PLOTS - not during testing
+        # if not write_noise_sig:
+        #     restore_plot_path = os.getcwd() + '/brahms_restore_ml/nmf/eval_spgm_plots/'
+        #     eval_name, plot_name = 'sup_a436hz', 'Supervised NMF, Piano Basis Vectors A4 = 436Hz, 2 NBVs'
+        #     plot_matrix(synthetic_piano_spgm[:, BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS], name=plot_name, 
+        #         xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(restore_plot_path + eval_name + '.png'), show=False)
 
         # Include noise within result to battle any normalizing wavfile.write might do
         synthetic_spgm = np.concatenate((synthetic_piano_spgm, synthetic_noise_spgm), axis=-1)

@@ -24,15 +24,17 @@ def main():
     score_piano_bv = True
     a430hz_bv = False      # not confirmed to help
     # marybv_flag = False     # Special case for Mary.wav - basis vectors size optimization test
-    # out_filepath = 'brahms_restore_ml/nmf/output/output_restored_wav_v5/'
-    out_filepath = 'brahms_restore_ml/nmf/output/output_restored_experimental/' # TEMP
+    out_filepath = 'brahms_restore_ml/nmf/output/output_restored_wav_v5/'
+    # out_filepath = 'brahms_restore_ml/nmf/output/output_restored_experimental/' # TEMP
 
     # Experimental
     # Ternary flag - 'Piano', 'Noise', or 'None' (If not 'None', noisebv_flag MUST BE TRUE)
     semi_sup_learn = 'Noise'
     semi_sup_made_init = False   # Only considered when semi_sup_learn != 'None'
-    l1_penalty = 131072 # 131072 or 65536 # 10 ** 19 # 10^9 = 1Bill, 12 = trill, 15 = quad, 18 = quin, 19 = max for me
+    l1_penalty = 131072 # 131072 or 65536 # 0 # 10 ** 19 # 10^9 = 1Bill, 12 = trill, 15 = quad, 18 = quin, 19 = max for me
     l1pen_flag = True if (l1_penalty != 0) else False
+    top_acts = None
+    top_acts_score = False
     # Do not make as big as 1078 (smaller dim) - 88 (piano bv's) = 990
     num_noise_bv = 2 # 50 # 20 # 3 # 10 # 5 # 10000 is when last good # 100000 is when it gets bad, but 1000 sounds bad in tests.py
     dmged_piano_bv = False
@@ -95,13 +97,18 @@ def main():
     #     out_filepath += '_avgbv'
     if l1pen_flag:
         out_filepath += ('_l1pen' + str(l1_penalty))
+    if top_acts is not None:
+        out_filepath += ('_top' + str(top_acts) + 'acts')
+    if top_acts_score:
+        out_filepath += '_nobottomnotes'
     out_filepath += '.wav'
     restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, num_noisebv=num_noise_bv, 
                     semisuplearn=semi_sup_learn, semisupmadeinit=semi_sup_made_init,
                     l1_penalty=l1_penalty, debug=debug_flag, a430hz_bv=a430hz_bv,
                     scorebv=score_piano_bv, # audible_range_bv=audible_range_bv,
                     dmged_pianobv=dmged_piano_bv, 
-                    num_pbv_unlocked=num_piano_bv_unlocked)
+                    num_pbv_unlocked=num_piano_bv_unlocked,
+                    top_acts=top_acts, top_acts_score=top_acts_score)
 
 if __name__ == '__main__':
     main()

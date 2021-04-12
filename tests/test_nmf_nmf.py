@@ -64,14 +64,14 @@ class NMFTests(unittest.TestCase):
       # Assert H corres. w/ fixed W sum is near same each time
       with self.subTest():
          _, H2 = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise')
-         print('H SUMS lnm - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[split_index:]),np.sum(H[split_index:]),'Corres Learned',np.sum(H2[:split_index]),np.sum(H[:split_index]))
+         # print('H SUMS lnm - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[split_index:]),np.sum(H[split_index:]),'Corres Learned',np.sum(H2[:split_index]),np.sum(H[:split_index]))
          self.assertAlmostEqual(np.sum(H2[split_index:]), np.sum(H[split_index:]), places=0)
 
    def test_nmf_semi_supervised_learn_noise(self):
       m, n, k = 8, 6, 5
       split_index = k // 2
       Wfixed = np.ones((m, k - split_index)) * Wmade_scale_factor
-      Wlearn = np.random.rand(m, split_index)
+      Wlearn = np.random.rand(m, split_index) + 1
       W = np.concatenate((Wlearn, Wfixed), axis=-1)
       V = np.arange(m * n).reshape(m, n)
       W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise')
@@ -84,7 +84,7 @@ class NMFTests(unittest.TestCase):
       # Assert H corres. w/ fixed W sum is near same each time
       with self.subTest():
          _, H2 = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise')
-         print('H SUMS ln - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[split_index:]),np.sum(H[split_index:]),'Corres Learned',np.sum(H2[:split_index]),np.sum(H[:split_index]))
+         # print('H SUMS ln - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[split_index:]),np.sum(H[split_index:]),'Corres Learned',np.sum(H2[:split_index]),np.sum(H[:split_index]))
          self.assertAlmostEqual(np.sum(H2[split_index:]), np.sum(H[split_index:]), places=0)
 
    def test_nmf_semi_supervised_learn_piano_made(self):
@@ -102,14 +102,14 @@ class NMFTests(unittest.TestCase):
       # Assert H corres. w/ fixed W sum is near same each time
       with self.subTest():
          _, H2 = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano')
-         print('H SUMS lpm - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[:split_index]),np.sum(H[:split_index]),'Corres Learned',np.sum(H2[split_index:]),np.sum(H[split_index:]))
+         # print('H SUMS lpm - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[:split_index]),np.sum(H[:split_index]),'Corres Learned',np.sum(H2[split_index:]),np.sum(H[split_index:]))
          self.assertAlmostEqual(np.sum(H2[:split_index]), np.sum(H[:split_index]), places=0)
 
    def test_nmf_semi_supervised_learn_piano(self):
       m, n, k = 8, 6, 5
       split_index = k // 2
       Wfixed = np.ones((m, split_index)) * Wmade_scale_factor
-      Wlearn = np.random.rand(m, k - split_index)
+      Wlearn = np.random.rand(m, k - split_index) + 1
       W = np.concatenate((Wfixed, Wlearn), axis=-1)
       V = np.arange(m * n).reshape(m, n)
       W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano')
@@ -122,7 +122,7 @@ class NMFTests(unittest.TestCase):
       # Assert H corres. w/ fixed W sum is near same each time
       with self.subTest():
          _, H2 = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano')
-         print('H SUMS lp - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[:split_index]),np.sum(H[:split_index]),'Corres Learned',np.sum(H2[split_index:]),np.sum(H[split_index:]))
+         # print('H SUMS lp - Whole:',np.sum(H2),np.sum(H),'Corres Fixed:',np.sum(H2[:split_index]),np.sum(H[:split_index]),'Corres Learned',np.sum(H2[split_index:]),np.sum(H[split_index:]))
          self.assertAlmostEqual(np.sum(H2[:split_index]), np.sum(H[:split_index]), places=0)
 
    # Confirms semisup made learn for 0 learn iters (no learn) equals sup
@@ -213,13 +213,13 @@ class NMFTests(unittest.TestCase):
       # with self.subTest():
       #    self.assertAlmostEqual(np.sum(H_penalized[:split_index]), np.sum(H[:split_index]), places=0)
       with self.subTest():
-         self.assertLess(np.sum(H_penalized), np.sum(H))
+         self.assertLess(np.sum(H_penalized[split_index:]), np.sum(H[split_index:]))
 
    def test_nmf_semi_supervised_learn_noise_l1penalty(self):
       m, n, k = 8, 6, 5
       split_index = k // 2
       Wfixed = np.ones((m, k - split_index)) * Wmade_scale_factor
-      Wlearn = np.random.rand(m, split_index)
+      Wlearn = np.random.rand(m, split_index) + 1
       W = np.concatenate((Wlearn, Wfixed), axis=-1)
       V = np.arange(m * n).reshape(m, n)
       W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Noise')
@@ -240,7 +240,7 @@ class NMFTests(unittest.TestCase):
       # with self.subTest():
       #    self.assertAlmostEqual(np.sum(H_penalized[:split_index]), np.sum(H[:split_index]), places=0)
       with self.subTest():
-         self.assertLess(np.sum(H_penalized), np.sum(H))
+         self.assertLess(np.sum(H_penalized[split_index:]), np.sum(H[split_index:]))
 
    def test_nmf_semi_supervised_learn_piano_made_l1penalty(self):
       m, n, k = 8, 6, 5
@@ -265,13 +265,13 @@ class NMFTests(unittest.TestCase):
       # with self.subTest():
       #    self.assertAlmostEqual(np.sum(H_penalized[split_index:]), np.sum(H[split_index:]), places=0)
       with self.subTest():
-         self.assertLess(np.sum(H_penalized), np.sum(H))
+         self.assertLess(np.sum(H_penalized[:split_index]), np.sum(H[:split_index]))
 
    def test_nmf_semi_supervised_learn_piano_l1penalty(self):
       m, n, k = 8, 6, 5
       split_index = k // 2
       Wfixed = np.ones((m, split_index)) * Wmade_scale_factor
-      Wlearn = np.random.rand(m, k - split_index)
+      Wlearn = np.random.rand(m, k - split_index) + 1
       W = np.concatenate((Wfixed, Wlearn), axis=-1)
       V = np.arange(m * n).reshape(m, n)
       W_after_nmf, H = extended_nmf(V, k, W.copy(), split_index=split_index, sslrn='Piano')
@@ -292,11 +292,11 @@ class NMFTests(unittest.TestCase):
       # with self.subTest():
       #    self.assertAlmostEqual(np.sum(H_penalized[split_index:]), np.sum(H[split_index:]), places=0)
       with self.subTest():
-         self.assertLess(np.sum(H_penalized), np.sum(H))
+         self.assertLess(np.sum(H_penalized[:split_index]), np.sum(H[:split_index]))
 
    def test_source_split_matrices(self):
       m, n, k, split_index = 8, 6, 5, 2
-      W, H = np.random.rand(m,k), np.random.rand(k,n)
+      W, H = np.random.rand(m,k) + 1, np.random.rand(k,n) + 1
       H1, W1, H2, W2 = source_split_matrices(H, W, split_index)
       with self.subTest():
          self.assertEqual(H1.shape, (split_index, n)) 
@@ -324,7 +324,7 @@ class NMFTests(unittest.TestCase):
       # plot_matrix(maryV, 'mary v', 'timesteps', 'frequency', show=True)
       maryV = maryV.T   # orient to natural way
       # print('V before to sig:', maryV.shape, np.sum(maryV), 'phases:', mary_synth_phases.shape)
-      mary_synth_sig = make_synthetic_signal(maryV, mary_synth_phases, PIANO_WDW_SIZE, mary_type, ova=True, debug=True) 
+      mary_synth_sig = make_synthetic_signal(maryV, mary_synth_phases, PIANO_WDW_SIZE, mary_type, ova=True, debug=False) 
       # print('Synth Mary Sig:', mary_synth_sig[50:100], np.sum(mary_synth_sig))
       wavfile.write(test_path + 'synthetic_mary.wav', mary_sr, mary_synth_sig)
 

@@ -16,6 +16,8 @@ PIANO_WDW_SIZE = 4096
 SPGM_BRAHMS_RATIO = 0.08
 EPSILON = 10 ** (-10)
 
+BRAHMS_SILENCE_WDWS = 15
+
 def plot_signal(sig, orig_type, name, plot_path=None, show=False):
     # Make plottable mono
     if isinstance(sig[0], np.ndarray):
@@ -75,6 +77,8 @@ def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=F
                 aspect=ratio,
                 origin='lower',
                 extent=extent,
+                # vmin= 0,      # Remove for CONSTANT COLORS
+                # vmax = 10,    # Remove for CONSTANT COLORS
                 interpolation='none')
         except TypeError as e:
             print('CAUGHT ERROR IN PLOT_MATRIX', e)
@@ -188,7 +192,7 @@ def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False, hop_size
     if debug:
         # plot_matrix(spectrogram, 'Built Spectrogram', 'frequency', 'time segments', ratio=SPGM_BRAHMS_RATIO, show=True)
         # TEMP - make pretty looking
-        plot_matrix(spectrogram.T, 'Built Spectrogram', 'frequency', 'time segments', ratio=SPGM_BRAHMS_RATIO, show=True)
+        plot_matrix(spectrogram.T[:, BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS], 'Built Spectrogram', 'frequency', 'time segments', ratio=SPGM_BRAHMS_RATIO, show=True)
 
     return spectrogram, pos_phases
 
@@ -378,10 +382,10 @@ def reconstruct_audio(sig, wdw_size, out_filepath, sig_sr, ova=False, segment=Fa
         print('\n--Making Signal Spectrogram--\n')
         spectrogram, phases = make_spectrogram(sig, wdw_size, EPSILON, ova=ova, debug=debug)
 
-    plot_matrix(spectrogram[15:-15].T, name='Original Recording', 
+    # plot_matrix(spectrogram[15:-15].T, name='Original Recording', 
+    #             xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(debug_plot_path + 'piano_spectrogram.png'), show=False)
+    plot_matrix(spectrogram.T, name='Piano Recording Spectrogram', 
                 xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(debug_plot_path + 'piano_spectrogram.png'), show=False)
-    # plot_matrix(spectrogram.T, name='Piano Recording Spectrogram', 
-    #             xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(debug_plot_path + 'piano_spectrogram.png'), show=True)
     
     print('\n--Making Synthetic Signal--\n')
     synthetic_sig = make_synthetic_signal(spectrogram, phases, wdw_size, orig_sig_type, ova=ova, debug=debug)
