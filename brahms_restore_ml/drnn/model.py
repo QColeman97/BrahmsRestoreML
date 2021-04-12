@@ -31,17 +31,18 @@ class UnStandardize(Layer):
 # TF Masking layer has too compilcated operations for a lambda, and want to serialize model
 class TimeFreqMasking(Layer):
     # Init is for input-independent variables
-    def __init__(self, epsilon, seq_len, **kwargs):
+    def __init__(self, epsilon, seq_len, use_bv, **kwargs):
         super(TimeFreqMasking, self).__init__(**kwargs)
         self.epsilon = epsilon
         self.seq_len = seq_len
+        self.use_bv = use_bv
 
     # No build method, b/c passing in multiple inputs to layer (no single shape)
 
     def call(self, inputs):
         y_hat_self, y_hat_other, x_mixed = inputs
         mask = tf.abs(y_hat_self) / (tf.abs(y_hat_self) + tf.abs(y_hat_other) + self.epsilon)
-        y_tilde_self = mask[:, :self.seq_len, :] * x_mixed
+        y_tilde_self = y_hat_self[:, :self.seq_len, :] if self.use_bv else (mask[:, :self.seq_len, :] * x_mixed)
         return y_tilde_self
     
     # config only contains things in __init__
@@ -458,10 +459,12 @@ def make_model(features, sequences, name='Model', epsilon=10 ** (-10),
                     ), name='noise_hat') (x)  # source 2 branch
     piano_pred = TimeFreqMasking(epsilon=epsilon, 
                                 seq_len=sequences,  # (TRAIN_SEQ_LEN_SMALL if self.low_time_steps else TRAIN_SEQ_LEN),
+                                use_bv=use_bv,
                                 # low_time_steps=low_tsteps,
                                 name='piano_pred') ((piano_hat, noise_hat, input_layer))
     noise_pred = TimeFreqMasking(epsilon=epsilon, 
                                 seq_len=sequences,
+                                use_bv=use_bv,
                                 # low_time_steps=low_tsteps,
                                 name='noise_pred') ((noise_hat, piano_hat, input_layer))
 

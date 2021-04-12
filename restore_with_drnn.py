@@ -29,14 +29,15 @@ def run_top_gs_result(num_str, best_config,
     # train_batch_size = 4
     # # TEMP - make what PC can actually handle (3072 run, but definitely 2048)
     # train_batch_size = 6
+    # for smaller
     if low_time_steps:
         train_batch_size = 50   # 50 # 50 sometimes caused OOM
     else:
         train_batch_size = 4    # no dimred & no lowtsteps
     train_loss_const = best_config['gamma']
-    # EVAL CHANGE - for BVS dense layers gs - 0.3 meaningless
-    if low_time_steps:
-        train_loss_const = 0.1 # 0.15 # 0.3    # bad for looped noise & normal piano data
+    # # EVAL CHANGE - for BVS dense layers gs - 0.3 meaningless
+    # if low_time_steps:
+    #     train_loss_const = 0.1 # 0.15 # 0.3    # bad for looped noise & normal piano data
     train_epochs = best_config['epochs']
     # # EVAL CHANGE - change back
     if low_time_steps:
@@ -44,7 +45,7 @@ def run_top_gs_result(num_str, best_config,
     # train_epochs = 15 # TEMP - optimize learning
     # TEMP - exploit high epochs
     if train_epochs > 10:
-        patience = 10
+        patience = 10 # 20
     train_opt_name = best_config['optimizer']
     train_opt_clipval = None if (best_config['clip value'] == -1) else best_config['clip value']
     train_opt_lr = best_config['learning rate']
@@ -115,6 +116,7 @@ def run_top_gs_result(num_str, best_config,
         print('\nERROR happened in child and it died')
         exit(1)
     process_train.join()
+    recv_end.close()    # new, hopefully stops data persistence between eval_src_sep calls
 
     epoch_r = range(1, len(losses)+1)
     plt.plot(epoch_r, val_losses, 'b', label = 'Validation Loss')
@@ -125,7 +127,6 @@ def run_top_gs_result(num_str, best_config,
     plt.legend()
     plt.savefig('brahms_restore_ml/drnn/train_val_loss_chart' + name + '.png')
 
-    send_end, recv_end = None, None     # strange behavior fix?
     # evaluate_source_sep(x_train_files, y1_train_files, y2_train_files, 
     #                     x_val_files, y1_val_files, y2_val_files,
     #                     num_train, num_val,
@@ -183,7 +184,7 @@ def main():
     dmged_piano_only = True    # Promising w/ BVs
     # TRAIN DATA NOISE PARAMS
     loop_bare_noise = False     # to control bare_noise in nn_data_gen, needs curr for low_time_steps
-    artificial_noise = False
+    artificial_noise = True
 
     test_on_synthetic = False
     # wdw_size = PIANO_WDW_SIZE
@@ -192,26 +193,28 @@ def main():
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search/'           # for use w/ grid search mode    
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_pc_wb/'     # PC
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_lstm/'    # F35
-    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results  
+    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_wb/'        # best results  
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps_two/'       # low tsteps   2 
     # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_low_tsteps_big/'       # low tsteps   3
-    gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_dmgpiano_bvs/'       # dmgpiano (bvs optional)
+    # gs_output_path = 'brahms_restore_ml/drnn/output_grid_search_dmgpiano_bvs/'       # dmgpiano (bvs optional)
     recent_model_path = 'brahms_restore_ml/drnn/recent_model'
+    # recent_model_path = 'brahms_restore_ml/drnn/recent_model_dmgedp_artn_151of3072'
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_149of3072'    # restore from curr best
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_111of144_earlystop'    # restore from curr best
     # recent_model_path = 'brahms_restore_ml/drnn/recent_model_3of4'    # restore from best in small gs
-    # infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
+    infer_output_path = 'brahms_restore_ml/drnn/output_restore/'
     # infer_output_path = 'brahms_restore_ml/drnn/output_restore_gs3072_loopnoise/'    # eval, do_curr_best, 3072 combos, looped noise
     # infer_output_path = 'brahms_restore_ml/drnn/output_restore_151of3072_eval/'    # eval, tweaks curr_best
-    infer_output_path = 'brahms_restore_ml/drnn/output_restore_pbv_eval/'    # eval, tweaks curr_best
+    # infer_output_path = 'brahms_restore_ml/drnn/output_restore_pbv_eval/'    # eval, tweaks curr_best
+    # infer_output_path = 'brahms_restore_ml/drnn/output_restore_pbv_eval_nomask/'    # eval, tweaks curr_best
     brahms_path = 'brahms.wav'
 
     # To run best model configs, data_from_numpy == True & mode == train
-    do_curr_best, curr_best_combos, curr_best_done_on_pc = False, '9', True
+    do_curr_best, curr_best_combos, curr_best_done_on_pc = False, '3072', False
     # # F35 LSTM
     # top_result_nums = [72, 128, 24, 176, 8, 192, 88, 112]
     # F35 WB
-    # top_result_nums = [151] # [151, 151, 151, 151, 151] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
+    top_result_nums = [151] # [151, 151, 151, 151, 151] # temp - do 1 run # [1488, 1568, 149, 1496, 1680, 86, 151, 152]
     # # # top_result_nums = [1488, 1568, 149, 1496, 1680, 86, 151, 152] 
     # # PC WB
     # top_result_nums = [997, 1184, 1312, 1310, 1311, 1736]
@@ -226,14 +229,17 @@ def main():
     # # Dmg piano data
     # top_result_nums = [1,2,3]
     # Dmg piano w/ BVs data
-    top_result_nums = [3,6,9]
+    # top_result_nums = [3,6,9]
+    # top_result_nums = [1] # try ignore noise loss
+    # top_result_nums = [1,3,1,3]   # for larger help, bs constant
+    # top_result_nums = [1,3,1,3,1,3,1,3]   # for larger help
     top_result_paths = [gs_output_path + 'result_' + str(x) + '_of_' + curr_best_combos +
                         ('.txt' if curr_best_done_on_pc else '_noPC.txt') for x in top_result_nums]
     # NEW
     output_file_addon = ''
-    data_from_numpy = False
+    data_from_numpy = True
     tuned_a430hz = False # may not be helpful, as of now does A=436Hz by default
-    basis_vector_features = True
+    basis_vector_features = False   # bust
     if tuned_a430hz:
         recent_model_path += '_a436hz' # tune_temp '_a430hz'
         output_file_addon += '_a436hz' # tune_temp '_a430hz'
@@ -249,6 +255,9 @@ def main():
     elif not loop_bare_noise:
         recent_model_path += '_stretchn'
         output_file_addon += '_stretchn'
+    if not do_curr_best:
+        recent_model_path += '_151of3072'
+        output_file_addon += '_151of3072'
     if do_curr_best and (len(top_result_nums) == 1) and (mode == 't'):
         recent_model_path += ('_' + str(top_result_nums[0]) + 'of' + str(curr_best_combos))
     if do_curr_best and (len(top_result_nums) == 1) and (mode == 'r'):
@@ -267,7 +276,7 @@ def main():
     # Note: FROM PO-SEN PAPER - about loss_const
     #   Empirically, the value γ is in the range of 0.05∼0.2 in order
     #   to achieve SIR improvements and maintain SAR and SDR.
-    train_batch_size = 100 if low_time_steps else (6 if pc_run else 12)
+    train_batch_size = 50 if low_time_steps else (6 if pc_run else 12)
     # train_batch_size = 3 if pc_run else 12  # TEMP - for no dimreduc
     train_loss_const = 0.1
     train_epochs = 10
@@ -496,21 +505,74 @@ def main():
                     best_config = json.loads(gs_result_file.readline())
 
                     # EVAL EDITS
-                    name_suffix = 'g=0.1_dmgp_pbv'
-                    if i == 0:
-                        # best_config['gamma'] = 0.1
-                        name_suffix += '_1Dense'
-                    elif i == 1:
-                        # best_config['gamma'] = 0.2
-                        name_suffix += '_2Dense'
+                    name_suffix = 'g=0.1_stretchartn_dmgp'
+                    # name_suffix = 'g=0.1_dmgp_pbv'
+                    # if i == 0:
+                    #     name_suffix += '_e150'
+                    #     name_suffix += '_1Dense'
+                    #     best_config['epochs'] = 150
+                    # elif i == 1:
+                    #     name_suffix += '_e150'
+                    #     name_suffix += '_3Dense'
+                    #     best_config['epochs'] = 150
                     # elif i == 2:
-                    #     best_config['gamma'] = 0.3
+                    #     name_suffix += '_e300'
+                    #     name_suffix += '_1Dense'
+                    #     best_config['epochs'] = 300
+                    # else:
+                    #     name_suffix += '_e300'
+                    #     name_suffix += '_3Dense'
+                    #     best_config['epochs'] = 300
+                    # if i == 0:
+                    #     name_suffix += '_e150'
+                    #     name_suffix += '_b10'
+                    #     name_suffix += '_1Dense'
+                    #     best_config['epochs'] = 150
+                    #     best_config['batch_size'] = 10
+                    # elif i == 1:
+                    #     name_suffix += '_e150'
+                    #     name_suffix += '_b10'
+                    #     name_suffix += '_3Dense'
+                    #     best_config['epochs'] = 150
+                    #     best_config['batch_size'] = 10
+                    # elif i == 2:
+                    #     name_suffix += '_e150'
+                    #     name_suffix += '_b40'
+                    #     name_suffix += '_1Dense'
+                    #     best_config['epochs'] = 150
+                    #     best_config['batch_size'] = 40
                     # elif i == 3:
-                    #     best_config['gamma'] = 0.4
-                    else:
-                        name_suffix += '_3Dense'
-                        # best_config['gamma'] = 0.5
-                    # name_suffix = str(best_config['gamma'])
+                    #     name_suffix += '_e150'
+                    #     name_suffix += '_b40'
+                    #     name_suffix += '_3Dense'
+                    #     best_config['epochs'] = 150
+                    #     best_config['batch_size'] = 40
+                    # elif i == 4:
+                    #     name_suffix += '_e300'
+                    #     name_suffix += '_b10'
+                    #     name_suffix += '_1Dense'
+                    #     best_config['epochs'] = 300
+                    #     best_config['batch_size'] = 10
+                    # elif i == 5:
+                    #     name_suffix += '_e300'
+                    #     name_suffix += '_b10'
+                    #     name_suffix += '_3Dense'
+                    #     best_config['epochs'] = 300
+                    #     best_config['batch_size'] = 10
+                    # elif i == 6:
+                    #     name_suffix += '_e300'
+                    #     name_suffix += '_b40'
+                    #     name_suffix += '_1Dense'
+                    #     best_config['epochs'] = 300
+                    #     best_config['batch_size'] = 40
+                    # else:
+                    #     name_suffix += '_e300'
+                    #     name_suffix += '_b40'
+                    #     name_suffix += '_3Dense'
+                    #     best_config['epochs'] = 300
+                    #     best_config['batch_size'] = 40
+
+                    # name_suffix += str(best_config['gamma'])
                     # Temp test for LSTM -> until can grid search
                     # # TEMP - until F35 back up, make managable for PC
                     # if (len(best_config['layers']) < 4) or (len(best_config['layers']) == 4 and best_config['layers'][0]['type'] == 'Dense'):

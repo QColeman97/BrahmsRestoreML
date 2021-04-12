@@ -34,6 +34,9 @@ __pycache__/
 /brahms_restore_ml/drnn/recent_model_bvs_dmgedp_149of3072/
 /brahms_restore_ml/drnn/recent_model_bvs_dmgedp/
 /brahms_restore_ml/drnn/recent_model_bvs_dmgedp_151of3072/
+/brahms_restore_ml/drnn/recent_model_bvs_dmgedp_stretchn/
+/brahms_restore_ml/drnn/recent_model_dmgedp_artn_151of3072/
+/brahms_restore_ml/drnn/recent_model_dmgedp_stretchn_151of3072/
 /brahms_restore_ml/drnn/recent_model_dmgedp/
 /brahms_restore_ml/drnn/src/subclass_model_example.py
 /brahms_restore_ml/drnn/src/custom_train_loop_example.py
@@ -61,8 +64,10 @@ __pycache__/
 /brahms_restore_ml/drnn/output_restore_151of3072_eval/
 /brahms_restore_ml/drnn/output_restore_stretchshrinknoise/
 /brahms_restore_ml/drnn/output_restore_pbv_eval/
+/brahms_restore_ml/drnn/output_restore_pbv_eval_nomask/
 /brahms_restore_ml/drnn/output_restore/
 /brahms_restore_ml/drnn/old_eval_wav_smpls/
+/brahms_restore_ml/drnn/old_eval_spgm_plots/
 /brahms_restore_ml/drnn/eval_wav_smpls/
 
 .vs
