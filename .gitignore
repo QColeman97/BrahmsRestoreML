@@ -89,7 +89,10 @@ __pycache__/
 /brahms_restore_ml/nmf/output_test_writefix_newbv/
 /brahms_restore_ml/nmf/old_test_output/
 /brahms_restore_ml/nmf/eval_wav_smpls/
-
+/brahms_restore_ml/nmf/eval_spgm_plots/
+/brahms_restore_ml/nmf/appdx_wav_files/
+/brahms_restore_ml/nmf/appdx_plots/
+/brahms_restore_ml/nmf/old/
 
 .vscode
 
