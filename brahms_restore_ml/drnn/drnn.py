@@ -235,7 +235,7 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     if ret_queue is not None:
         # ret_queue not a queue, it's send end of pipe
         ret_queue.send((history['loss'], history['val_loss']))
-    
+        ret_queue.close()   # new, hopefully stops data persistence in this function call
     else:
         return model
 
@@ -856,8 +856,9 @@ def restore_with_drnn(output_path, recent_model_path,
         # if not write_noise_sig:
         restore_plot_path = os.getcwd() + '/brahms_restore_ml/drnn/eval_spgm_plots/'
         # Eval name detection - gamma
-        eval_param_str = name_addon.split('_')[-1]
-        eval_name, plot_name = ('151of3072_g=0.1_snoise_dmgp_pbv' + eval_param_str), ('2 RNNs, DmgP-StretchN-Data, PianoInc, ' + eval_param_str + ', Gamma = 0.1')
+        eval_param_str = '_' + ('_'.join(name_addon.split('_')[-2:]))
+        eval_name, plot_name = '151of3072_g=0.1_sanoise_dmgp', ('2 RNNs, DmgP-StretchArtN-Data, Adam w/ low LR, Gamma = 0.1')
+        # eval_name, plot_name = ('151of3072_g=0.1_dmgp_pbv' + eval_param_str), ('2 RNNs, DmgP-Data, PianoInc, ' + eval_param_str + ', Gamma = 0.1')
         # eval_name, plot_name = ('151of3072_' + 'g=' + eval_param_str), ('2 RNNs, Adam w/ low LR, Gamma = ' + eval_param_str)
         # eval_name, plot_name = '111of144_lowtsteps', '100 timesteps, Gamma = 0.3, Epochs = 100, Adam w/ GradClip, BS = 100'
         # eval_name, plot_name = '149of3072_lowtsteps_highepochs', '100 Timesteps, Epochs = 100, 2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 50'
