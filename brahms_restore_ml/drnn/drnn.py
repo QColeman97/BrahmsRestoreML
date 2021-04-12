@@ -61,7 +61,7 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
                         data_from_numpy=False, tuned_a430hz=False, use_basis_vectors=False, 
                         dmged_y1_train_files=None, dmged_y1_val_files=None,
                         loop_bare_noise=False, low_time_steps=False, l1_reg=None,
-                        artificial_noise=False):
+                        artificial_noise=False, ignore_noise_loss=False):
                         # pad_len=-1):
 
     from .model import make_model
@@ -186,7 +186,7 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
     print('Making model...')
     model = make_model(n_feat, n_seq, name='Training Model', epsilon=epsilon, loss_const=loss_const,
                             config=config, t_mean=t_mean, t_std=t_std, optimizer=optimizer, 
-                            use_bv=use_basis_vectors, l1_reg=l1_reg)
+                            use_bv=use_basis_vectors, l1_reg=l1_reg, ignore_noise_loss=ignore_noise_loss)
     print(model.summary())
 
     print('Going into training now...')
@@ -240,7 +240,8 @@ def evaluate_source_sep(x_train_files, y1_train_files, y2_train_files,
         return model
 
 
-def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False, low_tsteps=False):
+def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False, low_tsteps=False,
+                   dmged_piano=False):
     # import tensorflow as tf
 
     # IMPORTANT: 1st GS - GO FOR WIDE RANGE OF OPTIONS & LESS OPTIONS PER HP
@@ -254,7 +255,9 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False,
     # batch_size_optns = [1, 3] if pc_run else [4, 8]    # OOM on f35 and on PC, w/ restart script,
     # batch_size_optns = [1, 3] if pc_run else [8, 16]    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
     # batch_size_optns = [4] if pc_run else [8, 16]    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
-    if low_tsteps:
+    if dmged_piano:
+        batch_size_optns = [50]
+    elif low_tsteps:
         batch_size_optns = [20, 50, 100]
     else:
         batch_size_optns = [4] if (pc_run and not small_gs) else ([8] if small_gs else [8, 16])    # Fix TF mem management w/ multiprocessing - it lets go of mem after a model train now
@@ -265,13 +268,19 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False,
 
     # batch_size_optns = [5] if pc_run else [8, 12] 
     # epochs total options 10, 50, 100, but keep low b/c can go more if neccesary later (early stop pattern = 5)
-    epochs_optns = [20, 50, 100, 500] if (use_bv or small_gs or low_tsteps) else ([15, 50] if low_tsteps else [10])
+
+    if dmged_piano:
+        epochs_optns = [40]
+    else:
+        epochs_optns = [20, 50, 100, 500] if (use_bv or small_gs or low_tsteps) else ([15, 50] if low_tsteps else [10])
     # loss_const total options 0 - 0.3 by steps of 0.05
     # loss_const_optns = [0.05, 0.2]
     # loss_const_optns = [0.05, 0.1] if pc_run else [0.05]    # first of two HPs dropping, PC GS time constraint
     # loss_const_optns = [0.05, 0.1] if pc_run else [0.05, 0.1]    # Multi-processing fix -> orig numbers
     # loss_const_optns = [0.1] if (pc_run and not small_gs) else ([0.1, 0.15] if small_gs else [0.05, 0.1])    # Multi-processing fix -> orig numbers
-    if low_tsteps:
+    if dmged_piano:
+        loss_const_optns = [0.1, 0.2, 0.3]
+    elif low_tsteps:
         loss_const_optns = [0.2, 0.3, 0.4]  # [0.05, 0.15, 0.3]
     else:
         loss_const_optns = [0.1] if pc_run else [0.05, 0.1]     # Multi-processing fix -> orig numbers
@@ -335,7 +344,10 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False,
     #                    (None, 0.0001, 'Adam'), 
     #                    (10, 0.001, 'Adam')]
     # optimizer_optns = [(0.5, 0.001, 'Adam'), (10, 0.001, 'Adam')] if low_tsteps else [(10, 0.001, 'Adam')]
-    optimizer_optns = [(0.5, 0.001, 'Adam'), (1, 0.001, 'Adam')] if low_tsteps else [(10, 0.001, 'Adam')]
+    if dmged_piano:
+        optimizer_optns = [(None, 0.0001, 'Adam')]
+    else:
+        optimizer_optns = [(0.5, 0.001, 'Adam'), (1, 0.001, 'Adam')] if low_tsteps else [(10, 0.001, 'Adam')]
 
     # else:
     #     optimizer_optns = [
@@ -378,11 +390,11 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False,
     # dropout_optns = [(0.25,0.25)]
     # dropout_optns = [(0.0,0.0), (0.25,0.25)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
     # dropout_optns = [(0.0,0.0), (0.5,0.5)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
-    dropout_optns = [(0.0,0.0)] if use_bv or small_gs or low_tsteps else [(0.0,0.0), (0.5,0.5)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
+    dropout_optns = [(0.0,0.0)] if (use_bv or small_gs or low_tsteps) else [(0.0,0.0), (0.5,0.5)]    # For RNN only    IF NEEDED CAN GO DOWN TO 2 (conservative value)
     # # MEM BOUND TEST
     # scale_optns = [True]
     # scale_optns = [False, True]
-    scale_optns = [True] if use_bv else ([False] if small_gs else [False, True])
+    scale_optns = [False] if (dmged_piano or use_bv) else ([False] if small_gs else [False, True])
     # # MEM BOUND TEST
     # rnn_skip_optns = [True]
     # rnn_skip_optns = [False, True]
@@ -413,12 +425,12 @@ def get_hp_configs(bare_config_path, pc_run=False, use_bv=False, small_gs=False,
         if use_bv:
             with open(bare_config_path + 'hp_arch_config_bvs.json') as hp_file:
                 bare_config_optns = json.load(hp_file)['archs']
-        elif small_gs:
-            with open(bare_config_path + 'hp_arch_config_final_no_pc_long.json') as hp_file:
-                bare_config_optns = [json.load(hp_file)['archs'][0]]    # 0th small enough for pc
         elif low_tsteps:
             with open(bare_config_path + 'hp_arch_config_final_fulldim.json') as hp_file:
                 bare_config_optns = [json.load(hp_file)['archs'][0]]    # OOM, w/ gamma=0.3 & bs=100 earlier
+        elif small_gs:
+            with open(bare_config_path + 'hp_arch_config_final_no_pc_long.json') as hp_file:
+                bare_config_optns = [json.load(hp_file)['archs'][0]]    # 0th small enough for pc
         else:
             with open(bare_config_path + 'hp_arch_config_final.json') as hp_file:
                 bare_config_optns = json.load(hp_file)['archs']
@@ -472,7 +484,8 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                 gsres_path, early_stop_pat=3, pc_run=False, 
                 gs_id='', restart=False, dataset2=False,
                 tuned_a430hz=False, use_basis_vectors=False,
-                save_model_path=None, low_time_steps=False):  # NEW
+                save_model_path=None, low_time_steps=False,
+                ignore_noise_loss=False):  # NEW
 
     # IMPORTANT to take advantage of what's known in test data to minimize factors
     # Factors: batchsize, epochs, loss_const, optimizers, gradient clipping,
@@ -568,7 +581,8 @@ def grid_search(x_train_files, y1_train_files, y2_train_files,
                                                                     combos, gs_id,
                                                                     send_end, dataset2, None, None,
                                                                     True, tuned_a430hz, use_basis_vectors, 
-                                                                    None, None, True, low_time_steps, None, False))
+                                                                    None, None, True, low_time_steps, None, False,
+                                                                    ignore_noise_loss))
                             process_train.start()
                                               
                             # Keep polling until child errors or child success (either one guaranteed to happen)
@@ -841,9 +855,12 @@ def restore_with_drnn(output_path, recent_model_path,
         # FOR EVAL - SPECTROGRAM PLOTS
         # if not write_noise_sig:
         restore_plot_path = os.getcwd() + '/brahms_restore_ml/drnn/eval_spgm_plots/'
+        # Eval name detection - gamma
+        eval_param_str = name_addon.split('_')[-1]
+        eval_name, plot_name = ('151of3072_g=0.1_snoise_dmgp_pbv' + eval_param_str), ('2 RNNs, DmgP-StretchN-Data, PianoInc, ' + eval_param_str + ', Gamma = 0.1')
+        # eval_name, plot_name = ('151of3072_' + 'g=' + eval_param_str), ('2 RNNs, Adam w/ low LR, Gamma = ' + eval_param_str)
         # eval_name, plot_name = '111of144_lowtsteps', '100 timesteps, Gamma = 0.3, Epochs = 100, Adam w/ GradClip, BS = 100'
-        # todo
-        eval_name, plot_name = '149of3072_lowtsteps_highepochs', '100 Timesteps, Epochs = 100, 2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 50'
+        # eval_name, plot_name = '149of3072_lowtsteps_highepochs', '100 Timesteps, Epochs = 100, 2 Bidir-RNNs, Res. Cxn, RMSprop w/ low LR, BS = 50'
         # eval_name, plot_name = '149of3072_lowtsteps_l1reg', '100 Timesteps, L1 Regularize, 2 RNNs, RMSprop w/ low LR, BS = 50'
         # eval_name, plot_name = '1496of3072', 'Dense+TanH, 3 Bidir-RNNs, Res. Cxn, Scaling, Adam w/ GradClip, BS = 8'
         plot_matrix(restored_spgm[BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS].T, name=plot_name, 

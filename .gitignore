@@ -32,6 +32,9 @@ __pycache__/
 /brahms_restore_ml/drnn/recent_model_111of144_earlystop/
 /brahms_restore_ml/drnn/recent_model_bvs_149of3072/
 /brahms_restore_ml/drnn/recent_model_bvs_dmgedp_149of3072/
+/brahms_restore_ml/drnn/recent_model_bvs_dmgedp/
+/brahms_restore_ml/drnn/recent_model_bvs_dmgedp_151of3072/
+/brahms_restore_ml/drnn/recent_model_dmgedp/
 /brahms_restore_ml/drnn/src/subclass_model_example.py
 /brahms_restore_ml/drnn/src/custom_train_loop_example.py
 /brahms_restore_ml/drnn/src/install_and_run.py
@@ -46,11 +49,20 @@ __pycache__/
 /brahms_restore_ml/drnn/output_grid_search_low_tsteps_one/
 /brahms_restore_ml/drnn/output_grid_search_low_tsteps_two/
 /brahms_restore_ml/drnn/output_grid_search_low_tsteps_big/
+/brahms_restore_ml/drnn/output_grid_search_dmgpiano/
+/brahms_restore_ml/drnn/output_grid_search_dmgpiano_ignorenoiseloss/
 /brahms_restore_ml/drnn/output_grid_search/
+/brahms_restore_ml/drnn/output_grid_search_dmgpiano_bvs/
+/brahms_restore_ml/drnn/old_output_restore_gs3072_loopnoise/
+/brahms_restore_ml/drnn/old_output_restore_151of3072_eval/
+/brahms_restore_ml/drnn/old_output_restore_stretchshrinknoise/
+/brahms_restore_ml/drnn/old_output_restore_pbv_eval/
 /brahms_restore_ml/drnn/output_restore_gs3072_loopnoise/
 /brahms_restore_ml/drnn/output_restore_151of3072_eval/
 /brahms_restore_ml/drnn/output_restore_stretchshrinknoise/
+/brahms_restore_ml/drnn/output_restore_pbv_eval/
 /brahms_restore_ml/drnn/output_restore/
+/brahms_restore_ml/drnn/old_eval_wav_smpls/
 /brahms_restore_ml/drnn/eval_wav_smpls/
 
 .vs
