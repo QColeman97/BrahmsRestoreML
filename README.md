@@ -12,7 +12,7 @@ Piano samples from [University of Iowa Electronic Music Studios](http://theremin
 ```
 python restore_with_nmf.py brahms.wav
 ```
-#### Restore with DRNN (requires TF >= 2.0 and GPU >= NVIDIA GTX 970):
+#### Restore with DRNN (requires TF >= 2.0, ran on GPU = NVIDIA GTX 970):
 ```
 python restore_with_drnn.py t true
 python restore_with_drnn.py r true
