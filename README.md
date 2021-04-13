@@ -1,5 +1,5 @@
 # Machine Learning Approaches to Historic Music Restoration - Brahms' 1889 Recording
-#### Master's thesis for Cal Poly Blended (4+1) Computer Science Program - [Presentation Link](https://docs.google.com/presentation/d/10V6d6CxRILrC-cb6raxMNgtBop7NJA5XW9NpZTX9lPc/edit?usp=sharing)
+#### Master's thesis for Cal Poly Blended (4+1) Computer Science Program - [Presentation](https://docs.google.com/presentation/d/10V6d6CxRILrC-cb6raxMNgtBop7NJA5XW9NpZTX9lPc/edit?usp=sharing)
 
 Uses machine learning (ML) to attempt restoring the original damaged Brahms piano recording.
 Digital signal processing (pre and post processing) used in pair with either 2 core ML techniques: non-negative matrix factorization (NMF) or deep recurrent neural networks (DRNNs). Top result from NMF approach using high-quality piano samples.
