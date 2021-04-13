@@ -3,9 +3,9 @@
 
 Digital signal processing (pre and post processing) is used in pair with either 2 core machine learning techniques: non-negative matrix factorization (NMF) or deep recurrent neural networks (DRNNs).
 
-Background info, original recording (brahms.wav) & benchmark from [CCRMA Webpage](https://ccrma.stanford.edu/groups/edison/brahms/brahms.html)
+Background info, original recording (brahms.wav) & benchmark from [CCRMA Webpage](https://ccrma.stanford.edu/groups/edison/brahms/brahms.html).
 
-Piano samples from [University of Iowa Electronic Music Studios](http://theremin.music.uiowa.edu/MISpiano.html)
+Piano samples from [University of Iowa Electronic Music Studios](http://theremin.music.uiowa.edu/MISpiano.html).
 
 #### Restore with NMF (best result):
 ```
