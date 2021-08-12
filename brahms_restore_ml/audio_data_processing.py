@@ -13,13 +13,12 @@ import os
 STD_SR_HZ = 44100
 PIANO_WDW_SIZE = 4096
 # Resolution (Windows per second) = STD_SR_HZ / PIANO_WDW_SIZE
-SPGM_BRAHMS_RATIO = 0.08
+SPGM_BRAHMS_RATIO = 0.08    # for pyplot
 EPSILON = 10 ** (-10)
-
 BRAHMS_SILENCE_WDWS = 15
 
 def plot_signal(sig, orig_type, name, plot_path=None, show=False):
-    # Make plottable mono
+    # Make plottable mono signal
     if isinstance(sig[0], np.ndarray):
         sig = np.average(sig, axis=-1).astype(orig_type)
 
@@ -41,7 +40,6 @@ def plot_signal(sig, orig_type, name, plot_path=None, show=False):
 # Supports matrices & arrays
 def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=False, plot_path=None):    
     def frequency_in_hz(x, pos):
-        # return '%.1f Hz' % x
         return '%.2f Hz' % ((x * STD_SR_HZ)/PIANO_WDW_SIZE)
     # https://matplotlib.org/3.1.1/gallery/ticks_and_spines
     formatter = FuncFormatter(frequency_in_hz)
@@ -96,13 +94,10 @@ def plot_matrix(matrix, name, xlabel, ylabel, ratio=0.08, show=False, true_dim=F
 def sig_length_to_spgm_shape(n_smpls, wdw_size=PIANO_WDW_SIZE, hop_size_divisor=2, ova=True):
     hop_size = ((wdw_size // hop_size_divisor) 
                 if (ova and n_smpls >= (wdw_size + (wdw_size // hop_size_divisor))) 
-                else wdw_size)
-    # Number of segments depends on if OVA implemented    
-    # Only works for hop_size = wdw_size // 2
+                else wdw_size) 
+    # If OVA is active, only works for hop_size = wdw_size // 2
     num_sgmts = (math.ceil(n_smpls / hop_size) - 1) if ova else math.ceil(n_smpls / wdw_size)
-    # TEMP - 2049 -> 2048
-    num_feats = (wdw_size // 2) + 1 # Nothing to do w/ hop size - result of DSP
-    # num_feats = (wdw_size // 2) # Nothing to do w/ hop size - result of DSP
+    num_feats = (wdw_size // 2) + 1     # Nothing to do w/ hop size - result of DSP
     return (num_sgmts, num_feats)
 
 # Returns pos. magnitude & phases of a DFT, given a signal segment
@@ -119,12 +114,9 @@ def signal_to_pos_fft(sgmt, wdw_size, ova=False, debug_flag=False):
     fft = np.fft.fft(sgmt)
     phases_fft = np.angle(fft)
     mag_fft = np.abs(fft)
-    # TEMP - 2049 -> 2048
     pos_phases_fft = phases_fft[: (wdw_size // 2) + 1]
     pos_mag_fft = mag_fft[: (wdw_size // 2) + 1]
     # # From docs - for an even number of input points, A[n/2] represents both positive and negative Nyquist frequency (summed?)
-    # pos_phases_fft = phases_fft[: (wdw_size // 2)]
-    # pos_mag_fft = mag_fft[: (wdw_size // 2)]
 
     if debug_flag:
         if ova:
@@ -132,9 +124,7 @@ def signal_to_pos_fft(sgmt, wdw_size, ova=False, debug_flag=False):
         print('FFT of wdw (len =', len(fft), '):\n', fft[:5])
         print('phases of FFT of wdw:\n', phases_fft[:5])
         print('mag FFT of wdw:\n', mag_fft[:5])
-        # TEMP - 2049 -> 2048
         print('pos FFT of wdw:\n', fft[: (wdw_size // 2) + 1])
-        # print('pos FFT of wdw:\n', fft[: (wdw_size // 2)])
         print('\nType of elem in spectrogram:', type(pos_mag_fft[0]), pos_mag_fft[0].dtype, '\n')
         print('positive mag FFT and phase lengths:', len(pos_mag_fft), len(pos_phases_fft))
         print('positive mag FFT:\n', pos_mag_fft[:5])
@@ -191,7 +181,7 @@ def make_spectrogram(signal, wdw_size, epsilon, ova=False, debug=False, hop_size
     spectrogram[spectrogram == 0], pos_phases[pos_phases == 0] = epsilon, epsilon
     if debug:
         # plot_matrix(spectrogram, 'Built Spectrogram', 'frequency', 'time segments', ratio=SPGM_BRAHMS_RATIO, show=True)
-        # TEMP - make pretty looking
+        # diff - make pretty looking
         plot_matrix(spectrogram.T[:, BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS], 'Built Spectrogram', 'frequency', 'time segments', ratio=SPGM_BRAHMS_RATIO, show=True)
 
     return spectrogram, pos_phases
@@ -204,10 +194,6 @@ def pos_fft_to_signal(pos_mag_fft, pos_phases_fft, wdw_size, ova=False,
     # Append the mirrors of the synthetic magnitudes and phases to themselves
     neg_mag_fft = np.flip(pos_mag_fft[1: wdw_size // 2], axis=0)
     mag_fft = np.concatenate((pos_mag_fft, neg_mag_fft))
-    # # TEMP - 2049 -> 2048
-    # neg_mag_fft = np.flip(pos_mag_fft[1:], axis=0)
-    # # Append nyquist frequency to middle (0?)
-    # mag_fft = np.concatenate((pos_mag_fft, neg_mag_fft))
 
     # The mirror is negative b/c phases are flipped in sign (angle), but not for magnitudes
     neg_phases_fft = np.flip(pos_phases_fft[1: wdw_size // 2] * -1, axis=0)
@@ -236,7 +222,7 @@ def pos_fft_to_signal(pos_mag_fft, pos_phases_fft, wdw_size, ova=False,
     if ova:
         sgmt_halves = np.split(synthetic_sgmt, 2)
         ova_sgmt, end_sgmt = sgmt_halves[0], sgmt_halves[1]
-        # # for hop size != wdw_size//2 support...
+        # # for hop size != wdw_size//2 support...      unfinished
         # sgmt_portions = np.split(synthetic_sgmt, hop_size_divisor)
         # if hop_size_divisor == 2:
         #     ova_sgmt, end_sgmt = sgmt_portions[0], sgmt_portions[1] # First, then second half

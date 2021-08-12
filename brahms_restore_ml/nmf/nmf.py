@@ -78,14 +78,7 @@ SPGM_BRAHMS_RATIO = 0.08
 SPGM_MARY_RATIO = 0.008
 BRAHMS_SILENCE_WDWS = 15
 
-
-# Functions
-
-# # Learning optimization - for ones matrix?
-# def make_row_sum_matrix(mtx, out_shape):
-#     row_sums = mtx.sum(axis=1)
-#     return np.repeat(row_sums, out_shape[1], axis=0)
-
+# NOTES
 # NMF Learning step formulas:
     # H +1 = H * ((Wt matmul (V / (W matmul H))) / (Wt matmul 1) )
     # W +1 = W * (((V / (W matmul H)) matmul Ht) / (1 matmul Ht) )
@@ -102,6 +95,9 @@ BRAHMS_SILENCE_WDWS = 15
 # Old note below, bad idea
 # Have a param to specify when to NOT learn voice in our basis vectors (we shouldn't) 
 # For now, no param and we just shorten the brahms sig before this call
+
+
+# Functions
 
 def updateH(H, W, V, n, l1_pen=0, wholeW=None, wholeH=None):
     Vpart = (V / (W @ H)) if (wholeW is None and wholeH is None) else (V / (wholeW @ wholeH))
@@ -285,7 +281,7 @@ def pick_top_acts(H, top=2, score_range=False):
 
 def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False, noisebv=True, avgbv=True, semisuplearn='None', 
                   semisupmadeinit=False, write_file=True, debug=False, nohanbv=False, prec_noise=True, eqbv=False, incorrect_semisup=False,
-                  learn_iter=MAX_LEARN_ITER, num_noisebv=10, noise_start=6, noise_stop=25, l1_penalty=0, write_noise_sig=False,
+                  learn_iter=MAX_LEARN_ITER, num_noisebv=10, noise_start=6, noise_stop=25, l1_penalty=0, write_noise_sig=True,
                   a430hz_bv=False, scorebv=True, audible_range_bv=False, dmged_pianobv=False, num_pbv_unlocked=None, 
                   top_acts=None, top_acts_score=False):
     orig_sig_type = sig.dtype
@@ -377,9 +373,10 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
             if max_notes is None or (t_step_num_notes > max_notes):
                 max_notes = t_step_num_notes
         avg = avg / piano_activations.shape[1]
-        print('\nAVERAGE # NON-ZERO PIANO ACTIVATIONS PER TIMESTEP:', avg)
-        print('MAX NON-ZERO PIANO ACTIVATIONs IN A TIMESTEP:', max_notes)
-        print('PIANO ACTIVATIONS AT A TIME STEP:', piano_activations[:, rand_activation], '\n')
+        
+        # print('\nAVERAGE # NON-ZERO PIANO ACTIVATIONS PER TIMESTEP:', avg)
+        # print('MAX NON-ZERO PIANO ACTIVATIONs IN A TIMESTEP:', max_notes)
+        # print('PIANO ACTIVATIONS AT A TIME STEP:', piano_activations[:, rand_activation], '\n')
 
         # # FOR L1-penalty - show the average # non-zero activations per timestep - noise
         # max_notes, avg = None, 0 
@@ -428,12 +425,12 @@ def restore_with_nmf(sig, wdw_size, out_filepath, sig_sr, ova=True, marybv=False
         # synthetic_noise_spgm = noise_mask * spectrogram
         # # synthetic_noise_spgm = noise_mask * synthetic_noise_spgm    # mask noise source # doesn't make sense     
 
-        # # FOR EVAL - SPECTROGRAM PLOTS - not during testing
-        # if not write_noise_sig:
-        #     restore_plot_path = os.getcwd() + '/brahms_restore_ml/nmf/eval_spgm_plots/'
-        #     eval_name, plot_name = 'sup_a436hz', 'Supervised NMF, Piano Basis Vectors A4 = 436Hz, 2 NBVs'
-        #     plot_matrix(synthetic_piano_spgm[:, BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS], name=plot_name, 
-        #         xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(restore_plot_path + eval_name + '.png'), show=False)
+        # FOR EVAL - SPECTROGRAM PLOTS - not during testing
+        if not write_noise_sig:
+            restore_plot_path = os.getcwd() + '/brahms_restore_ml/nmf/eval_spgm_plots/'
+            eval_name, plot_name = 'sup_a436hz', 'Supervised NMF, Piano Basis Vectors A4 = 436Hz, 2 NBVs'
+            plot_matrix(synthetic_piano_spgm[:, BRAHMS_SILENCE_WDWS:-BRAHMS_SILENCE_WDWS], name=plot_name, 
+                xlabel='time (4096-sample windows)', ylabel='frequency', plot_path=(restore_plot_path + eval_name + '.png'), show=False)
 
         # Include noise within result to battle any normalizing wavfile.write might do
         synthetic_spgm = np.concatenate((synthetic_piano_spgm, synthetic_noise_spgm), axis=-1)

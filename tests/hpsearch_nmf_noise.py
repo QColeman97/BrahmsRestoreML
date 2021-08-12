@@ -22,15 +22,15 @@ noise_learnnoise_test_path = os.getcwd() + '/brahms_restore_ml/nmf/output/output
 class RestoreNoiseTests(unittest.TestCase):
 
     # NUM NOISE BV TESTS - SEMI-SUP FOR LEARNING THE PIANO (NOT LEARNING NOISE)
-    # # RANDINIT
-    # def test_restore_brahms_sslrn_randinit_noisebvnum_noise19wdws1(self):
-    #     num_noise = 1
-    #     if write_flag:
-    #         out_filepath = noise_test_path + 'sslrn_randinit_noisebv' + str(num_noise) + '_19wdws.wav'
-    #     sr, sig = wavfile.read(brahms_filepath)
-    #     synthetic_sig = restore_with_nmf(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
-    #                                   semisuplearn='Piano', semisupmadeinit=False, write_file=write_flag, debug=debug_flag, 
-    #                                   num_noisebv=num_noise, noise_stop=25, write_noise_sig=True, prec_noise=True)
+    # RANDINIT
+    def test_restore_brahms_sslrn_randinit_noisebvnum_noise19wdws1(self):
+        num_noise = 1
+        if write_flag:
+            out_filepath = noise_test_path + 'sslrn_randinit_noisebv' + str(num_noise) + '_19wdws.wav'
+        sr, sig = wavfile.read(brahms_filepath)
+        synthetic_sig = restore_with_nmf(sig, PIANO_WDW_SIZE, out_filepath, sr, ova=True, noisebv=True, avgbv=True, 
+                                      semisuplearn='Piano', semisupmadeinit=False, write_file=write_flag, debug=debug_flag, 
+                                      num_noisebv=num_noise, noise_stop=25, write_noise_sig=True, prec_noise=True)
 
     # def test_restore_brahms_sslrn_randinit_noisebvnum_noise19wdws2(self):
     #     num_noise = 2
